@@ -1,5 +1,6 @@
 const { cmd } = require("../command");
 const { updateSetting } = require("./bot_db");
+const config = require("../config"); // config එකත් import කරගත්තා default අගයන් ගන්න
 
 // 🖼️ Dashboard Image URL
 const SETTINGS_IMG = "https://github.com/Akashkavindu/ZANTA_MD/blob/main/images/settings.jpg?raw=true";
@@ -14,19 +15,24 @@ cmd({
     category: "main",
     react: "⚙️",
     filename: __filename,
-}, async (zanta, mek, m, { from, reply, isOwner, prefix }) => {
+}, async (zanta, mek, m, { from, reply, isOwner, prefix, userSettings }) => {
     // අයිතිකරුදැයි පරීක්ෂා කිරීම
     if (!isOwner) return reply("⚠️ *මෙම Dashboard එක භාවිතා කළ හැක්කේ බොට් අයිතිකරුට පමණි!*");
 
-    const settings = global.CURRENT_BOT_SETTINGS;
-    const botName = settings.botName || "ZANTA-MD";
+    // [වැදගත් වෙනස]: index.js එකෙන් එවන userSettings ගන්නවා, නැත්නම් global එක ගන්නවා
+    const settings = userSettings || global.CURRENT_BOT_SETTINGS;
+
+    // පෙන්වීමට ගන්නා අගයන් (Settings හි නැත්නම් config එකෙන් හෝ default එකක් ගනී)
+    const botName = settings.botName || config.DEFAULT_BOT_NAME || "ZANTA-MD";
+    const ownerName = settings.ownerName || config.DEFAULT_OWNER_NAME || "Owner";
+    const botPrefix = settings.prefix || prefix || ".";
 
     // --- 📊 Dashboard Text Design ---
     let statusText = `╭━━━〔 ${botName.toUpperCase()} 〕━━━┈⊷\n`;
     statusText += `┃\n`;
-    statusText += `┃ 1️⃣ *Bot Name:* ${settings.botName}\n`;
-    statusText += `┃ 2️⃣ *Owner Name:* ${settings.ownerName}\n`;
-    statusText += `┃ 3️⃣ *Prefix:* [  ${settings.prefix}  ]\n`;
+    statusText += `┃ 1️⃣ *Bot Name:* ${botName}\n`;
+    statusText += `┃ 2️⃣ *Owner Name:* ${ownerName}\n`;
+    statusText += `┃ 3️⃣ *Prefix:* [  ${botPrefix}  ]\n`;
     statusText += `┃ 4️⃣ *Auto Read msg:* ${settings.autoRead === 'true' ? '✅ ON' : '❌ OFF'}\n`;
     statusText += `┃ 5️⃣ *Auto Typing:* ${settings.autoTyping === 'true' ? '✅ ON' : '❌ OFF'}\n`;
     statusText += `┃ 6️⃣ *Status Seen:* ${settings.autoStatusSeen === 'true' ? '✅ ON' : '❌ OFF'}\n`;
