@@ -1,5 +1,6 @@
 const gis = require('g-i-s');
 const { cmd } = require("../command");
+const config = require("../config");
 
 cmd({
     pattern: "jid",
@@ -8,10 +9,11 @@ cmd({
     desc: "Get user's JID or replied user's JID.",
     category: "main",
     filename: __filename,
-}, async (zanta, mek, m, { from, reply, isGroup, sender }) => {
+}, async (zanta, mek, m, { from, reply, isGroup, sender, userSettings }) => { // <--- userSettings එකතු කළා
     try {
-        // Reply karapu message ekak thiyanawanam eyage JID eka gannawa
-        // Nathnam message eka ewapu kenage JID eka gannawa
+        const settings = userSettings || global.CURRENT_BOT_SETTINGS;
+        const botName = settings.botName || config.DEFAULT_BOT_NAME || "ZANTA-MD";
+
         let targetJid = m.quoted ? m.quoted.sender : sender;
 
         let jidMsg = `╭━─━─━─━─━╮\n┃ 🆔 *USER JID INFO* ┃\n╰━─━─━─━─━╯\n\n`;
@@ -22,9 +24,8 @@ cmd({
             jidMsg += `🏢 *Group JID:* ${from}\n\n`;
         }
 
-        jidMsg += `> *© ZANTA-MD ID FINDER*`;
+        jidMsg += `> *© ${botName} ID FINDER*`;
 
-        // Mention ekak ekka message eka yawamu
         await zanta.sendMessage(from, { 
             text: jidMsg, 
             mentions: [targetJid] 
@@ -43,21 +44,20 @@ cmd({
     desc: "Check bot's response speed.",
     category: "main",
     filename: __filename,
-}, async (zanta, mek, m, { from, reply }) => {
+}, async (zanta, mek, m, { from, reply, userSettings }) => { // <--- userSettings එකතු කළා
     try {
-        const startTime = Date.now(); // මැසේජ් එක ලැබුණු වෙලාව
+        const settings = userSettings || global.CURRENT_BOT_SETTINGS;
+        const botName = settings.botName || config.DEFAULT_BOT_NAME || "ZANTA-MD";
 
-        // මුලින්ම පුංචි මැසේජ් එකක් යවනවා
+        const startTime = Date.now();
+
         const pinger = await zanta.sendMessage(from, { text: "🚀 *Checking Speed...*" }, { quoted: mek });
 
-        const endTime = Date.now(); // රිප්ලයි එක යැවූ වෙලාව
-        const ping = endTime - startTime; // කාලය අතර වෙනස
+        const endTime = Date.now();
+        const ping = endTime - startTime;
 
-        const botName = global.CURRENT_BOT_SETTINGS?.botName || "ZANTA-MD";
-
-        // රිප්ලයි එක Edit කරලා Speed එක පෙන්වනවා
         await zanta.sendMessage(from, { 
-            text: `⚡ *${botName} SPEED REPORT*\n\n🚄 *Response Time:* ${ping}ms\n📡 *Status:* Online\n\n> *© ZANTA-MD*`, 
+            text: `⚡ *${botName} SPEED REPORT*\n\n🚄 *Response Time:* ${ping}ms\n📡 *Status:* Online\n\n> *© ${botName}*`, 
             edit: pinger.key 
         });
 
@@ -74,13 +74,15 @@ cmd({
     desc: "Search and download images directly from Google using GIS.",
     category: "download",
     filename: __filename,
-}, async (zanta, mek, m, { from, reply, q }) => {
+}, async (zanta, mek, m, { from, reply, q, userSettings }) => { // <--- userSettings එකතු කළා
     try {
         if (!q) return reply("❤️ *කරුණාකර පින්තූරයේ නම ලබා දෙන්න. (Ex: .img car)*");
 
+        const settings = userSettings || global.CURRENT_BOT_SETTINGS;
+        const botName = settings.botName || config.DEFAULT_BOT_NAME || "ZANTA-MD";
+
         await reply(`🔍 *"${q}" පින්තූර සොයමින් පවතී...*`);
 
-        // g-i-s පාවිච්චි කරලා Google පින්තූර සෙවීම
         gis(q, async (error, results) => {
             if (error) {
                 console.error(error);
@@ -91,13 +93,11 @@ cmd({
                 return reply("❌ *පින්තූර සොයාගත නොහැකි විය.*");
             }
 
-            // ලැබෙන පින්තූර වලින් පළමු එක තෝරා ගැනීම
             const imageUrl = results[0].url;
-            const botName = global.CURRENT_BOT_SETTINGS?.botName || "ZANTA-MD";
 
             await zanta.sendMessage(from, {
                 image: { url: imageUrl },
-                caption: `*🖼️ IMAGE DOWNLOADER*\n\n🔍 *Query:* ${q}\n🚀 *Bot:* ${botName}\n\n> *© Powered by ZANTA-MD*`,
+                caption: `*🖼️ IMAGE DOWNLOADER*\n\n🔍 *Query:* ${q}\n🚀 *Bot:* ${botName}\n\n> *© Powered by ${botName}*`,
             }, { quoted: mek });
         });
 
