@@ -1,5 +1,6 @@
 const { cmd, commands } = require("../command");
 const os = require('os');
+const config = require("../config"); // Config එකත් ඕනේ default දත්ත ගන්න
 
 // 🖼️ MENU Image URL
 const MENU_IMAGE_URL = "https://github.com/Akashkavindu/ZANTA_MD/blob/main/images/menu-new.jpg?raw=true";
@@ -14,13 +15,15 @@ cmd({
     category: "main",
     filename: __filename,
 },
-async (zanta, mek, m, { from, reply, args }) => {
+// [වෙනස]: මෙතන { ..., userSettings } ඇතුළත් කළා
+async (zanta, mek, m, { from, reply, args, userSettings }) => {
     try {
-        // 🚨 DATABASE SETTINGS (Global)
-        const botSettings = global.CURRENT_BOT_SETTINGS || {};
-        const finalPrefix = botSettings.prefix || '.'; 
-        const botName = botSettings.botName || "ZANTA-MD"; 
-        const ownerName = botSettings.ownerName || 'Akash Kavindu';
+        // [වැදගත්]: Database එකෙන් එන userSettings ගන්නවා, නැත්නම් global එක ගන්නවා
+        const settings = userSettings || global.CURRENT_BOT_SETTINGS;
+
+        const finalPrefix = settings.prefix || config.DEFAULT_PREFIX || '.'; 
+        const botName = settings.botName || config.DEFAULT_BOT_NAME || "ZANTA-MD"; 
+        const ownerName = settings.ownerName || config.DEFAULT_OWNER_NAME || 'Akash Kavindu';
         const mode = process.env.WORK_TYPE || "Public";
 
         const totalCommands = commands.filter(c => c.pattern).length;
