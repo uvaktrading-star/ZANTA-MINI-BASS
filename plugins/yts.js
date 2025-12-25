@@ -1,5 +1,6 @@
 const { cmd } = require("../command");
 const yts = require("yt-search");
+const config = require("../config");
 
 cmd({
     pattern: "yts",
@@ -8,9 +9,13 @@ cmd({
     desc: "Search for YouTube videos.",
     category: "search",
     filename: __filename,
-}, async (zanta, mek, m, { from, reply, q }) => {
+}, async (zanta, mek, m, { from, reply, q, userSettings }) => { // <--- userSettings එකතු කළා
     try {
         if (!q) return reply("🔍 *කරුණාකර සෙවිය යුතු නම ලබා දෙන්න.*");
+
+        // [වැදගත්]: ඩේටාබේස් සෙටින්ග්ස් ලබා ගැනීම
+        const settings = userSettings || global.CURRENT_BOT_SETTINGS;
+        const botName = settings.botName || config.DEFAULT_BOT_NAME || "ZANTA-MD";
 
         // ආරම්භක පණිවිඩය යවා එහි ID එක ලබා ගනී
         const loading = await zanta.sendMessage(from, { text: "⌛ *Searching YouTube for you...*" }, { quoted: mek });
@@ -21,8 +26,6 @@ cmd({
         if (!results || results.length === 0) {
             return await zanta.sendMessage(from, { text: "☹️ *ප්‍රතිඵල කිසිවක් හමු නොවීය.*", edit: loading.key });
         }
-
-        const botName = global.CURRENT_BOT_SETTINGS.botName;
 
         // ප්‍රතිඵල පෙළගැස්වීම
         let formattedResults = results.map((v, i) => (
