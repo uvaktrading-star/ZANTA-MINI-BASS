@@ -1,5 +1,6 @@
 const gis = require('g-i-s');
 const { cmd } = require("../command");
+const { translate } = require('@vitalets/google-translate-api');
 const config = require("../config");
 
 cmd({
@@ -104,5 +105,42 @@ cmd({
     } catch (e) {
         console.error("GIS Error:", e);
         reply(`❌ *Error:* ${e.message}`);
+    }
+});
+
+cmd({
+    pattern: "tr",
+    alias: ["translate"],
+    react: "🌍",
+    desc: "Translate text to Sinhala.",
+    category: "convert",
+    filename: __filename,
+}, async (zanta, mek, m, { from, reply, q, userSettings }) => {
+    try {
+        const settings = userSettings || global.CURRENT_BOT_SETTINGS;
+        const botName = settings.botName || config.DEFAULT_BOT_NAME || "ZANTA-MD";
+
+        let textToTranslate = "";
+
+        if (m.quoted && m.quoted.body) {
+            textToTranslate = m.quoted.body;
+        } else if (q) {
+            textToTranslate = q;
+        } else {
+            return reply("❤️ *කරුණාකර පණිවිඩයකට Reply කරන්න හෝ වචනයක් ලබා දෙන්න.*");
+        }
+
+        const loading = await reply("🔠 *Translating...*");
+
+        const result = await translate(textToTranslate, { to: 'si' });
+
+        // පරිවර්තනය වුණු පෙළ සහ ෆුටර් එක විතරයි මෙතන තියෙන්නේ
+        let translationMsg = `${result.text}\n\n> *© Powered by ${botName}*`;
+
+        await zanta.sendMessage(from, { text: translationMsg, edit: loading.key });
+
+    } catch (err) {
+        console.error("Translate Error:", err);
+        reply("❌ *පරිවර්තනය කිරීමේදී දෝෂයක් සිදු විය.*");
     }
 });
