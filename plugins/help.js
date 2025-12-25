@@ -1,7 +1,7 @@
-const { cmd } = require("../command"); // මෙහි cmd පමණක් ප්‍රමාණවත්
+const { cmd } = require("../command");
 const config = require("../config");
 
-// 🎯 Reply හඳුනාගැනීම සඳහා ID එක සේව් කරන Map එක (index.js එකට export කරයි)
+// 🎯 Reply හඳුනාගැනීම සඳහා ID එක සේව් කරන Map එක
 const lastHelpMessage = new Map();
 
 cmd({
@@ -11,11 +11,13 @@ cmd({
     react: "❓",
     desc: "බොට් සහාය මධ්‍යස්ථානය.",
     filename: __filename,
-}, async (zanta, mek, m, { from, reply, args, pushname }) => {
+}, async (zanta, mek, m, { from, reply, args, pushname, userSettings }) => { // <--- userSettings එකතු කළා
     try {
-        const botName = global.CURRENT_BOT_SETTINGS?.botName || config.DEFAULT_BOT_NAME;
+        // [වැදගත්]: ඩේටාබේස් සෙටින්ග්ස් ලබා ගැනීම
+        const settings = userSettings || global.CURRENT_BOT_SETTINGS;
+        const botName = settings.botName || config.DEFAULT_BOT_NAME || "ZANTA-MD";
 
-        // --- 📂 1. අංකයක් Reply කළ විට ක්‍රියාත්මක වන කොටස (index.js මගින් args එවයි) ---
+        // --- 📂 1. අංකයක් Reply කළ විට ක්‍රියාත්මක වන කොටස ---
         const selection = args[0]; 
 
         if (selection === "1") {
@@ -38,11 +40,9 @@ cmd({
 
 🎶 *Download:* Song, YTmp4, FB, Tiktok, Apk
 
-
 🎨 *AI:* AI Image Gen (Genimg), Remove image Bg
 
 🛠️ *Tools:* ToURL, ToQR, Ping, Alive, To sticker
-
 
 🎮 *Fun:* Guess Game, Tod Game, Funtext
 
@@ -78,7 +78,7 @@ _ස්තුතියි!_`;
 3️⃣ *සම්බන්ධ වීමට (Contact Me)*
 ---
 
-> *ZANTA-MD Support System*`;
+> *${botName} Support System*`; // මෙතනත් botName update කළා
 
         const helpImg = "https://github.com/Akashkavindu/ZANTA_MD/blob/main/images/alive-new.jpg?raw=true";
 
@@ -87,7 +87,7 @@ _ස්තුතියි!_`;
             caption: mainHelp 
         }, { quoted: mek });
 
-        // මැසේජ් ID එක සේව් කිරීම (index.js එකට මෙය අවශ්‍ය වේ)
+        // මැසේජ් ID එක සේව් කිරීම
         lastHelpMessage.set(from, sentHelp.key.id);
 
     } catch (e) {
@@ -96,5 +96,4 @@ _ස්තුතියි!_`;
     }
 });
 
-// index.js එකට Map එක ලබාදීම සඳහා මෙය අනිවාර්ය වේ
 module.exports = { lastHelpMessage };
