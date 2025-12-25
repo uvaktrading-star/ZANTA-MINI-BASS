@@ -1,5 +1,6 @@
 const { cmd } = require("../command");
 const getFbVideoInfo = require("@xaviabot/fb-downloader");
+const config = require('../config');
 
 cmd({
     pattern: "fb",
@@ -8,14 +9,17 @@ cmd({
     desc: "Download Facebook Videos.",
     category: "download",
     filename: __filename,
-}, async (zanta, mek, m, { from, reply, q }) => {
+}, async (zanta, mek, m, { from, reply, q, userSettings }) => { // <--- userSettings එකතු කළා
     try {
         if (!q) return reply("❤️ *කරුණාකර Facebook වීඩියෝ ලින්ක් එකක් ලබා දෙන්න.*");
 
         const fbRegex = /(https?:\/\/)?(www\.)?(facebook|fb)\.com\/.+/;
         if (!fbRegex.test(q)) return reply("☹️ *ලින්ක් එක වැරදියි.*");
 
-        const currentBotName = global.CURRENT_BOT_SETTINGS.botName;
+        // [වැදගත්]: ඩේටාබේස් සෙටින්ග්ස් ලබා ගැනීම
+        const settings = userSettings || global.CURRENT_BOT_SETTINGS;
+        const currentBotName = settings.botName || config.DEFAULT_BOT_NAME || "ZANTA-MD";
+
         const loadingDesc = `╭━─━─━─━─━─━──━╮\n┃ *${currentBotName} FB Downloader*\n╰━─━─━─━─━─━──━╯\n\n⏳ *Waiting for download...*`;
 
         // 1. මුලින්ම Logo එක සහ "Downloading" Caption එක සහිත පණිවිඩය යවයි
