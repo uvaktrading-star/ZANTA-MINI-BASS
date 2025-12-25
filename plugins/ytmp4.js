@@ -1,6 +1,7 @@
 const { cmd } = require("../command");
 const yts = require("yt-search");
 const axios = require('axios');
+const config = require("../config");
 
 // --- 🛠️ YouTube ID Regex ---
 function getYouTubeID(url) {
@@ -10,13 +11,12 @@ function getYouTubeID(url) {
 }
 
 // --- 🛠️ Download Function with Limits ---
-async function downloadYoutube(url, format, zanta, from, mek, reply, data) {
-    const botName = global.CURRENT_BOT_SETTINGS?.botName || "ZANTA-MD";
-    
+async function downloadYoutube(url, format, zanta, from, mek, reply, data, settings) {
+    const botName = settings.botName || config.DEFAULT_BOT_NAME || "ZANTA-MD";
+
     // ⏱️ කාලය පරීක්ෂා කිරීම (විනාඩි 10 සීමාව)
-    // data.seconds යනු yt-search මගින් දෙන වීඩියෝවේ මුළු තත්පර ගණනයි.
     if (data.seconds > 600) { 
-        return reply(`⚠️ *මෙම වීඩියෝව විනාඩි 10 කට වඩා වැඩි බැවින් (Duration: ${data.timestamp}) Render Free Tier එක සුරක්ෂිත කිරීමට මෙය බාගත කළ නොහැක.*`);
+        return reply(`⚠️ *මෙම වීඩියෝව විනාඩි 10 කට වඩා වැඩි බැවින් (Duration: ${data.timestamp}) මෙය බාගත කළ නොහැක.*`);
     }
 
     let tempMsg;
@@ -25,22 +25,26 @@ async function downloadYoutube(url, format, zanta, from, mek, reply, data) {
 
         let downloadUrl = "";
 
-        // 🚀 ක්‍රමය 1: Vreden API (480p Quality එකත් සමඟ)
+        // 🚀 ක්‍රමය 1: Vreden API (YT MP4/MP3)
         try {
-            const vredenApi = `https://api.vreden.my.id/api/yt${format === 'mp4' ? 'mp4' : 'mp3'}?url=${encodeURIComponent(url)}&quality=480`;
+            const type = format === 'mp4' ? 'ytmp4' : 'ytmp3';
+            const vredenApi = `https://api.vreden.my.id/api/${type}?url=${encodeURIComponent(url)}`;
             const res = await axios.get(vredenApi);
-            if (res.data && res.data.status === 200 && res.data.result.download.url) {
+
+            // API එකෙන් එන data structure එක අනුව මේක වෙනස් වෙන්න පුළුවන්
+            if (res.data && res.data.result && res.data.result.download) {
                 downloadUrl = res.data.result.download.url;
+            } else if (res.data && res.data.url) {
+                downloadUrl = res.data.url;
             }
         } catch (e) { console.log("Vreden error..."); }
 
-        // 🚀 ක්‍රමය 2: Fallback (Gifted API)
+        // 🚀 ක්‍රමය 2: Fallback (නවතම ස්ථාවර API එකක්)
         if (!downloadUrl) {
             try {
-                const giftedApi = `https://api.giftedtech.my.id/api/download/dl?url=${encodeURIComponent(url)}`;
-                const res = await axios.get(giftedApi);
-                if (res.data && res.data.success) {
-                    downloadUrl = (format === 'mp4') ? res.data.result.video_url : res.data.result.audio_url;
+                const fallback = await axios.get(`https://api.agungandhika.com/api/youtube?url=${encodeURIComponent(url)}&type=${format}`);
+                if (fallback.data && fallback.data.result) {
+                    downloadUrl = fallback.data.result.url || fallback.data.result.dl_link;
                 }
             } catch (e) { console.log("Fallback error..."); }
         }
@@ -64,7 +68,8 @@ async function downloadYoutube(url, format, zanta, from, mek, reply, data) {
         return await zanta.sendMessage(from, { text: `*වැඩේ හරි! 🙃✅*`, edit: tempMsg.key });
 
     } catch (e) {
-        if (tempMsg) await zanta.sendMessage(from, { text: `❌ *Error:* බාගත කිරීම අසාර්ථක විය.`, edit: tempMsg.key });
+        console.error(e);
+        if (tempMsg) await zanta.sendMessage(from, { text: `❌ *Error:* බාගත කිරීම අසාර්ථක විය. පසුව උත්සාහ කරන්න.`, edit: tempMsg.key });
     }
 }
 
@@ -76,19 +81,22 @@ cmd({
     desc: "Download YouTube videos",
     category: "download",
     filename: __filename,
-}, async (zanta, mek, m, { from, reply, q }) => {
+}, async (zanta, mek, m, { from, reply, q, userSettings }) => {
     if (!q) return reply("❌ *YouTube ලින්ක් එකක් හෝ නමක් ලබා දෙන්න.*");
     try {
+        const settings = userSettings || global.CURRENT_BOT_SETTINGS;
         let videoInfo;
         let videoId = getYouTubeID(q);
+
         if (videoId) {
             videoInfo = await yts({ videoId: videoId });
         } else {
             const search = await yts(q);
             videoInfo = search.videos[0];
         }
+
         if (!videoInfo) return reply("❌ *වීඩියෝව සොයාගත නොහැකි විය.*");
-        await downloadYoutube(videoInfo.url, 'mp4', zanta, from, mek, reply, videoInfo);
+        await downloadYoutube(videoInfo.url, 'mp4', zanta, from, mek, reply, videoInfo, settings);
     } catch (e) { reply("❌ දෝෂයකි."); }
 });
 
@@ -100,18 +108,21 @@ cmd({
     desc: "Download YouTube songs",
     category: "download",
     filename: __filename,
-}, async (zanta, mek, m, { from, reply, q }) => {
+}, async (zanta, mek, m, { from, reply, q, userSettings }) => {
     if (!q) return reply("❌ *YouTube ලින්ක් එකක් හෝ නමක් ලබා දෙන්න.*");
     try {
+        const settings = userSettings || global.CURRENT_BOT_SETTINGS;
         let videoInfo;
         let videoId = getYouTubeID(q);
+
         if (videoId) {
             videoInfo = await yts({ videoId: videoId });
         } else {
             const search = await yts(q);
             videoInfo = search.videos[0];
         }
+
         if (!videoInfo) return reply("❌ *සින්දුව සොයාගත නොහැකි විය.*");
-        await downloadYoutube(videoInfo.url, 'mp3', zanta, from, mek, reply, videoInfo);
+        await downloadYoutube(videoInfo.url, 'mp3', zanta, from, mek, reply, videoInfo, settings);
     } catch (e) { reply("❌ දෝෂයකි."); }
 });
