@@ -1,6 +1,7 @@
 const { cmd } = require("../command");
 const yts = require("yt-search");
 const { ytmp3 } = require("@vreden/youtube_scraper");
+const config = require("../config");
 
 cmd({
     pattern: "song",
@@ -8,7 +9,7 @@ cmd({
     desc: "Download MP3 Songs (Up to 60 min).",
     category: "download",
     filename: __filename,
-}, async (zanta, mek, m, { from, reply, q }) => {
+}, async (zanta, mek, m, { from, reply, q, userSettings }) => { // <--- userSettings එකතු කළා
     try {
         if (!q) return reply("❌ *කරුණාකර සින්දුවේ නම හෝ YouTube ලින්ක් එක ලබා දෙන්න.*");
 
@@ -18,7 +19,9 @@ cmd({
         const data = search.videos[0];
         if (!data) return await zanta.sendMessage(from, { text: "❌ *සින්දුව සොයාගත නොහැකි විය._Try .ytmp3 command_*", edit: loading.key });
 
-        const botName = global.CURRENT_BOT_SETTINGS.botName;
+        // [වැදගත්]: ඩේටාබේස් සෙටින්ග්ස් ලබා ගැනීම
+        const settings = userSettings || global.CURRENT_BOT_SETTINGS;
+        const botName = settings.botName || config.DEFAULT_BOT_NAME || "ZANTA-MD";
 
         // කාලය පරීක්ෂා කිරීම (විනාඩි 60 = තත්පර 3600)
         let durationParts = data.timestamp.split(":").map(Number);
@@ -37,7 +40,8 @@ cmd({
 ⏱️ *Duration:* ${data.timestamp}
 📅 *Uploaded:* ${data.ago}
 👀 *Views:* ${data.views.toLocaleString()}
-`;
+
+> *© ${botName}*`;
 
         await zanta.sendMessage(from, { image: { url: data.thumbnail }, caption: desc }, { quoted: mek });
 
