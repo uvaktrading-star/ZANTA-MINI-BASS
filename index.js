@@ -47,7 +47,7 @@ global.CURRENT_BOT_SETTINGS = {
 
 const app = express();
 const port = process.env.PORT || 8000;
-const messagesStore = {};
+const messagesStore = {}; // මකන මැසේජ් හොයාගැනීමට ඇති තාවකාලික ගබඩාව
 
 // අනවශ්‍ය Rejection Logs පාලනය
 process.on('uncaughtException', (err) => {
@@ -111,18 +111,22 @@ async function connectToWA(sessionData) {
         syncFullHistory: false,
         markOnlineOnConnect: false,
         generateHighQualityLinkPreview: true,
+        // මැසේජ් එකක් මැකුවොත් අපේ ගබඩාවෙන් ඒක ලබාගැනීම
+        getMessage: async (key) => {
+            if (messagesStore[key.id]) return messagesStore[key.id].message;
+            return { conversation: "ZANTA-MD Anti-Delete" };
+        }
     });
 
     zanta.ev.on("connection.update", async (update) => {
         const { connection, lastDisconnect } = update;
         if (connection === "close") {
             const reason = lastDisconnect?.error?.output?.statusCode || lastDisconnect?.error?.output?.payload?.statusCode;
-
             if (reason === DisconnectReason.loggedOut || reason === 401) {
                 console.log(`🚫 [${userNumber}] Logged out. Cleaning up...`);
                 await Session.deleteOne({ number: sessionData.number });
                 if (fs.existsSync(authPath)) fs.rmSync(authPath, { recursive: true, force: true });
-                return; // Logout වූ පසු Reconnect වීම නවත්වයි
+                return;
             } else {
                 connectToWA(sessionData);
             }
@@ -133,7 +137,7 @@ async function connectToWA(sessionData) {
                 try {
                     const presence = userSettings.alwaysOnline === 'true' ? 'available' : 'unavailable';
                     await zanta.sendPresenceUpdate(presence);
-                } catch (e) {} // Connection වැසුණු පසු එන Presence errors නොපෙන්වයි
+                } catch (e) {}
             }, 10000);
 
             const ownerJid = decodeJid(zanta.user.id);
@@ -157,12 +161,31 @@ async function connectToWA(sessionData) {
         const mek = messages[0];
         if (!mek || !mek.message) return;
 
+        // --- 🛡️ ANTI-DELETE LOGIC START ---
+        if (mek.message.protocolMessage && mek.message.protocolMessage.type === 0) {
+            if (userSettings.antiDelete === 'true') {
+                const key = mek.message.protocolMessage.key;
+                const deletedMsg = messagesStore[key.id];
+
+                if (deletedMsg) {
+                    const from = key.remoteJid;
+                    const participant = key.participant || key.remoteJid;
+                    let report = `*🚨 ANTI-DELETE DETECTED!* \n\n*👤 Sender:* @${participant.split('@')[0]}\n*💬 Message Below:*`;
+
+                    await zanta.sendMessage(from, { text: report, mentions: [participant] }, { quoted: deletedMsg });
+                    await zanta.copyNForward(from, deletedMsg, false).catch(e => console.log(e));
+                }
+            }
+            return;
+        }
+        // මැසේජ් එකක් ආවම ඒක store එකට දාගන්නවා (එතකොටයි මැකුවොත් හොයාගන්න පුළුවන්)
+        if (mek.key.id && !mek.key.fromMe) messagesStore[mek.key.id] = mek;
+        // --- 🛡️ ANTI-DELETE LOGIC END ---
+
         if (userSettings.autoStatusSeen === 'true' && mek.key.remoteJid === "status@broadcast") {
             await zanta.readMessages([mek.key]);
             return;
         }
-
-        if (mek.key.id && !mek.key.fromMe) messagesStore[mek.key.id] = mek;
 
         mek.message = getContentType(mek.message) === "ephemeralMessage" 
             ? mek.message.ephemeralMessage.message : mek.message;
@@ -219,11 +242,13 @@ async function connectToWA(sessionData) {
             const input = body.trim().split(" ");
             const num = input[0];
             const value = input.slice(1).join(" ");
-            let dbKeys = ["", "botName", "ownerName", "prefix", "autoRead", "autoTyping", "autoStatusSeen", "alwaysOnline", "readCmd", "autoVoice" , "antiBadword"];
+            // --- ⚙️ මෙතනට antiDelete එකතු කළා ---
+            let dbKeys = ["", "botName", "ownerName", "prefix", "autoRead", "autoTyping", "autoStatusSeen", "alwaysOnline", "readCmd", "autoVoice" , "antiBadword", "antiDelete"];
             let dbKey = dbKeys[parseInt(num)];
 
             if (dbKey) {
-                let finalValue = (['4', '5', '6', '7', '8', '9', '10'].includes(num)) 
+                // 4 සිට 11 දක්වා තියෙන්නේ Boolean (true/false) අගයන්
+                let finalValue = (['4', '5', '6', '7', '8', '9', '10', '11'].includes(num)) 
                     ? ((value.toLowerCase() === 'on' || value.toLowerCase() === 'true') ? 'true' : 'false') : value;
 
                 const success = await updateSetting(userNumber, dbKey, finalValue);
