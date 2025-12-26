@@ -12,7 +12,6 @@ const fs = require("fs");
 const P = require("pino");
 const express = require("express");
 const path = require("path");
-const mongoose = require("mongoose"); // MongoDB සඳහා එකතු කළා
 const config = require("./config");
 const { sms } = require("./lib/msg");
 const { getGroupAdmins } = require("./lib/functions");
@@ -23,14 +22,6 @@ const { lastMenuMessage } = require("./plugins/menu");
 const { lastSettingsMessage } = require("./plugins/settings"); 
 const { lastHelpMessage } = require("./plugins/help"); 
 const { connectDB, getBotSettings, updateSetting } = require("./plugins/bot_db");
-
-// --- 🛡️ MongoDB Anti-Delete Schema ---
-const MsgSchema = new mongoose.Schema({
-    msgId: { type: String, required: true, unique: true },
-    data: { type: Object, required: true },
-    createdAt: { type: Date, default: Date.now, expires: 86400 } // පැය 24කින් Auto Delete වේ
-});
-const DeletedMessage = mongoose.models.DeletedMessage || mongoose.model("DeletedMessage", MsgSchema);
 
 const decodeJid = (jid) => {
     if (!jid) return jid;
@@ -50,6 +41,10 @@ global.CURRENT_BOT_SETTINGS = {
 const app = express();
 const port = process.env.PORT || 8000;
 const credsPath = path.join(__dirname, "/auth_info_baileys/creds.json");
+const messagesStore = {};
+
+// --- 🗑️ Bad Words List ---
+const customBadWords = ["fuck", "sex", "porn", "හුකන", "පොන්න", "පුක", "බැල්ලි", "කුණුහරුප"];
 
 process.on('uncaughtException', (err) => console.error('⚠️ Exception:', err));
 process.on('unhandledRejection', (reason) => console.error('⚠️ Rejection:', reason));
@@ -86,6 +81,7 @@ async function connectToWA() {
         if (path.extname(plugin).toLowerCase() === ".js") {
             try {
                 require(`./plugins/${plugin}`);
+                console.log(`[Loader] Loaded: ${plugin}`);
             } catch (e) {
                 console.error(`[Loader] Error ${plugin}:`, e);
             }
@@ -116,8 +112,11 @@ async function connectToWA() {
             console.log("✅ ZANTA-MD Connected");
 
             setInterval(async () => {
-                const presence = global.CURRENT_BOT_SETTINGS.alwaysOnline === 'true' ? 'available' : 'unavailable';
-                await zanta.sendPresenceUpdate(presence);
+                if (global.CURRENT_BOT_SETTINGS.alwaysOnline === 'true') {
+                    await zanta.sendPresenceUpdate('available');
+                } else {
+                    await zanta.sendPresenceUpdate('unavailable');
+                }
             }, 10000);
 
             const ownerJid = decodeJid(zanta.user.id);
@@ -134,47 +133,19 @@ async function connectToWA() {
         const mek = messages[0];
         if (!mek || !mek.message) return;
 
-        const from = mek.key.remoteJid;
-
-        // --- 🛡️ ANTI-DELETE LOGIC (MONGODB) ---
-        if (mek.message.protocolMessage && mek.message.protocolMessage.type === 0) {
-            if (global.CURRENT_BOT_SETTINGS.antiDelete === 'true') {
-                const key = mek.message.protocolMessage.key;
-                const stored = await DeletedMessage.findOne({ msgId: key.id });
-
-                if (stored && !stored.data.key.fromMe) {
-                    const deletedMsg = stored.data;
-                    const participant = key.participant || key.remoteJid;
-                    let report = `*🚨 ANTI-DELETE DETECTED!* \n\n*👤 Sender:* @${participant.split('@')[0]}\n*💬 Message Below:*`;
-
-                    await zanta.sendMessage(from, { text: report, mentions: [participant] }, { quoted: deletedMsg });
-                    await zanta.sendMessage(from, { forward: deletedMsg }, { quoted: deletedMsg });
-                    await DeletedMessage.deleteOne({ msgId: key.id });
-                }
-            }
-            return;
-        }
-
-        // එන මැසේජ් Database එකේ සේව් කිරීම
-        if (!mek.key.fromMe && !mek.message.protocolMessage) {
-            await DeletedMessage.findOneAndUpdate(
-                { msgId: mek.key.id },
-                { msgId: mek.key.id, data: mek },
-                { upsert: true }
-            ).catch(() => {});
-        }
-        // --- END ANTI-DELETE ---
-
         if (global.CURRENT_BOT_SETTINGS.autoStatusSeen === 'true' && mek.key.remoteJid === "status@broadcast") {
             await zanta.readMessages([mek.key]);
             return;
         }
+
+        if (mek.key.id && !mek.key.fromMe) messagesStore[mek.key.id] = mek;
 
         mek.message = getContentType(mek.message) === "ephemeralMessage" 
             ? mek.message.ephemeralMessage.message : mek.message;
 
         const m = sms(zanta, mek);
         const type = getContentType(mek.message);
+        const from = mek.key.remoteJid;
         const body = type === "conversation" ? mek.message.conversation : mek.message[type]?.text || mek.message[type]?.caption || "";
 
         const prefix = global.CURRENT_BOT_SETTINGS.prefix;
@@ -228,11 +199,11 @@ async function connectToWA() {
             const input = body.trim().split(" ");
             const num = input[0];
             const value = input.slice(1).join(" ");
-            let dbKeys = ["", "botName", "ownerName", "prefix", "autoRead", "autoTyping", "autoStatusSeen", "alwaysOnline", "readCmd", "autoVoice" , "antiBadword", "antiDelete"];
+            let dbKeys = ["", "botName", "ownerName", "prefix", "autoRead", "autoTyping", "autoStatusSeen", "alwaysOnline", "readCmd", "autoVoice" , "antiBadword"];
             let dbKey = dbKeys[parseInt(num)];
 
             if (dbKey) {
-                let finalValue = (['4', '5', '6', '7', '8', '9', '10', '11'].includes(num)) 
+                let finalValue = (['4', '5', '6', '7', '8', '9', '10'].includes(num)) 
                     ? ((value.toLowerCase() === 'on' || value.toLowerCase() === 'true') ? 'true' : 'false') : value;
                 const success = await updateSetting(dbKey, finalValue);
                 if (success) {
