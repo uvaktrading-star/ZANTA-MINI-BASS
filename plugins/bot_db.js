@@ -15,8 +15,7 @@ const SettingsSchema = new mongoose.Schema({
     alwaysOnline: { type: String, default: 'false' },
     readCmd: { type: String, default: 'false' },
     autoVoice: { type: String, default: 'false' },
-    antiBadword: { type: String, default: 'false' },
-    antiDelete: { type: String, default: 'false' } // <--- අලුතින් එකතු කළා
+    antiBadword: { type: String, default: 'false' }
 });
 
 const Settings = mongoose.models.Settings || mongoose.model('Settings', SettingsSchema);
@@ -48,8 +47,7 @@ async function getBotSettings(userNumber) {
         alwaysOnline: 'false',
         readCmd: 'false',
         autoVoice: 'false',
-        antiBadword: 'false',
-        antiDelete: 'false' // <--- Defaults වලටත් ඇතුළත් කළා
+        antiBadword: 'false'
     };
 
     const targetId = cleanId(userNumber);
