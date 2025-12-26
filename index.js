@@ -12,10 +12,11 @@ const fs = require("fs");
 const P = require("pino");
 const express = require("express");
 const path = require("path");
-const mongoose = require("mongoose");
+const mongoose = require("mongoose"); // MongoDB සඳහා එකතු කළා
 const config = require("./config");
 const { sms } = require("./lib/msg");
 const { getGroupAdmins } = require("./lib/functions");
+const { File } = require("megajs");
 const { commands, replyHandlers } = require("./command");
 
 const { lastMenuMessage } = require("./plugins/menu");
@@ -23,12 +24,13 @@ const { lastSettingsMessage } = require("./plugins/settings");
 const { lastHelpMessage } = require("./plugins/help"); 
 const { connectDB, getBotSettings, updateSetting } = require("./plugins/bot_db");
 
-// MongoDB Session Schema
-const SessionSchema = new mongoose.Schema({
-    number: { type: String, required: true, unique: true },
-    creds: { type: Object, required: true }
-}, { collection: 'sessions' });
-const Session = mongoose.models.Session || mongoose.model("Session", SessionSchema);
+// --- 🛡️ MongoDB Anti-Delete Schema ---
+const MsgSchema = new mongoose.Schema({
+    msgId: { type: String, required: true, unique: true },
+    data: { type: Object, required: true },
+    createdAt: { type: Date, default: Date.now, expires: 86400 } // පැය 24කින් Auto Delete වේ
+});
+const DeletedMessage = mongoose.models.DeletedMessage || mongoose.model("DeletedMessage", MsgSchema);
 
 const decodeJid = (jid) => {
     if (!jid) return jid;
@@ -47,19 +49,38 @@ global.CURRENT_BOT_SETTINGS = {
 
 const app = express();
 const port = process.env.PORT || 8000;
-const messagesStore = {}; 
+const credsPath = path.join(__dirname, "/auth_info_baileys/creds.json");
 
-// Error Handling
-process.on('uncaughtException', (err) => {
-    if (err.message.includes('Connection Closed')) return;
-    console.error('⚠️ Exception:', err);
-});
-process.on('unhandledRejection', (reason) => {
-    if (reason?.message?.includes('Connection Closed') || reason?.message?.includes('Unexpected end of JSON')) return;
-    console.error('⚠️ Rejection:', reason);
-});
+process.on('uncaughtException', (err) => console.error('⚠️ Exception:', err));
+process.on('unhandledRejection', (reason) => console.error('⚠️ Rejection:', reason));
 
-async function loadPlugins() {
+async function ensureSessionFile() {
+    if (!fs.existsSync(credsPath)) {
+        if (!config.SESSION_ID) {
+            console.error("❌ SESSION_ID missing.");
+            process.exit(1);
+        }
+        console.log("🔄 Downloading session from MEGA...");
+        const filer = File.fromURL(`https://mega.nz/file/${config.SESSION_ID}`);
+        filer.download((err, data) => {
+            if (err) {
+                console.error("❌ Download failed:", err);
+                process.exit(1);
+            }
+            fs.mkdirSync(path.join(__dirname, "/auth_info_baileys/"), { recursive: true });
+            fs.writeFileSync(credsPath, data);
+            console.log("✅ Session saved. Restarting...");
+            setTimeout(() => connectToWA(), 2000);
+        });
+    } else {
+        setTimeout(() => connectToWA(), 1000);
+    }
+}
+
+async function connectToWA() {
+    await connectDB();
+    global.CURRENT_BOT_SETTINGS = await getBotSettings();
+
     const pluginsPath = path.join(__dirname, "plugins");
     fs.readdirSync(pluginsPath).forEach((plugin) => {
         if (path.extname(plugin).toLowerCase() === ".js") {
@@ -70,58 +91,10 @@ async function loadPlugins() {
             }
         }
     });
-    console.log(`✨ Loaded: ${commands.length} Commands`);
-}
 
-async function startSystem() {
-    await connectDB(); 
-    await loadPlugins();
+    console.log(`[SYS] ${global.CURRENT_BOT_SETTINGS.botName} | Prefix: ${global.CURRENT_BOT_SETTINGS.prefix} | Loaded: ${commands.length} Commands`);
 
-    // MongoDB එකේ ඇති සියලුම Sessions ලබාගෙන ඒවා Connect කිරීම
-    const allSessions = await Session.find({});
-    console.log(`📂 Found ${allSessions.length} sessions in Database. Connecting...`);
-    
-    for (let sessionData of allSessions) {
-        await connectToWA(sessionData);
-    }
-
-    // අලුතින් Session එකක් එකතු වූ විට හඳුනා ගැනීම
-    Session.watch().on('change', async (data) => {
-        if (data.operationType === 'insert') {
-            const newSession = data.fullDocument;
-            console.log(`🆕 New session detected: ${newSession.number}. Connecting...`);
-            await connectToWA(newSession);
-        }
-    });
-
-    // --- 🧹 RAM CLEANER ---
-    setInterval(() => {
-        const now = Math.floor(Date.now() / 1000);
-        const ONE_HOUR = 3600; 
-        Object.keys(messagesStore).forEach(key => {
-            if (now - messagesStore[key].messageTimestamp > ONE_HOUR) {
-                delete messagesStore[key];
-            }
-        });
-        console.log("🧹 RAM Cleaner: Old messages cleared.");
-    }, 30 * 60 * 1000);
-}
-
-async function connectToWA(sessionData) {
-    const userNumber = sessionData.number.split("@")[0];
-    let userSettings = await getBotSettings(userNumber);
-
-    const authPath = path.join(__dirname, `/auth_info_baileys/${userNumber}/`);
-    if (!fs.existsSync(authPath)) fs.mkdirSync(authPath, { recursive: true });
-    
-    // Creds file එක හරි විදිහට ලිවීම
-    try {
-        fs.writeFileSync(path.join(authPath, "creds.json"), JSON.stringify(sessionData.creds));
-    } catch (e) {
-        console.error(`[${userNumber}] Auth Write Error:`, e);
-    }
-
-    const { state, saveCreds } = await useMultiFileAuthState(authPath);
+    const { state, saveCreds } = await useMultiFileAuthState(path.join(__dirname, "/auth_info_baileys/"));
     const { version } = await fetchLatestBaileysVersion();
 
     const zanta = makeWASocket({
@@ -130,84 +103,69 @@ async function connectToWA(sessionData) {
         browser: Browsers.macOS("Firefox"),
         auth: state,
         version,
-        syncFullHistory: false,
+        syncFullHistory: true,
         markOnlineOnConnect: false,
         generateHighQualityLinkPreview: true,
-        getMessage: async (key) => {
-            if (messagesStore[key.id]) return messagesStore[key.id].message;
-            return { conversation: "ZANTA-MD Anti-Delete" };
-        }
     });
 
     zanta.ev.on("connection.update", async (update) => {
         const { connection, lastDisconnect } = update;
         if (connection === "close") {
-            const reason = lastDisconnect?.error?.output?.statusCode || lastDisconnect?.error?.output?.payload?.statusCode;
-            if (reason === DisconnectReason.loggedOut || reason === 401) {
-                console.log(`🚫 [${userNumber}] Logged out. Deleting session...`);
-                await Session.deleteOne({ number: sessionData.number });
-                if (fs.existsSync(authPath)) fs.rmSync(authPath, { recursive: true, force: true });
-            } else {
-                connectToWA(sessionData); // අසමත් වුවහොත් නැවත උත්සාහ කරයි
-            }
+            if (lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut) connectToWA();
         } else if (connection === "open") {
-            console.log(`✅ [${userNumber}] ZANTA-MD Connected`);
-            
-            // Always Online Feature
+            console.log("✅ ZANTA-MD Connected");
+
             setInterval(async () => {
-                try {
-                    const presence = userSettings.alwaysOnline === 'true' ? 'available' : 'unavailable';
-                    await zanta.sendPresenceUpdate(presence);
-                } catch (e) {}
+                const presence = global.CURRENT_BOT_SETTINGS.alwaysOnline === 'true' ? 'available' : 'unavailable';
+                await zanta.sendPresenceUpdate(presence);
             }, 10000);
 
             const ownerJid = decodeJid(zanta.user.id);
             await zanta.sendMessage(ownerJid, {
                 image: { url: `https://github.com/Akashkavindu/ZANTA_MD/blob/main/images/alive-new.jpg?raw=true` },
-                caption: `🚀 *ZANTA-MD Connected!*\n\n*User:* ${userNumber}\n*Prefix:* ${userSettings.prefix}\n*Commands:* ${commands.length}`,
+                caption: `${global.CURRENT_BOT_SETTINGS.botName} connected ✅\n\nPREFIX: ${global.CURRENT_BOT_SETTINGS.prefix}\nTOTAL COMMANDS: ${commands.length}`,
             });
         }
     });
 
-    zanta.ev.on("creds.update", async () => {
-        await saveCreds();
-        const credsFile = path.join(authPath, "creds.json");
-        try {
-            if (fs.existsSync(credsFile)) {
-                const updatedCreds = JSON.parse(fs.readFileSync(credsFile, "utf-8"));
-                await Session.findOneAndUpdate({ number: sessionData.number }, { creds: updatedCreds });
-            }
-        } catch (e) {}
-    });
+    zanta.ev.on("creds.update", saveCreds);
 
     zanta.ev.on("messages.upsert", async ({ messages }) => {
         const mek = messages[0];
         if (!mek || !mek.message) return;
 
-        // --- 🛡️ ANTI-DELETE (FIXED) ---
-        if (mek.message.protocolMessage && mek.message.protocolMessage.type === 0) {
-            if (userSettings.antiDelete === 'true') {
-                const key = mek.message.protocolMessage.key;
-                const deletedMsg = messagesStore[key.id];
+        const from = mek.key.remoteJid;
 
-                if (deletedMsg && !deletedMsg.key.fromMe) {
-                    const from = key.remoteJid;
+        // --- 🛡️ ANTI-DELETE LOGIC (MONGODB) ---
+        if (mek.message.protocolMessage && mek.message.protocolMessage.type === 0) {
+            if (global.CURRENT_BOT_SETTINGS.antiDelete === 'true') {
+                const key = mek.message.protocolMessage.key;
+                const stored = await DeletedMessage.findOne({ msgId: key.id });
+
+                if (stored && !stored.data.key.fromMe) {
+                    const deletedMsg = stored.data;
                     const participant = key.participant || key.remoteJid;
                     let report = `*🚨 ANTI-DELETE DETECTED!* \n\n*👤 Sender:* @${participant.split('@')[0]}\n*💬 Message Below:*`;
 
                     await zanta.sendMessage(from, { text: report, mentions: [participant] }, { quoted: deletedMsg });
-                    // copyNForward වෙනුවට හරි ක්‍රමය:
                     await zanta.sendMessage(from, { forward: deletedMsg }, { quoted: deletedMsg });
-                    delete messagesStore[key.id]; 
+                    await DeletedMessage.deleteOne({ msgId: key.id });
                 }
             }
             return;
         }
-        
-        // අනෙක් අයගේ මැසේජ් මතකයේ තබා ගැනීම
-        if (mek.key.id && !mek.key.fromMe) messagesStore[mek.key.id] = mek;
 
-        if (userSettings.autoStatusSeen === 'true' && mek.key.remoteJid === "status@broadcast") {
+        // එන මැසේජ් Database එකේ සේව් කිරීම
+        if (!mek.key.fromMe && !mek.message.protocolMessage) {
+            await DeletedMessage.findOneAndUpdate(
+                { msgId: mek.key.id },
+                { msgId: mek.key.id, data: mek },
+                { upsert: true }
+            ).catch(() => {});
+        }
+        // --- END ANTI-DELETE ---
+
+        if (global.CURRENT_BOT_SETTINGS.autoStatusSeen === 'true' && mek.key.remoteJid === "status@broadcast") {
             await zanta.readMessages([mek.key]);
             return;
         }
@@ -217,24 +175,27 @@ async function connectToWA(sessionData) {
 
         const m = sms(zanta, mek);
         const type = getContentType(mek.message);
-        const from = mek.key.remoteJid;
         const body = type === "conversation" ? mek.message.conversation : mek.message[type]?.text || mek.message[type]?.caption || "";
 
-        const prefix = userSettings.prefix;
+        const prefix = global.CURRENT_BOT_SETTINGS.prefix;
         const isCmd = body.startsWith(prefix);
         const commandName = isCmd ? body.slice(prefix.length).trim().split(" ")[0].toLowerCase() : "";
         const args = body.trim().split(/ +/).slice(1);
 
         const sender = mek.key.fromMe ? zanta.user.id : (mek.key.participant || mek.key.remoteJid);
         const decodedSender = decodeJid(sender);
+        const decodedBot = decodeJid(zanta.user.id);
         const senderNumber = decodedSender.split("@")[0].replace(/[^\d]/g, '');
         const configOwner = config.OWNER_NUMBER.replace(/[^\d]/g, '');
 
-        const isOwner = mek.key.fromMe || senderNumber === configOwner;
+        const isOwner = mek.key.fromMe || 
+                        sender === zanta.user.id || 
+                        decodedSender === decodedBot || 
+                        senderNumber === configOwner;
 
-        if (userSettings.autoRead === 'true') await zanta.readMessages([mek.key]);
-        if (userSettings.autoTyping === 'true') await zanta.sendPresenceUpdate('composing', from);
-        if (userSettings.autoVoice === 'true' && !mek.key.fromMe) await zanta.sendPresenceUpdate('recording', from);
+        if (global.CURRENT_BOT_SETTINGS.autoRead === 'true') await zanta.readMessages([mek.key]);
+        if (global.CURRENT_BOT_SETTINGS.autoTyping === 'true') await zanta.sendPresenceUpdate('composing', from);
+        if (global.CURRENT_BOT_SETTINGS.autoVoice === 'true' && !mek.key.fromMe) await zanta.sendPresenceUpdate('recording', from);
 
         const botNumber2 = await jidNormalizedUser(zanta.user.id);
         const isGroup = from.endsWith("@g.us");
@@ -244,17 +205,20 @@ async function connectToWA(sessionData) {
         const isBotAdmins = isGroup ? groupAdmins.includes(botNumber2) : false;
         const isAdmins = isGroup ? groupAdmins.includes(sender) : false;
 
-        // Anti-Badword
-        if (isGroup && userSettings.antiBadword === 'true' && !isAdmins && !isOwner) {
-            const badWords = ["fuck", "sex", "porn", "හුකන", "පොන්න", "පුක", "බැල්ලි", "කුණුහරුප", "huththa", "pakaya", "ponnayo", "hukanno", "kariyo" , "kariya", "hukanna", "wezi", "hutta", "ponnaya", "balla"]; 
+        if (isGroup && global.CURRENT_BOT_SETTINGS.antiBadword === 'true' && !isAdmins && !isOwner) {
+            const badWords = ["fuck", "sex", "porn", "හුකන", "පොන්න", "පුක", "බැල්ලි", "කුණුහරුප", "huththa", "pakaya" , "kariya", "hukanna", "pkya", "wezi", "hutta", "hutt", "pky", "ponnaya", "ponnya", "balla", "love"]; 
             const hasBadWord = badWords.some(word => body.toLowerCase().includes(word));
+
             if (hasBadWord) {
                 await zanta.sendMessage(from, { delete: mek.key });
-                await zanta.sendMessage(from, { text: `⚠️ *@${sender.split('@')[0]} ඔබේ පණිවිඩය ඉවත් කරන ලදී!*`, mentions: [sender] });
+                await zanta.sendMessage(from, { 
+                    text: `⚠️ *@${sender.split('@')[0]} ඔබේ පණිවිඩය ඉවත් කරන ලදී!*`,
+                    mentions: [sender]
+                });
                 return;
             }
         }
-
+        
         const reply = (text) => zanta.sendMessage(from, { text }, { quoted: mek });
         const isMenuReply = (m.quoted && lastMenuMessage && lastMenuMessage.get(from) === m.quoted.id);
         const isSettingsReply = (m.quoted && lastSettingsMessage && lastSettingsMessage.get(from) === m.quoted.id);
@@ -270,13 +234,12 @@ async function connectToWA(sessionData) {
             if (dbKey) {
                 let finalValue = (['4', '5', '6', '7', '8', '9', '10', '11'].includes(num)) 
                     ? ((value.toLowerCase() === 'on' || value.toLowerCase() === 'true') ? 'true' : 'false') : value;
-
-                const success = await updateSetting(userNumber, dbKey, finalValue);
+                const success = await updateSetting(dbKey, finalValue);
                 if (success) {
-                    userSettings[dbKey] = finalValue;
+                    global.CURRENT_BOT_SETTINGS[dbKey] = finalValue;
                     await reply(`✅ *${dbKey}* updated to: *${finalValue}*`);
-                    const cmdSettings = commands.find(c => c.pattern === 'settings');
-                    if (cmdSettings) cmdSettings.function(zanta, mek, m, { from, reply, isOwner, prefix, userSettings }); 
+                    const cmd = commands.find(c => c.pattern === 'settings');
+                    if (cmd) cmd.function(zanta, mek, m, { from, reply, isOwner, prefix });
                     return;
                 }
             }
@@ -288,14 +251,14 @@ async function connectToWA(sessionData) {
             const cmd = commands.find(c => c.pattern === execName || (c.alias && c.alias.includes(execName)));
 
             if (cmd) {
-                if (userSettings.readCmd === 'true') await zanta.readMessages([mek.key]);
+                if (global.CURRENT_BOT_SETTINGS.readCmd === 'true') await zanta.readMessages([mek.key]);
                 if (cmd.react) zanta.sendMessage(from, { react: { text: cmd.react, key: mek.key } });
                 try {
-                    await cmd.function(zanta, mek, m, {
+                    cmd.function(zanta, mek, m, {
                         from, quoted: mek, body, isCmd, command: execName, args: execArgs, q: execArgs.join(" "),
                         isGroup, sender, senderNumber, botNumber2, botNumber: senderNumber, pushname: mek.pushName || "User",
                         isMe: mek.key.fromMe, isOwner, groupMetadata, groupName: groupMetadata.subject, participants,
-                        groupAdmins, isBotAdmins, isAdmins, reply, prefix, userSettings 
+                        groupAdmins, isBotAdmins, isAdmins, reply, prefix
                     });
                 } catch (e) {
                     console.error("[ERROR]", e);
@@ -305,7 +268,6 @@ async function connectToWA(sessionData) {
     });
 }
 
-startSystem();
-
-app.get("/", (req, res) => res.send("ZANTA-MD Multi-Bot System Online ✅"));
-app.listen(port, '0.0.0.0', () => console.log(`Server on port ${port}`));
+ensureSessionFile();
+app.get("/", (req, res) => res.send(`Hey, ${global.CURRENT_BOT_SETTINGS.botName} Online ✅`));
+app.listen(port, () => console.log(`Server on port ${port}`));
