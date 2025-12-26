@@ -39,7 +39,6 @@ cmd({
     statusText += `┃ 8️⃣ *Read Commands:* ${settings.readCmd === 'true' ? '✅ ON' : '❌ OFF'}\n`;
     statusText += `┃ 9️⃣ *Auto Voice:* ${settings.autoVoice === 'true' ? '✅ ON' : '❌ OFF'}\n`;
     statusText += `┃ 🔟 *Anti Badword:* ${settings.antiBadword === 'true' ? '✅ ON' : '❌ OFF'}\n`;
-    statusText += `┃ 1️⃣1️⃣ *Anti Delete:* ${settings.antiDelete === 'true' ? '✅ ON' : '❌ OFF'}\n`;
     statusText += `┃\n`;
     statusText += `╰━━━━━━━━━━━━━━━┈⊷\n\n`;
     statusText += `*💡 සෙටින්ග්ස් වෙනස් කරන්නේ කෙසේද?*\n`;
