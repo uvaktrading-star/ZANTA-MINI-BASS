@@ -14,8 +14,7 @@ const SettingsSchema = new mongoose.Schema({
     alwaysOnline: { type: String, default: 'false' },
     readCmd: { type: String, default: 'false' },
     autoVoice: { type: String, default: 'false' },
-    antiBadword: { type: String, default: 'false' },
-    antiDelete: { type: String, default: 'false' }
+    antiBadword: { type: String, default: 'false' }
 });
 
 const Settings = mongoose.models.Settings || mongoose.model('Settings', SettingsSchema);
