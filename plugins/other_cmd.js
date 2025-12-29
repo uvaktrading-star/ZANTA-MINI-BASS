@@ -3,144 +3,100 @@ const { cmd } = require("../command");
 const { translate } = require('@vitalets/google-translate-api');
 const config = require("../config");
 
+// 1. JID Finder
 cmd({
     pattern: "jid",
     alias: ["myid", "userjid"],
     react: "🆔",
-    desc: "Get user's JID or replied user's JID.",
     category: "main",
     filename: __filename,
-}, async (zanta, mek, m, { from, reply, isGroup, sender, userSettings }) => { // <--- userSettings එකතු කළා
+}, async (zanta, mek, m, { from, sender, isGroup, userSettings }) => {
     try {
-        const settings = userSettings || global.CURRENT_BOT_SETTINGS;
+        const settings = userSettings || global.CURRENT_BOT_SETTINGS || {};
         const botName = settings.botName || config.DEFAULT_BOT_NAME || "ZANTA-MD";
+        const targetJid = m.quoted ? m.quoted.sender : sender;
 
-        let targetJid = m.quoted ? m.quoted.sender : sender;
+        let jidMsg = `🆔 *USER JID INFO*\n\n👤 *User:* @${targetJid.split('@')[0]}\n🎫 *JID:* ${targetJid}\n`;
+        if (isGroup) jidMsg += `🏢 *Group JID:* ${from}\n`;
+        jidMsg += `\n> *© ${botName}*`;
 
-        let jidMsg = `╭━─━─━─━─━╮\n┃ 🆔 *USER JID INFO* ┃\n╰━─━─━─━─━╯\n\n`;
-        jidMsg += `👤 *User:* @${targetJid.split('@')[0]}\n`;
-        jidMsg += `🎫 *JID:* ${targetJid}\n\n`;
-
-        if (isGroup) {
-            jidMsg += `🏢 *Group JID:* ${from}\n\n`;
-        }
-
-        jidMsg += `> *© ${botName} ID FINDER*`;
-
-        await zanta.sendMessage(from, { 
-            text: jidMsg, 
-            mentions: [targetJid] 
-        }, { quoted: mek });
-
+        await zanta.sendMessage(from, { text: jidMsg, mentions: [targetJid] }, { quoted: mek });
     } catch (err) {
-        console.error(err);
-        reply("❌ JID එක ලබා ගැනීමට නොහැකි විය.");
+        // Log ඉවත් කර සරලව reply කළා
     }
 });
 
+// 2. Speed Test
 cmd({
     pattern: "speed",
     alias: ["system", "ms"],
     react: "⚡",
-    desc: "Check bot's response speed.",
     category: "main",
     filename: __filename,
-}, async (zanta, mek, m, { from, reply, userSettings }) => { // <--- userSettings එකතු කළා
+}, async (zanta, mek, m, { from, userSettings }) => {
     try {
-        const settings = userSettings || global.CURRENT_BOT_SETTINGS;
+        const settings = userSettings || global.CURRENT_BOT_SETTINGS || {};
         const botName = settings.botName || config.DEFAULT_BOT_NAME || "ZANTA-MD";
-
         const startTime = Date.now();
 
-        const pinger = await zanta.sendMessage(from, { text: "🚀 *Checking Speed...*" }, { quoted: mek });
-
-        const endTime = Date.now();
-        const ping = endTime - startTime;
+        const pinger = await zanta.sendMessage(from, { text: "🚀 *Checking...*" }, { quoted: mek });
+        const ping = Date.now() - startTime;
 
         await zanta.sendMessage(from, { 
-            text: `⚡ *${botName} SPEED REPORT*\n\n🚄 *Response Time:* ${ping}ms\n📡 *Status:* Online\n\n> *© ${botName}*`, 
+            text: `⚡ *${botName} SPEED*\n\n🚄 *Latency:* ${ping}ms\n📡 *Status:* Online\n\n> *© ${botName}*`, 
             edit: pinger.key 
         });
-
-    } catch (err) {
-        console.error(err);
-        reply("❌ වේගය පරීක්ෂා කිරීමේදී දෝෂයක් විය.");
-    }
+    } catch (err) {}
 });
 
+// 3. Image Downloader (GIS)
 cmd({
     pattern: "img",
     alias: ["image", "gimg"],
     react: "🖼️",
-    desc: "Search and download images directly from Google using GIS.",
     category: "download",
     filename: __filename,
-}, async (zanta, mek, m, { from, reply, q, userSettings }) => { // <--- userSettings එකතු කළා
+}, async (zanta, mek, m, { from, reply, q, userSettings }) => {
     try {
-        if (!q) return reply("❤️ *කරුණාකර පින්තූරයේ නම ලබා දෙන්න. (Ex: .img car)*");
-
-        const settings = userSettings || global.CURRENT_BOT_SETTINGS;
+        if (!q) return reply("❤️ *කරුණාකර නමක් ලබා දෙන්න.*");
+        const settings = userSettings || global.CURRENT_BOT_SETTINGS || {};
         const botName = settings.botName || config.DEFAULT_BOT_NAME || "ZANTA-MD";
 
-        await reply(`🔍 *"${q}" පින්තූර සොයමින් පවතී...*`);
-
         gis(q, async (error, results) => {
-            if (error) {
-                console.error(error);
-                return reply("❌ *පින්තූර සෙවීමේදී දෝෂයක් සිදු විය.*");
-            }
+            if (error || !results || results.length === 0) return reply("❌ *පින්තූර සොයාගත නොහැකි විය.*");
 
-            if (!results || results.length === 0) {
-                return reply("❌ *පින්තූර සොයාගත නොහැකි විය.*");
-            }
-
-            const imageUrl = results[0].url;
-
+            // RAM එක ඉතිරි කරගන්න කෙලින්ම URL එකෙන් Image එක යැවීම
             await zanta.sendMessage(from, {
-                image: { url: imageUrl },
-                caption: `*🖼️ IMAGE DOWNLOADER*\n\n🔍 *Query:* ${q}\n🚀 *Bot:* ${botName}\n\n> *© Powered by ${botName}*`,
+                image: { url: results[0].url },
+                caption: `*🖼️ IMAGE DOWNLOADER*\n🔍 *Query:* ${q}\n\n> *© ${botName}*`,
             }, { quoted: mek });
         });
-
-    } catch (e) {
-        console.error("GIS Error:", e);
-        reply(`❌ *Error:* ${e.message}`);
-    }
+    } catch (e) {}
 });
 
+// 4. Translator
 cmd({
     pattern: "tr",
     alias: ["translate"],
     react: "🌍",
-    desc: "Translate text to Sinhala.",
     category: "convert",
     filename: __filename,
 }, async (zanta, mek, m, { from, reply, q, userSettings }) => {
     try {
-        const settings = userSettings || global.CURRENT_BOT_SETTINGS;
+        const settings = userSettings || global.CURRENT_BOT_SETTINGS || {};
         const botName = settings.botName || config.DEFAULT_BOT_NAME || "ZANTA-MD";
+        const text = m.quoted ? m.quoted.body : q;
 
-        let textToTranslate = "";
+        if (!text) return reply("❤️ *පණිවිඩයකට Reply කරන්න හෝ වචනයක් ලබා දෙන්න.*");
 
-        if (m.quoted && m.quoted.body) {
-            textToTranslate = m.quoted.body;
-        } else if (q) {
-            textToTranslate = q;
-        } else {
-            return reply("❤️ *කරුණාකර පණිවිඩයකට Reply කරන්න හෝ වචනයක් ලබා දෙන්න.*");
-        }
+        const loading = await zanta.sendMessage(from, { text: "🔠 *Translating...*" }, { quoted: mek });
+        const result = await translate(text, { to: 'si' });
 
-        const loading = await reply("🔠 *Translating...*");
-
-        const result = await translate(textToTranslate, { to: 'si' });
-
-        // පරිවර්තනය වුණු පෙළ සහ ෆුටර් එක විතරයි මෙතන තියෙන්නේ
-        let translationMsg = `${result.text}\n\n> *© Powered by ${botName}*`;
-
-        await zanta.sendMessage(from, { text: translationMsg, edit: loading.key });
-
+        await zanta.sendMessage(from, { 
+            text: `${result.text}\n\n> *© ${botName}*`, 
+            edit: loading.key 
+        });
     } catch (err) {
-        console.error("Translate Error:", err);
-        reply("❌ *පරිවර්තනය කිරීමේදී දෝෂයක් සිදු විය.*");
+        reply("❌ *පරිවර්තනය අසාර්ථක විය.*");
     }
 });
