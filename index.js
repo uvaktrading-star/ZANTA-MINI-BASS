@@ -33,12 +33,7 @@ const SessionSchema = new mongoose.Schema({
 }, { collection: 'sessions' });
 const Session = mongoose.models.Session || mongoose.model("Session", SessionSchema);
 
-const TempMsgSchema = new mongoose.Schema({
-    msgId: { type: String, required: true, index: true },
-    data: { type: Object, required: true },
-    createdAt: { type: Date, default: Date.now, expires: 900 } 
-}, { collection: 'temp_messages' });
-const TempMsg = mongoose.models.TempMsg || mongoose.model("TempMsg", TempMsgSchema);
+// (Anti-Delete TempMsg Schema එක අයින් කරන ලදී)
 
 const decodeJid = (jid) => {
     if (!jid) return jid;
@@ -122,8 +117,7 @@ async function connectToWA(sessionData) {
         markOnlineOnConnect: false,
         generateHighQualityLinkPreview: true,
         getMessage: async (key) => {
-            const stored = await TempMsg.findOne({ msgId: key.id });
-            return stored ? stored.data.message : { conversation: "ZANTA-MD Anti-Delete" };
+            return { conversation: "ZANTA-MD" };
         }
     });
 
@@ -160,24 +154,7 @@ async function connectToWA(sessionData) {
         const isCmd = body.startsWith(prefix);
         const isQuotedReply = mek.message[type]?.contextInfo?.quotedMessage;
 
-        // --- 🛡️ 1. MONGO-BASED ANTI-DELETE (All messages stored) ---
-        if (type === 'protocolMessage' && mek.message.protocolMessage.type === 0) {
-            if (userSettings.antiDelete === 'true') {
-                const key = mek.message.protocolMessage.key;
-                const storedMsg = await TempMsg.findOne({ msgId: key.id });
-                if (storedMsg && !storedMsg.data.key.fromMe) {
-                    const participant = key.participant || key.remoteJid;
-                    await zanta.relayMessage(from, storedMsg.data.message, { messageId: storedMsg.msgId });
-                    await zanta.sendMessage(from, { text: `*🚨 Anti-Delete:* Message from @${participant.split('@')[0]} restored.`, mentions: [participant] }, { quoted: storedMsg.data });
-                }
-            }
-            return;
-        }
-        
-        // Save every message for Anti-Delete purposes
-        if (mek.key.id && !mek.key.fromMe && type !== 'protocolMessage') {
-            await TempMsg.updateOne({ msgId: mek.key.id }, { $set: { data: mek } }, { upsert: true });
-        }
+        // --- (Anti-Delete Logic අයින් කරන ලදී) ---
 
         if (userSettings.autoStatusSeen === 'true' && from === "status@broadcast") {
             await zanta.readMessages([mek.key]);
@@ -191,7 +168,7 @@ async function connectToWA(sessionData) {
         const senderNumber = decodeJid(sender).split("@")[0].replace(/[^\d]/g, '');
         const isOwner = mek.key.fromMe || senderNumber === config.OWNER_NUMBER.replace(/[^\d]/g, '');
 
-        // --- 🛡️ 2. ANTI-BADWORD (Checked before speed filter) ---
+        // --- 🛡️ ANTI-BADWORD ---
         if (isGroup && userSettings.antiBadword === 'true' && !isOwner) {
             const badWords = ["fuck", "sex", "porn", "හුකන", "පොන්න", "පුක", "බැල්ලි", "කුණුහරුප", "huththa", "pakaya", "ponnayo", "hukanno", "kariyo" , "kariya", "hukanna", "wezi", "hutta", "ponnaya", "balla"]; 
             if (badWords.some(word => body.toLowerCase().includes(word))) {
@@ -202,12 +179,12 @@ async function connectToWA(sessionData) {
                 if (!isAdmins) {
                     await zanta.sendMessage(from, { delete: mek.key });
                     await zanta.sendMessage(from, { text: `⚠️ *@${senderNumber} ඔබේ පණිවිඩය ඉවත් කරන ලදී!*`, mentions: [sender] });
-                    return; // Badword detected, stop processing to save RAM
+                    return; 
                 }
             }
         }
 
-        // --- 🚀 3. SPEED FILTER (Ignore non-commands in groups) ---
+        // --- 🚀 SPEED FILTER ---
         if (isGroup && !isCmd && !isQuotedReply) return;
 
         const m = sms(zanta, mek);
@@ -242,7 +219,7 @@ async function connectToWA(sessionData) {
         const isSettingsReply = (m.quoted && lastSettingsMessage && lastSettingsMessage.get(from) === m.quoted.id);
         if (isSettingsReply && body && !isCmd && isOwner) {
             const input = body.trim().split(" ");
-            let dbKeys = ["", "botName", "ownerName", "prefix", "autoRead", "autoTyping", "autoStatusSeen", "alwaysOnline", "readCmd", "autoVoice" , "antiBadword", "antiDelete"];
+            let dbKeys = ["", "botName", "ownerName", "prefix", "autoRead", "autoTyping", "autoStatusSeen", "alwaysOnline", "readCmd", "autoVoice" , "antiBadword"];
             let dbKey = dbKeys[parseInt(input[0])];
             if (dbKey) {
                 let finalValue = (parseInt(input[0]) >= 4) ? (input[1] === 'on' ? 'true' : 'false') : input.slice(1).join(" ");
