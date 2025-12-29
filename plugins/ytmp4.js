@@ -89,8 +89,7 @@ cmd({
 
 // --- 🎶 SONG Command ---
 cmd({
-    pattern: "song",
-    alias: ["ytmp3", "audio"],
+    pattern: "ytmp3",
     react: "🎶",
     category: "download",
     filename: __filename,
