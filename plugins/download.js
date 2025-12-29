@@ -2,92 +2,69 @@ const { cmd } = require("../command");
 const axios = require('axios');
 const config = require('../config');
 
+// 📦 APK DOWNLOADER
 cmd({
     pattern: "apk",
     alias: ["app", "playstore"],
     react: "📦",
-    desc: "Search and download APK files from multiple sources.",
     category: "download",
     filename: __filename
-}, async (zanta, mek, m, { from, reply, q, userSettings }) => { // <--- userSettings එකතු කළා
+}, async (zanta, mek, m, { from, reply, q, userSettings }) => {
     try {
-        if (!q) return reply("❌ *කරුණාකර ඇප් එකේ නම ලබා දෙන්න. (Ex: .apk FB)*");
+        if (!q) return reply("❌ *ඇප් එකේ නම ලබා දෙන්න.*");
 
-        await reply(`🔍 *"${q}" සොයමින් පවතී...*`);
-
+        const loading = await zanta.sendMessage(from, { text: `🔍 *"${q}" සොයමින් පවතී...*` }, { quoted: mek });
         let appData = null;
 
-        // --- ක්‍රමය 1: BK9 API ---
+        // --- Method 1: BK9 API ---
         try {
             const res1 = await axios.get(`https://bk9.fun/download/apk?q=${encodeURIComponent(q)}`);
-            if (res1.data && res1.data.status && res1.data.BK9) {
-                appData = {
-                    name: res1.data.BK9.name,
-                    icon: res1.data.BK9.icon,
-                    size: res1.data.BK9.size,
-                    package: res1.data.BK9.id,
-                    dl: res1.data.BK9.dllink
-                };
+            if (res1.data?.status && res1.data.BK9) {
+                const b = res1.data.BK9;
+                appData = { name: b.name, icon: b.icon, size: b.size, package: b.id, dl: b.dllink };
             }
-        } catch (e) { console.log("Method 1 failed"); }
+        } catch (e) { /* silent fail */ }
 
-        // --- ක්‍රමය 2: Fallback ---
+        // --- Method 2: Fallback ---
         if (!appData) {
             try {
                 const res2 = await axios.get(`https://api.shinoa.xyz/api/apk/search?q=${encodeURIComponent(q)}`);
-                if (res2.data && res2.data.result.length > 0) {
+                if (res2.data?.result?.length > 0) {
                     const id = res2.data.result[0].id;
                     const dlRes = await axios.get(`https://api.shinoa.xyz/api/apk/download?id=${id}`);
-                    appData = {
-                        name: dlRes.data.result.name,
-                        icon: dlRes.data.result.icon,
-                        size: dlRes.data.result.size,
-                        package: dlRes.data.result.package,
-                        dl: dlRes.data.result.download
-                    };
+                    const r = dlRes.data.result;
+                    appData = { name: r.name, icon: r.icon, size: r.size, package: r.package, dl: r.download };
                 }
-            } catch (e) { console.log("Method 2 failed"); }
+            } catch (e) { /* silent fail */ }
         }
 
-        if (!appData || !appData.dl) {
-            return reply("❌ *කණගාටුයි, කිසිදු සර්වර් එකකින් මෙම ඇප් එක සොයාගත නොහැකි විය.*");
-        }
+        if (!appData || !appData.dl) return await zanta.sendMessage(from, { text: "❌ *සොයාගත නොහැකි විය.*", edit: loading.key });
 
-        // --- Size Limit (250MB) ---
+        // Size Limit Check
         const sizeStr = appData.size || "0 MB";
-        const sizeVal = parseFloat(sizeStr);
-        if (sizeStr.toLowerCase().includes('gb') || (sizeStr.toLowerCase().includes('mb') && sizeVal > 250)) {
-            return reply(`⏳ *ප්‍රමාණය වැඩි බැවින් (${sizeStr}) බොට් හරහා ලබා දිය නොහැක.*`);
+        if (sizeStr.includes('GB') || (sizeStr.includes('MB') && parseFloat(sizeStr) > 200)) {
+            return await zanta.sendMessage(from, { text: `⏳ *ප්‍රමාණය වැඩි බැවින් (${sizeStr}) ලබා දිය නොහැක.*`, edit: loading.key });
         }
 
-        // [වැදගත්]: ඩේටාබේස් සෙටින්ග්ස් ලබා ගැනීම
-        const settings = userSettings || global.CURRENT_BOT_SETTINGS;
+        const settings = userSettings || global.CURRENT_BOT_SETTINGS || {};
         const botName = settings.botName || config.DEFAULT_BOT_NAME || "ZANTA-MD";
 
-        let desc = `
-╭━─━─━─━─━─━─━─━╮
-┃    *📦 APK DOWNLOADER*
-╰━─━─━─━─━─━─━─━╯
+        // Send Details
+        await zanta.sendMessage(from, { 
+            image: { url: appData.icon }, 
+            caption: `📛 *Name:* ${appData.name}\n⚖️ *Size:* ${appData.size}\n\n> *© ${botName}*` 
+        }, { quoted: mek });
 
-📛 *Name:* ${appData.name}
-⚖️ *Size:* ${appData.size}
-📦 *Package:* ${appData.package}
-
-🔄 *ඔබගේ APK එක එවනු ලැබේ. රැඳී සිටින්න...*
-
-> *© ${botName}*`;
-
-        await zanta.sendMessage(from, { image: { url: appData.icon }, caption: desc }, { quoted: mek });
-
+        // Send APK (Direct Stream)
         await zanta.sendMessage(from, {
             document: { url: appData.dl },
             mimetype: "application/vnd.android.package-archive",
-            fileName: `${appData.name}.apk`,
-            caption: `*✅ ${appData.name} Success!*`
+            fileName: `${appData.name}.apk`
         }, { quoted: mek });
 
+        await zanta.sendMessage(from, { text: "✅ *Upload Completed!*", edit: loading.key });
+
     } catch (e) {
-        console.error("APK Final Error:", e);
         reply(`❌ *Error:* ${e.message}`);
     }
 });
@@ -97,49 +74,31 @@ cmd({
     pattern: "tiktok",
     alias: ["ttdl", "tt"],
     react: "🕺",
-    desc: "Download TikTok Video without watermark.",
     category: "download",
     filename: __filename
-}, async (zanta, mek, m, { from, reply, q, userSettings }) => { // <--- userSettings එකතු කළා
+}, async (zanta, mek, m, { from, reply, q, userSettings }) => {
     try {
-        if (!q) return reply("❌ *කරුණාකර TikTok Link එකක් ලබා දෙන්න.*");
+        if (!q || !q.includes("tiktok.com")) return reply("❌ *වලංගු TikTok Link එකක් ලබා දෙන්න.*");
 
-        let inputUrl = q.trim();
-        if (!inputUrl.includes("tiktok.com")) return reply("❌ *කරුණාකර වලංගු TikTok Link එකක් ලබා දෙන්න.*");
+        const loading = await zanta.sendMessage(from, { text: "🔄 *පිටපත් කරමින්...*" }, { quoted: mek });
 
-        await reply("🔄 *TikTok වීඩියෝව ලබා ගනිමින් පවතී...*");
+        const response = await axios.get(`https://www.tikwm.com/api/?url=${q}`);
+        const videoData = response.data?.data;
 
-        const response = await axios.get(`https://www.tikwm.com/api/?url=${inputUrl}`);
-        const data = response.data;
+        if (!videoData) return await zanta.sendMessage(from, { text: "❌ *වීඩියෝව සොයාගත නොහැකි විය.*", edit: loading.key });
 
-        if (!data || !data.data || !data.data.play) {
-            return reply("❌ *වීඩියෝව සොයාගත නොහැකි විය. ලින්ක් එක පරීක්ෂා කර නැවත උත්සාහ කරන්න.*");
-        }
-
-        const videoData = data.data;
-
-        // [වැදගත්]: ඩේටාබේස් සෙටින්ග්ස් ලබා ගැනීම
-        const settings = userSettings || global.CURRENT_BOT_SETTINGS;
+        const settings = userSettings || global.CURRENT_BOT_SETTINGS || {};
         const botName = settings.botName || config.DEFAULT_BOT_NAME || "ZANTA-MD";
 
         await zanta.sendMessage(from, {
             video: { url: videoData.play },
             mimetype: "video/mp4",
-            caption: `
-╭━─━─━─━─━─━─━─━╮
-┃    *🕺 TIKTOK DOWNLOADER*
-╰━─━─━─━─━─━─━─━╯
-
-👤 *Creator:* ${videoData.author.unique_id}
-📝 *Title:* ${videoData.title || 'TikTok Video'}
-📊 *Views:* ${videoData.play_count}
-❤️ *Likes:* ${videoData.digg_count}
-
-> *© ${botName}*`
+            caption: `👤 *Creator:* ${videoData.author.unique_id}\n📝 *Title:* ${videoData.title || 'TikTok'}\n\n> *© ${botName}*`
         }, { quoted: mek });
 
+        await zanta.sendMessage(from, { text: "✅ *Done!*", edit: loading.key });
+
     } catch (e) {
-        console.error(e);
         reply(`❌ *Error:* ${e.message}`);
     }
 });
