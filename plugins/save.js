@@ -1,74 +1,74 @@
 const { cmd } = require("../command");
+const { downloadContentFromMessage } = require("@whiskeysockets/baileys");
 
 // 🖼️ SAVE View Once Image/Video Command
 cmd(
 {
-    pattern: "save",
-    react: "💾",
-    desc: "Saves View Once image or video.",
-    category: "media",
-    filename: __filename,
+    pattern: "save",
+    react: "💾",
+    desc: "Saves View Once image or video safely.",
+    category: "media",
+    filename: __filename,
 },
 async (zanta, mek, m, { from, reply }) => {
-    try {
-        // 1. Reply පණිවිඩයක් දැයි පරීක්ෂා කිරීම
-        if (!m.quoted) {
-            return reply("කරුණාකර *View Once Image* හෝ *Video* පණිවිඩයක් Reply කරන්න.");
-        }
+    try {
+        // 1. Reply පණිවිඩයක් දැයි පරීක්ෂා කිරීම
+        if (!m.quoted) {
+            return reply("කරුණාකර *View Once Image* හෝ *Video* පණිවිඩයක් Reply කරන්න.");
+        }
 
-        const quotedMsg = m.quoted.msg;
-        
-        if (!quotedMsg) {
-            return reply(`❌ Reply කළ පණිවිඩයේ දත්ත සොයා ගැනීමට නොහැක. එය media පණිවිඩයක් දැයි පරීක්ෂා කරන්න.`);
-        }
+        const quotedMsg = m.quoted.msg;
+        
+        if (!quotedMsg) {
+            return reply(`❌ Reply කළ පණිවිඩයේ දත්ත සොයා ගැනීමට නොහැක.`);
+        }
 
-        // 2. View Once Message එකක්දැයි පරීක්ෂා කිරීම
-        const isViewOnce = quotedMsg.viewOnce === true;
+        // 2. View Once Message එකක්දැයි පරීක්ෂා කිරීම
+        const isViewOnce = quotedMsg.viewOnce === true;
 
-        if (!isViewOnce) {
-            // Reply කළ පණිවිඩයේ වර්ගය පෙන්වමු
-            return reply(`මෙය *View Once* පණිවිඩයක් නොවේ. (Actual Type: ${m.quoted.type})`);
-        }
+        if (!isViewOnce) {
+            return reply(`මෙය *View Once* පණිවිඩයක් නොවේ. (Actual Type: ${m.quoted.type})`);
+        }
 
-        // 3. Image හෝ Video එකක්දැයි පරීක්ෂා කිරීම
-        const actualMessageType = m.quoted.type;
+        // 3. Image හෝ Video එකක්දැයි පරීක්ෂා කිරීම
+        const actualMessageType = m.quoted.type;
 
-        if (actualMessageType !== 'imageMessage' && actualMessageType !== 'videoMessage') {
-            return reply("කරුණාකර *View Once Image* හෝ *Video* එකක් Reply කරන්න.");
-        }
+        if (actualMessageType !== 'imageMessage' && actualMessageType !== 'videoMessage') {
+            return reply("කරුණාකර *View Once Image* හෝ *Video* එකක් Reply කරන්න.");
+        }
 
-        reply("💾 View Once Media Download කරමින්...");
+        reply("💾 View Once Media Download කරමින්...");
+        await zanta.sendMessage(from, { react: { text: "⏳", key: mek.key } });
 
-        // 4. Media Buffer එක Download කිරීම
-        // lib/msg.js හි ඇති downloadMediaMessage function එක මෙහිදී ක්‍රියාත්මක වේ.
-        const mediaBuffer = await m.quoted.download();
+        // 4. Media Streaming (RAM එක පිරීම පාලනය කරයි)
+        // මුළු ෆයිල් එකම එකපාර RAM එකට ගන්නේ නැතිව කැබලි (Chunks) විදිහට ලබා ගනී
+        const mediaType = actualMessageType === 'imageMessage' ? 'image' : 'video';
+        const stream = await downloadContentFromMessage(quotedMsg, mediaType);
+        
+        let buffer = Buffer.from([]);
+        for await (const chunk of stream) {
+            buffer = Buffer.concat([buffer, chunk]);
+        }
 
-        if (!mediaBuffer || mediaBuffer.length === 0) {
-            return reply("❌ Media Download කිරීමට නොහැකි විය. Media Key දෝෂයක් විය හැක.");
-        }
+        if (!buffer || buffer.length === 0) {
+            return reply("❌ Media Download කිරීමට නොහැකි විය.");
+        }
 
-        // 5. Media එක නැවත Chat එකට යැවීම
-        const senderJid = m.quoted.sender;
-        const captionText = `🖼️ *Saved View Once Media*\nSender: @${senderJid.split('@')[0]}`;
-        
-        if (actualMessageType === 'imageMessage') {
-            await zanta.sendMessage(
-                from,
-                { image: mediaBuffer, caption: captionText, mentions: [senderJid] },
-                { quoted: mek }
-            );
-        } else if (actualMessageType === 'videoMessage') {
-            await zanta.sendMessage(
-                from,
-                { video: mediaBuffer, caption: captionText, mentions: [senderJid] },
-                { quoted: mek }
-            );
-        }
+        // 5. Media එක නැවත Chat එකට යැවීම
+        const senderJid = m.quoted.sender;
+        const captionText = `🖼️ *Saved View Once Media*\nSender: @${senderJid.split('@')[0]}`;
+        
+        const messageOptions = {
+            [actualMessageType === 'imageMessage' ? 'image' : 'video']: buffer,
+            caption: captionText,
+            mentions: [senderJid]
+        };
 
-        await zanta.sendMessage(from, { react: { text: '✅', key: mek.key } });
+        await zanta.sendMessage(from, messageOptions, { quoted: mek });
+        await zanta.sendMessage(from, { react: { text: '✅', key: mek.key } });
 
-    } catch (e) {
-        console.error("Save Command Error:", e);
-        reply(`*Error:* Save කිරීමේදී දෝෂයක් සිදුවිය: ${e.message}`);
-    }
+    } catch (e) {
+        console.error("Save Command Error:", e);
+        reply(`*Error:* Save කිරීමේදී දෝෂයක් සිදුවිය: ${e.message}`);
+    }
 });
