@@ -110,41 +110,39 @@ async (zanta, mek, m, { from, q, reply, isOwner, userSettings }) => {
         const botName = settings.botName || config.DEFAULT_BOT_NAME || "ZANTA-MD";
 
         // 1. සින්දුව සෙවීම
+        const yts = require("yt-search");
+        const { ytmp3 } = require("@vreden/youtube_scraper");
         const search = await yts(songName);
         const data = search.videos[0];
         if (!data) return reply("❌ සින්දුව සොයාගත නොහැකි විය.");
 
-        // 2. Music Player Style Caption එක (ඔයා එවපු Image එකේ විදිහට)
-        let playerCaption = `📄 TITLE : ${data.title} ⏳ ❤️ 🎧
+        let playerCaption = `📄 TITLE : ${data.title} ⏳ ❤️ 🎧\n\n.ilililililiililililililiililililililiilililil.\n\n01:24━━━━🔘━━━━━━━${data.timestamp}\n     ↻      ◁   II   ▷      ↺\n\n|  ${botName.toUpperCase()} MUSIC ❤️ 🎧`;
 
-.ilililililiililililililiililililililiilililil.
+        // --- 🚀 CHANNEL STABILITY FIX ---
+        // Channel එකකට යවනවා නම් newsletter කියන option එක වැදගත් වෙන්න පුළුවන්
+        const isChannel = targetJid.endsWith("@newsletter");
 
-01:24━━━━🔘━━━━━━━${data.timestamp}
-     ↻     ◁   II   ▷     ↺
-
-|  ${botName.toUpperCase()} MUSIC ❤️ 🎧`;
-
-        // 3. මුලින්ම Image එක සහ Caption එක Target JID එකට යැවීම
+        // 2. Image එක යැවීම
         await zanta.sendMessage(targetJid, { 
             image: { url: data.thumbnail }, 
             caption: playerCaption 
-        });
+        }, { newsletter: isChannel });
 
-        // 4. සින්දුව Download කිරීම
+        // 3. සින්දුව Download කිරීම
         const songData = await ytmp3(data.url, "192");
         if (!songData || !songData.download || !songData.download.url) {
             return reply("❌ ඩවුන්ලෝඩ් ලින්ක් එක ලබා ගැනීමට නොහැක.");
         }
 
-        // 5. Audio එක සෙන්ඩ් කිරීම (Document එකක් ලෙස channel වලට වඩාත් සුදුසුයි)
+        // 4. Audio එක Document එකක් ලෙස යැවීම
         await zanta.sendMessage(targetJid, { 
             document: { url: songData.download.url }, 
             mimetype: 'audio/mpeg', 
             fileName: `${data.title}.mp3`,
             caption: `🎵 *${data.title}*\n> *© ${botName}*`
-        });
+        }, { newsletter: isChannel });
 
-        await reply(`✅ Successfully sent to channel: ${targetJid}`);
+        await reply(`✅ Successfully sent to: ${targetJid}`);
 
     } catch (e) {
         console.error(e);
