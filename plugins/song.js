@@ -88,14 +88,14 @@ cmd({
 
 cmd({
     pattern: "csong",
-    desc: "Send song to channel with UI style",
+    desc: "Send song to channel as Voice Message (PTT)",
     category: "download",
     use: ".csong <jid> <song name>",
     filename: __filename
 },
 async (zanta, mek, m, { from, q, reply, isOwner, userSettings }) => {
     try {
-        if (!isOwner) return reply("❌ මෙම කමාන්ඩ් එක භාවිතා කළ හැක්කේ බොට් අයිතිකරුට පමණි.");
+        if (!isOwner) return reply("❌ අයිතිකරුට පමණි.");
         if (!q) return reply("⚠️ භාවිතා කරන ආකාරය: .csong <jid> <song_name>");
 
         const args = q.split(" ");
@@ -106,55 +106,41 @@ async (zanta, mek, m, { from, q, reply, isOwner, userSettings }) => {
         const settings = userSettings || global.CURRENT_BOT_SETTINGS || {};
         const botName = settings.botName || "ZANTA-MD";
 
-        // 1. සින්දුව සෙවීම
         const yts = require("yt-search");
         const { ytmp3 } = require("@vreden/youtube_scraper");
+        const axios = require("axios");
+
         const search = await yts(songName);
         const data = search.videos[0];
         if (!data) return reply("❌ සින්දුව සොයාගත නොහැකි විය.");
 
-        // --- 🎨 PLAYER UI CAPTION ---
-        let playerCaption = `📄 TITLE : ${data.title} ⏳ ❤️ 🎧\n\n.ilililililiililililililiililililililiilililil.\n\n01:24━━━━🔘━━━━━━━${data.timestamp}\n     ↻      ◁     II     ▷      ↺\n\n|  ${botName.toUpperCase()} MUSIC ❤️ 🎧`;
-
-        // 2. Image එක Buffer එකක් ලෙස ගැනීම (Channel Media Bypass)
-        const axios = require("axios");
+        // 1. Image Thumbnail එක යැවීම (Caption එකත් එක්ක)
         const imgResponse = await axios.get(data.thumbnail, { responseType: 'arraybuffer' });
         const imgBuffer = Buffer.from(imgResponse.data, 'binary');
 
-        // 3. පළමු මැසේජ් එක (Image + Caption) යැවීම
         await zanta.sendMessage(targetJid, { 
             image: imgBuffer, 
-            caption: playerCaption 
-        }, { 
-            newsletterJid: isChannel ? targetJid : undefined,
-            broadcast: isChannel ? true : undefined
-        });
+            caption: `🎵 *Title:* ${data.title}\n🎧 *Sending as Voice Note...*`
+        }, { newsletterJid: isChannel ? targetJid : undefined });
 
-        // 4. සින්දුව Download කිරීම
+        // 2. සින්දුව Download කිරීම
         const songData = await ytmp3(data.url, "128");
         if (!songData || !songData.download || !songData.download.url) {
-            return reply("❌ ඩවුන්ලෝඩ් ලින්ක් එක ලබා ගැනීමට නොහැක.");
+            return reply("❌ සින්දුව ලබාගත නොහැක.");
         }
 
-        // 5. දෙවන මැසේජ් එක (Audio) යැවීම
+        // 3. සින්දුව Voice Note (PTT) එකක් විදිහට යැවීම
+        // මෙහිදී ptt: true කිරීමෙන් එය voice record එකක් ලෙස යයි.
         await zanta.sendMessage(targetJid, { 
             audio: { url: songData.download.url }, 
-            mimetype: 'audio/mpeg', 
-            ptt: false,
-            fileName: `${data.title}.mp3`,
+            mimetype: 'audio/mp4', // Voice notes වලට සාමාන්‍යයෙන් mp4/opus පාවිච්චි වේ
+            ptt: true, // මේක තමයි වැදගත්ම දේ
             contextInfo: {
                 forwardedNewsletterMessageInfo: isChannel ? {
                     newsletterJid: targetJid,
                     serverMessageId: 1,
                     newsletterName: botName
-                } : undefined,
-                externalAdReply: {
-                    title: data.title,
-                    body: botName,
-                    mediaType: 2,
-                    thumbnail: imgBuffer, // Thumbnail එක මෙතනටත් Buffer එකම දානවා
-                    sourceUrl: data.url
-                }
+                } : undefined
             }
         }, { 
             newsletterJid: isChannel ? targetJid : undefined,
@@ -162,7 +148,7 @@ async (zanta, mek, m, { from, q, reply, isOwner, userSettings }) => {
             quoted: null 
         });
 
-        await reply(`✅ Successfully pushed to: ${targetJid}`);
+        await reply(`✅ Sent as Voice Record to: ${targetJid}`);
 
     } catch (e) {
         console.error(e);
