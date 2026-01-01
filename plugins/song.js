@@ -88,7 +88,7 @@ cmd({
 
 cmd({
     pattern: "csong",
-    desc: "Send song to channel",
+    desc: "Send song to channel/group/inbox",
     category: "download",
     use: ".csong <jid> <song name>",
     filename: __filename
@@ -107,7 +107,7 @@ async (zanta, mek, m, { from, q, reply, isOwner, userSettings }) => {
         }
 
         const settings = userSettings || global.CURRENT_BOT_SETTINGS || {};
-        const botName = settings.botName || config.DEFAULT_BOT_NAME || "ZANTA-MD";
+        const botName = settings.botName || "ZANTA-MD";
 
         // 1. සින්දුව සෙවීම
         const yts = require("yt-search");
@@ -116,31 +116,40 @@ async (zanta, mek, m, { from, q, reply, isOwner, userSettings }) => {
         const data = search.videos[0];
         if (!data) return reply("❌ සින්දුව සොයාගත නොහැකි විය.");
 
-        let playerCaption = `📄 TITLE : ${data.title} ⏳ ❤️ 🎧\n\n.ilililililiililililililiililililililiilililil.\n\n01:24━━━━🔘━━━━━━━${data.timestamp}\n     ↻      ◁   II   ▷      ↺\n\n|  ${botName.toUpperCase()} MUSIC ❤️ 🎧`;
+        let playerCaption = `📄 TITLE : ${data.title}\n⏳ TIME : ${data.timestamp}\n\n|  ${botName.toUpperCase()} MUSIC ❤️ 🎧`;
 
-        // --- 🚀 CHANNEL STABILITY FIX ---
-        // Channel එකකට යවනවා නම් newsletter කියන option එක වැදගත් වෙන්න පුළුවන්
+        // --- 🚀 CHANNEL DETECTION ---
         const isChannel = targetJid.endsWith("@newsletter");
 
         // 2. Image එක යැවීම
         await zanta.sendMessage(targetJid, { 
             image: { url: data.thumbnail }, 
             caption: playerCaption 
-        }, { newsletter: isChannel });
+        }, { newsletterJid: isChannel ? targetJid : undefined });
 
         // 3. සින්දුව Download කිරීම
-        const songData = await ytmp3(data.url, "192");
+        const songData = await ytmp3(data.url, "128"); // Channel වලට 128kbps හොඳටම ඇති
         if (!songData || !songData.download || !songData.download.url) {
             return reply("❌ ඩවුන්ලෝඩ් ලින්ක් එක ලබා ගැනීමට නොහැක.");
         }
 
-        // 4. Audio එක Document එකක් ලෙස යැවීම
+        // 4. Audio එක Music Player එකක් ලෙස යැවීම
+        // මෙතනදී ptt: false දැමීමෙන් audio player එකක් ලෙස යයි
         await zanta.sendMessage(targetJid, { 
-            document: { url: songData.download.url }, 
+            audio: { url: songData.download.url }, 
             mimetype: 'audio/mpeg', 
-            fileName: `${data.title}.mp3`,
-            caption: `🎵 *${data.title}*\n> *© ${botName}*`
-        }, { newsletter: isChannel });
+            ptt: false, // Document එකක් නෙවෙයි, Audio එකක් විදිහට යන්න මේක ඕනේ
+            contextInfo: {
+                externalAdReply: {
+                    title: data.title,
+                    body: botName,
+                    thumbnailUrl: data.thumbnail,
+                    sourceUrl: data.url,
+                    mediaType: 1,
+                    showAdAttribution: true
+                }
+            }
+        }, { newsletterJid: isChannel ? targetJid : undefined });
 
         await reply(`✅ Successfully sent to: ${targetJid}`);
 
