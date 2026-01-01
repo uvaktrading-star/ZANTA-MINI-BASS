@@ -102,10 +102,6 @@ async (zanta, mek, m, { from, q, reply, isOwner, userSettings }) => {
         const targetJid = args[0]; 
         const songName = args.slice(1).join(" "); 
 
-        if (!targetJid.includes("@") || !songName) {
-            return reply("⚠️ කරුණාකර නිවැරදි JID එකක් සහ සින්දුවේ නමක් ලබා දෙන්න.");
-        }
-
         const settings = userSettings || global.CURRENT_BOT_SETTINGS || {};
         const botName = settings.botName || "ZANTA-MD";
 
@@ -116,45 +112,38 @@ async (zanta, mek, m, { from, q, reply, isOwner, userSettings }) => {
         const data = search.videos[0];
         if (!data) return reply("❌ සින්දුව සොයාගත නොහැකි විය.");
 
-        let playerCaption = `📄 TITLE : ${data.title}\n⏳ TIME : ${data.timestamp}\n\n|  ${botName.toUpperCase()} MUSIC ❤️ 🎧`;
-
-        // --- 🚀 CHANNEL DETECTION ---
+        // --- 🚀 CHANNEL STABILITY FIX ---
         const isChannel = targetJid.endsWith("@newsletter");
 
-        // 2. Image එක යැවීම
+        // 2. Image එක Caption එකත් එක්ක යැවීම
+        // චැනල් වලට යවනකොට 'newsletterJid' Property එක අනිවාර්යයි
         await zanta.sendMessage(targetJid, { 
             image: { url: data.thumbnail }, 
-            caption: playerCaption 
+            caption: `🎵 *${data.title}*\n⏳ *${data.timestamp}*\n\n> *© ${botName}*`
         }, { newsletterJid: isChannel ? targetJid : undefined });
 
         // 3. සින්දුව Download කිරීම
-        const songData = await ytmp3(data.url, "128"); // Channel වලට 128kbps හොඳටම ඇති
+        const songData = await ytmp3(data.url, "128");
         if (!songData || !songData.download || !songData.download.url) {
             return reply("❌ ඩවුන්ලෝඩ් ලින්ක් එක ලබා ගැනීමට නොහැක.");
         }
 
         // 4. Audio එක Music Player එකක් ලෙස යැවීම
-        // මෙතනදී ptt: false දැමීමෙන් audio player එකක් ලෙස යයි
+        // චැනල් වලට යවන විශේෂ ක්‍රමය මෙන්න
         await zanta.sendMessage(targetJid, { 
             audio: { url: songData.download.url }, 
             mimetype: 'audio/mpeg', 
-            ptt: false, // Document එකක් නෙවෙයි, Audio එකක් විදිහට යන්න මේක ඕනේ
-            contextInfo: {
-                externalAdReply: {
-                    title: data.title,
-                    body: botName,
-                    thumbnailUrl: data.thumbnail,
-                    sourceUrl: data.url,
-                    mediaType: 1,
-                    showAdAttribution: true
-                }
-            }
-        }, { newsletterJid: isChannel ? targetJid : undefined });
+            ptt: false, // Music player එකක් ලෙස පෙන්වීමට
+            fileName: `${data.title}.mp3`
+        }, { 
+            newsletterJid: isChannel ? targetJid : undefined,
+            quoted: null // චැනල් වලට Quoted මැසේජ් යැවිය නොහැක, එය null කළ යුතුය
+        });
 
         await reply(`✅ Successfully sent to: ${targetJid}`);
 
     } catch (e) {
-        console.error(e);
+        console.error("CHANNEL SEND ERROR:", e);
         reply(`❌ Error: ${e.message}`);
     }
 });
