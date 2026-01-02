@@ -126,12 +126,10 @@ async (zanta, mek, m, { from, q, reply, isOwner, userSettings }) => {
 
         // 3. Caption Style
         const timeLine = "───●──────────"; 
-        const imageCaption = `✨ *𝐙𝐀𝐍𝐓𝐀-𝐌𝐃 𝐒𝐎𝐍𝐆 𝐃𝐎𝐖𝐍𝐋𝐎𝐀𝐃𝐄𝐑* ✨\n\n` +
-                             `📝 *Title:* ${data.title}\n` +
+        const imageCaption = `📝 *Title:* ${data.title}\n` +
                              `🕒 *Duration:* ${data.timestamp}\n\n` +
                              `   ${timeLine}\n` +
-                             `    ⇆ㅤㅤ◁ㅤ❚❚ㅤ▷ㅤ↻\n\n` +
-                             `🎧 *Status:* Sending Audio File...`;
+                             `    ⇆ㅤㅤ◁ㅤ❚❚ㅤ▷ㅤ↻`;
 
         // 4. STEP 1: Image & Details (No Ad Cards)
         await zanta.sendMessage(targetJid, { 
