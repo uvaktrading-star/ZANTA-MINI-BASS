@@ -1,63 +1,51 @@
 const { cmd, commands } = require("../command");
-const os = require('os');
-const config = require("../config");
-
-const MENU_IMAGE_URL = "https://github.com/Akashkavindu/ZANTA_MD/blob/main/images/menu-new.jpg?raw=true";
 
 cmd({
     pattern: "menu",
     react: "💎",
-    desc: "Premium Menu without errors.",
+    desc: "100% Working List Menu.",
     category: "main",
     filename: __filename,
 },
 async (zanta, mek, m, { from, reply, userSettings, prefix }) => {
     try {
-        const runtime = Number(process.uptime().toFixed(0));
-        const hours = Math.floor(runtime / 3600);
-        const minutes = Math.floor((runtime % 3600) / 60);
-        const seconds = runtime % 60;
-        const memory = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2);
-
         let menuCaption = `✨ *𝐙𝐀𝐍𝐓𝐀-𝐌𝐃 𝐔𝐋𝐓𝐑𝐀* ✨
+        
+👋 ʜᴇʏ *${m.pushName}*
+🖥️ 𝚁𝚞𝚗𝚝𝚒𝚖𝚎 : ${process.uptime().toFixed(0)} 𝚜𝚎𝚌𝚘𝚗𝚍𝚜`;
 
-👋 ʜᴇʏ *${m.pushName || 'User'}*
-
-┌─────────────────────┈⊷
-│ 🖥️ *𝐒𝐘𝐒𝐓𝐄𝐌 𝐃𝐀𝐒𝐇𝐁𝐎𝐀𝐑𝐃*
-├─────────────────────┈⊷
-│ ⏳ 𝚁𝚞𝚗 : ${hours}𝚑 ${minutes}𝚖
-│ 🧠 𝚁𝚊𝚖 : ${memory}𝙼𝙱 / 𝟻𝟷𝟸𝙼𝙱
-│ 🌍 𝙼𝚘𝚍𝚎 : 𝙿𝚞𝚋𝚕𝚒𝚌 𝙴𝚍𝚒𝚝𝚒𝚘𝚗
-└─────────────────────┈⊷
-
-⚡ *𝖲𝖾𝗅𝖾𝗀𝗍 𝖸𝗈𝗎𝗋 𝖣𝖾𝗌𝗍𝗂𝗇𝖺𝗍𝗂𝗈𝗇 𝖡𝖾𝗅𝗈𝗐*`;
-
-        // 1. මුලින්ම Image එක Caption එකත් එක්ක යවනවා (Error එක එන්නේ මෙතන බටන් තිබ්බොත්)
-        await zanta.sendMessage(from, { 
-            image: { url: MENU_IMAGE_URL }, 
-            caption: menuCaption 
-        }, { quoted: mek });
-
-        // 2. ඊට පස්සේ බටන් මැසේජ් එක විතරක් යවනවා (මේක 100% වැඩ)
-        const buttons = [
-            { buttonId: `${prefix}allmenu`, buttonText: { displayText: '📂 ALL MENU' }, type: 1 },
-            { buttonId: `${prefix}downmenu`, buttonText: { displayText: '📥 DOWNLOAD' }, type: 1 },
-            { buttonId: `${prefix}ping`, buttonText: { displayText: '📡 PING' }, type: 1 }
+        // මෙනු එක List එකක් ලෙස සකස් කිරීම
+        const sections = [
+            {
+                title: "📋 Main Commands",
+                rows: [
+                    { title: "All Menu", rowId: `${prefix}allmenu`, description: "Show all commands" },
+                    { title: "Download Menu", rowId: `${prefix}downmenu`, description: "Download videos/songs" },
+                    { title: "Bot Settings", rowId: `${prefix}settings`, description: "Configure your bot" }
+                ]
+            },
+            {
+                title: "⚙️ System",
+                rows: [
+                    { title: "Ping Speed", rowId: `${prefix}ping`, description: "Check bot speed" },
+                    { title: "System Info", rowId: `${prefix}system`, description: "Check RAM/CPU usage" }
+                ]
+            }
         ];
 
-        const buttonMessage = {
-            text: "Please select an option below:",
-            footer: "💎 ZANTA-MD : The Ultimate Assistant",
-            buttons: buttons,
-            headerType: 1
+        const listMessage = {
+            text: menuCaption,
+            footer: "💎 ZANTA-MD Selection Menu",
+            title: "🔱 𝐙𝐀𝐍𝐓𝐀 𝐌𝐔𝐒𝐈𝐂 🔱",
+            buttonText: "Click Here to Select", // මෙතන තමයි බටන් එක පේන්නේ
+            sections
         };
 
-        return await zanta.sendMessage(from, buttonMessage, { quoted: mek });
+        // List message එක යැවීම
+        return await zanta.sendMessage(from, listMessage, { quoted: mek });
 
     } catch (err) {
-        console.error("Menu Error:", err);
-        // Error එකක් ආවොත් බටන් නැතුව හරි මැසේජ් එක යවන්න
-        reply("❌ 𝙼𝚎𝚗𝚞 𝚕𝚘𝚊𝚍𝚒𝚗𝚐 𝚏𝚊𝚒𝚕𝚎𝚍. Try again.");
+        console.error(err);
+        reply("❌ Error: " + err.message);
     }
 });
