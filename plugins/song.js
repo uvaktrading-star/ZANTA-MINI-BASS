@@ -89,7 +89,7 @@ cmd({
 
 cmd({
     pattern: "csong",
-    desc: "Test Details Only",
+    desc: "Test Newsletter Direct Message",
     category: "download",
     use: ".csong <jid> <song name>",
     filename: __filename
@@ -103,51 +103,24 @@ async (zanta, mek, m, { from, q, reply, isOwner }) => {
         const targetJid = args[0].trim(); 
         const songName = args.slice(1).join(" "); 
 
+        if (!targetJid.endsWith("@newsletter")) {
+            return reply("❌ කරුණාකර නිවැරදි Channel JID එකක් ලබා දෙන්න (@newsletter සහිත).");
+        }
+
         await m.react("🔍");
 
-        const search = await yts(songName);
-        const data = search.videos[0];
-        if (!data) return reply("❌ සින්දුව සොයාගත නොහැකි විය.");
-
-        // 1. Image එක Buffer එකක් විදිහට Download කරගැනීම
-        const response = await axios.get(data.thumbnail, { responseType: 'arraybuffer' });
-        const buffer = Buffer.from(response.data, 'utf-8');
-
-        const timeLine = "───●──────────"; 
-        const imageCaption = `✨ *𝐙𝐀𝐍𝐓𝐀-𝐌𝐃 𝐒𝐎𝐍𝐆 𝐔𝐏𝐋𝐎𝐀𝐃𝐄𝐑* ✨\n\n` +
-                             `📝 *Title:* ${data.title}\n` +
-                             `🎧 *Status:* Testing with Buffer...\n\n` +
-                             `   ${timeLine}\n` +
-                             `    ⇆ㅤㅤ◁ㅤ❚❚ㅤ▷ㅤ↻`;
-
-        // 2. Buffer එක පාවිච්චි කරලා චැනල් එකට යැවීම
+        // --- 🔘 CHANNEL එකට කෙලින්ම TEXT එකක් යැවීම (Simplified) ---
         await zanta.sendMessage(targetJid, { 
-            image: buffer, 
-            caption: imageCaption,
-            contextInfo: {
-                mentionedJid: [mek.sender],
-                forwardingScore: 999,
-                isForwarded: true,
-                forwardedNewsletterMessageInfo: {
-                    newsletterJid: targetJid,
-                    serverMessageId: 1,
-                    newsletterName: "ZANTA-MD"
-                }
-            }
-        }, { newsletterJid: targetJid });
+            text: `🎵 *ZANTA-MD TEST*\n\nSearching for: ${songName}\n\nStatus: Testing Connection...` 
+        }, { 
+            newsletterJid: targetJid 
+        });
 
         await m.react("✅");
-        await reply("✅ Image sent as Buffer!");
+        await reply("✅ Test message sent to channel! Check now.");
 
     } catch (e) {
-        console.error("CSong Test Error:", e);
-        
-        // 3. Image එක බැරි වුණොත් නිකන් Text එකක් යවලා බලමු
-        try {
-            await zanta.sendMessage(targetJid, { text: "⚠️ Image Failed! Sending Text Only Test." }, { newsletterJid: q.split(" ")[0] });
-            reply("⚠️ Image failed, but Text worked! Admin permissions are OK.");
-        } catch (textErr) {
-            reply(`❌ Full Failure: Both Image and Text failed. Check if Bot is Admin in Channel.`);
-        }
+        console.error("Newsletter Error:", e);
+        reply(`❌ Error: ${e.message}`);
     }
 });
