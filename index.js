@@ -159,7 +159,7 @@ async function connectToWA(sessionData) {
         const from = mek.key.remoteJid;
         const isGroup = from.endsWith("@g.us");
 
-       // --- 🔘 IMPROVED BODY DETECTION (FIXED NULL ERROR) ---
+        // --- 🔘 IMPROVED BODY DETECTION (FIXED NULL & ADDED BUTTONS) ---
         const body = (type === "conversation") ? mek.message.conversation : 
                      (type === "extendedTextMessage") ? mek.message.extendedTextMessage.text : 
                      (type === "imageMessage") ? (mek.message.imageMessage.caption || "") : 
@@ -169,7 +169,6 @@ async function connectToWA(sessionData) {
                      (type === "templateButtonReplyMessage") ? mek.message.templateButtonReplyMessage.selectedId : "";
 
         const prefix = userSettings.prefix || config.DEFAULT_PREFIX;
-        // startsWith error එක නොවෙන්න මෙතන check එකක් දැම්මා
         const isCmd = body ? body.startsWith(prefix) : false;
         const isQuotedReply = mek.message[type]?.contextInfo?.quotedMessage;
 
@@ -207,11 +206,15 @@ async function connectToWA(sessionData) {
             }
         }
 
+        // --- BUTTONS/LIST RESPONSE HANDLING ---
         if (isGroup && !isCmd && !isQuotedReply && !type.includes("ResponseMessage")) return;
 
         const m = sms(zanta, mek);
+        
+        // Command name detection improved for Buttons
         const commandName = isCmd ? body.slice(prefix.length).trim().split(" ")[0].toLowerCase() : 
-                          (type.includes("ResponseMessage") ? body.replace(prefix, "").split(" ")[0].toLowerCase() : "");
+                          (type.includes("ResponseMessage") ? body.replace(prefix, "").trim().split(" ")[0].toLowerCase() : "");
+        
         const args = body.trim().split(/ +/).slice(1);
 
         if (userSettings.autoRead === 'true') await zanta.readMessages([mek.key]);
@@ -269,11 +272,11 @@ async function connectToWA(sessionData) {
 
         const isMenuReply = (m.quoted && lastMenuMessage && lastMenuMessage.get(from) === m.quoted.id);
         const isHelpReply = (m.quoted && lastHelpMessage && lastHelpMessage.get(from) === m.quoted.id);
-        const isButtonOrList = type === "listResponseMessage" || type === "buttonsResponseMessage";
+        const isButtonOrList = type.includes("ResponseMessage");
 
         if (isCmd || isMenuReply || isHelpReply || isButtonOrList) {
-            const execName = isHelpReply ? 'help' : (isMenuReply ? 'menu' : (isButtonOrList ? body.replace(prefix, "").split(" ")[0].toLowerCase() : commandName));
-            const execArgs = (isHelpReply || isMenuReply) ? [body.trim().toLowerCase()] : (isButtonOrList ? body.trim().split(/ +/).slice(1) : args);
+            const execName = isHelpReply ? 'help' : (isMenuReply ? 'menu' : commandName);
+            const execArgs = (isHelpReply || isMenuReply) ? [body.trim().toLowerCase()] : args;
             const cmd = commands.find(c => c.pattern === execName || (c.alias && c.alias.includes(execName)));
 
             if (cmd) {
