@@ -88,49 +88,55 @@ cmd({
 
 
 cmd({
-    pattern: "csong",
-    desc: "Send song image + voice note to channel",
+    pattern: "gsong",
+    desc: "Send song to groups (Max 40 mins)",
     category: "download",
-    use: ".csong <jid> <song name>",
+    use: ".gsong <group_jid> <song_name>",
     filename: __filename
 },
 async (zanta, mek, m, { from, q, reply, isOwner, userSettings }) => {
     try {
         if (!isOwner) return reply("❌ අයිතිකරුට පමණි.");
-        if (!q) return reply("⚠️ භාවිතා කරන ආකාරය: .csong <jid> <song_name>");
+        if (!q) return reply("⚠️ භාවිතා කරන ආකාරය: .gsong <jid> <song_name>");
 
         const args = q.split(" ");
         const targetJid = args[0].trim(); 
         const songName = args.slice(1).join(" "); 
 
-        if (!targetJid.endsWith("@newsletter")) {
-            return reply("❌ කරුණාකර නිවැරදි Channel JID එක ලබා දෙන්න.");
-        }
+        if (!targetJid.includes("@")) return reply("⚠️ කරුණාකර නිවැරදි Group JID එකක් ලබා දෙන්න.");
 
         const settings = userSettings || global.CURRENT_BOT_SETTINGS || {};
         const botName = settings.botName || "ZANTA-MD";
 
-        // 1. YouTube Search
         await m.react("🔍");
+
+        // 1. YouTube Search
         const search = await yts(songName);
         const data = search.videos[0];
         if (!data) return reply("❌ සින්දුව සොයාගත නොහැකි විය.");
 
-        // 2. Image Buffer for Thumbnail
+        // --- 🔘 කාලය පරීක්ෂා කිරීම (40 Minutes Limit) ---
+        // data.seconds කියන්නේ සින්දුවේ සම්පූර්ණ තත්පර ගණන
+        if (data.seconds > 2400) { 
+            return reply(`⚠️ *සින්දුව ගොඩක් දිග වැඩියි!* \n\nසීමාව: විනාඩි 40 යි. \nඔබ තෝරාගත් සින්දුව: ${data.timestamp} කින් යුක්තයි. \nකරුණාකර කෙටි සින්දුවක් තෝරන්න.`);
+        }
+
+        // 2. Image Buffer
         const response = await axios.get(data.thumbnail, { responseType: 'arraybuffer' });
         const imgBuffer = Buffer.from(response.data, 'binary');
 
-        // 3. Caption with Timeline
+        // 3. Caption Style
         const timeLine = "───●──────────"; 
-        const imageCaption = `✨ *𝐙𝐀𝐍𝐓𝐀-𝐌𝐃 𝐒𝐎𝐍𝐆 𝐔𝐏𝐋𝐎𝐀𝐃𝐄𝐑* ✨\n\n` +
+        const imageCaption = `✨ *𝐙𝐀𝐍𝐓𝐀-𝐌𝐃 𝐆𝐑𝐎𝐔𝐏 𝐒𝐎𝐍𝐆* ✨\n\n` +
                              `📝 *Title:* ${data.title}\n` +
-                             `🎧 *Status:* Sending Voice Note...\n\n` +
+                             `🕒 *Duration:* ${data.timestamp}\n` +
                              `   ${timeLine}\n` +
                              `    ⇆ㅤㅤ◁ㅤ❚❚ㅤ▷ㅤ↻`;
 
-        // --- 🔘 STEP 1: SEND IMAGE & DETAILS (Using ExternalAdReply) ---
+        // 4. STEP 1: Image & Details
         await zanta.sendMessage(targetJid, { 
-            text: imageCaption,
+            image: imgBuffer, 
+            caption: imageCaption,
             contextInfo: {
                 externalAdReply: {
                     title: data.title,
@@ -138,49 +144,40 @@ async (zanta, mek, m, { from, q, reply, isOwner, userSettings }) => {
                     thumbnail: imgBuffer,
                     sourceUrl: data.url,
                     mediaType: 1,
-                    showAdAttribution: true,
                     renderLargerThumbnail: true 
-                },
-                forwardingScore: 999,
-                isForwarded: true,
-                forwardedNewsletterMessageInfo: {
-                    newsletterJid: targetJid,
-                    serverMessageId: 1,
-                    newsletterName: botName
                 }
             }
-        }, { newsletterJid: targetJid });
+        });
 
         await m.react("📥");
 
-        // 4. Download Audio
+        // 5. STEP 2: Download & Send as Audio File
         const songData = await ytmp3(data.url, "128");
         if (!songData || !songData.download || !songData.download.url) {
-            return reply("❌ සින්දුව Download කිරීමට නොහැකි විය.");
+            return reply("❌ Download error.");
         }
 
-        // --- 🔘 STEP 2: SEND AUDIO AS VOICE NOTE (PTT) ---
         await zanta.sendMessage(targetJid, { 
             audio: { url: songData.download.url }, 
-            mimetype: 'audio/mp4', 
-            ptt: true,
-            waveform: new Uint8Array([0, 93, 10, 50, 20, 80, 40, 60, 30, 70, 10, 90, 0]),
+            mimetype: 'audio/mpeg', 
+            ptt: false, 
+            fileName: `${data.title}.mp3`, 
             contextInfo: {
-                forwardingScore: 999,
-                isForwarded: true,
-                forwardedNewsletterMessageInfo: {
-                    newsletterJid: targetJid,
-                    serverMessageId: 1,
-                    newsletterName: botName
+                externalAdReply: {
+                    title: data.title,
+                    body: botName,
+                    thumbnail: imgBuffer,
+                    mediaType: 2,
+                    sourceUrl: data.url
                 }
             }
-        }, { newsletterJid: targetJid });
+        }, { quoted: null });
 
         await m.react("✅");
-        await reply(`🚀 *Successfully Uploaded to Channel!*`);
+        await reply(`🚀 *Shared Successfully!*`);
 
     } catch (e) {
-        console.error("CSong Final Error:", e);
+        console.error("GSong Error:", e);
         reply(`❌ Error: ${e.message}`);
     }
 });
