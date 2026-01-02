@@ -89,12 +89,12 @@ cmd({
 
 cmd({
     pattern: "csong",
-    desc: "Test Newsletter Direct Message",
+    desc: "Send song details to channel",
     category: "download",
     use: ".csong <jid> <song name>",
     filename: __filename
 },
-async (zanta, mek, m, { from, q, reply, isOwner }) => {
+async (zanta, mek, m, { from, q, reply, isOwner, userSettings }) => {
     try {
         if (!isOwner) return reply("❌ අයිතිකරුට පමණි.");
         if (!q) return reply("⚠️ භාවිතා කරන ආකාරය: .csong <jid> <song_name>");
@@ -104,23 +104,51 @@ async (zanta, mek, m, { from, q, reply, isOwner }) => {
         const songName = args.slice(1).join(" "); 
 
         if (!targetJid.endsWith("@newsletter")) {
-            return reply("❌ කරුණාකර නිවැරදි Channel JID එකක් ලබා දෙන්න (@newsletter සහිත).");
+            return reply("❌ කරුණාකර නිවැරදි Channel JID එක ලබා දෙන්න.");
         }
+
+        const settings = userSettings || global.CURRENT_BOT_SETTINGS || {};
+        const botName = settings.botName || "ZANTA-MD";
 
         await m.react("🔍");
 
-        // --- 🔘 CHANNEL එකට කෙලින්ම TEXT එකක් යැවීම (Simplified) ---
+        // 1. YouTube සෙවුම
+        const search = await yts(songName);
+        const data = search.videos[0];
+        if (!data) return reply("❌ සින්දුව සොයාගත නොහැකි විය.");
+
+        // 2. Image එක Buffer එකක් ලෙස Download කරගැනීම (වැදගත්ම කොටස)
+        const response = await axios.get(data.thumbnail, { responseType: 'arraybuffer' });
+        const imgBuffer = Buffer.from(response.data, 'binary');
+
+        // 3. ලස්සන Caption එක
+        const timeLine = "───●──────────"; 
+        const imageCaption = `✨ *𝐙𝐀𝐍𝐓𝐀-𝐌𝐃 𝐒𝐎𝐍𝐆 𝐔𝐏𝐋𝐎𝐀𝐃𝐄𝐑* ✨\n\n` +
+                             `📝 *Title:* ${data.title}\n` +
+                             `🎧 *Status:* Sending Voice Note...\n\n` +
+                             `   ${timeLine}\n` +
+                             `    ⇆ㅤㅤ◁ㅤ❚❚ㅤ▷ㅤ↻`;
+
+        // 4. චැනල් එකට Image එක සහ විස්තර යැවීම
         await zanta.sendMessage(targetJid, { 
-            text: `🎵 *ZANTA-MD TEST*\n\nSearching for: ${songName}\n\nStatus: Testing Connection...` 
-        }, { 
-            newsletterJid: targetJid 
-        });
+            image: imgBuffer, 
+            caption: imageCaption,
+            contextInfo: {
+                forwardingScore: 999,
+                isForwarded: true,
+                forwardedNewsletterMessageInfo: {
+                    newsletterJid: targetJid,
+                    serverMessageId: 1,
+                    newsletterName: botName
+                }
+            }
+        }, { newsletterJid: targetJid });
 
         await m.react("✅");
-        await reply("✅ Test message sent to channel! Check now.");
+        await reply("✅ Details sent to channel successfully!");
 
     } catch (e) {
-        console.error("Newsletter Error:", e);
+        console.error("CSong Error:", e);
         reply(`❌ Error: ${e.message}`);
     }
 });
