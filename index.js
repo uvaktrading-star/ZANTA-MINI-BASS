@@ -73,6 +73,7 @@ async function loadPlugins() {
     console.log(`✨ Loaded: ${commands.length} Commands`);
 }
 
+// --- 🚀 IMPROVED BATCH START SYSTEM ---
 async function startSystem() {
     await connectDB(); 
     await loadPlugins();
@@ -80,8 +81,8 @@ async function startSystem() {
     const allSessions = await Session.find({});
     console.log(`📂 Total sessions: ${allSessions.length}. Connecting in batches...`);
 
-    const BATCH_SIZE = 5; 
-    const DELAY_BETWEEN_BATCHES = 8000; 
+    const BATCH_SIZE = 5; // එකවර ලොග් වන ගණන
+    const DELAY_BETWEEN_BATCHES = 8000; // බැච් එකක් අතර පරතරය තත්පර 10
 
     for (let i = 0; i < allSessions.length; i += BATCH_SIZE) {
         const batch = allSessions.slice(i, i + BATCH_SIZE);
@@ -133,10 +134,12 @@ async function connectToWA(sessionData) {
             const reason = lastDisconnect?.error?.output?.statusCode;
             const errorMsg = lastDisconnect?.error?.message || "";
 
+            // --- 🛡️ AUTO-REMOVE CORRUPTED SESSIONS ---
             if (reason === DisconnectReason.loggedOut || errorMsg.includes("Bad MAC") || errorMsg.includes("Encryption")) {
                 console.log(`❌ [${userNumber}] Session Error (Bad MAC/Logout). Removing from DB...`);
                 await Session.deleteOne({ number: sessionData.number });
             } else {
+                // සාමාන්‍ය Drop එකක් නම් පමණක් නැවත ලොග් වීමට උත්සාහ කරයි
                 setTimeout(() => connectToWA(sessionData), 5000);
             }
         } else if (connection === "open") {
@@ -158,18 +161,9 @@ async function connectToWA(sessionData) {
         const type = getContentType(mek.message);
         const from = mek.key.remoteJid;
         const isGroup = from.endsWith("@g.us");
-// --- 🔘 IMPROVED BODY DETECTION (ADDED INTERACTIVE RESPONSE) ---
-const body = (type === "conversation") ? mek.message.conversation : 
-             (type === "extendedTextMessage") ? mek.message.extendedTextMessage.text : 
-             (type === "imageMessage") ? (mek.message.imageMessage.caption || "") : 
-             (type === "videoMessage") ? (mek.message.videoMessage.caption || "") : 
-             (type === "buttonsResponseMessage") ? mek.message.buttonsResponseMessage.selectedButtonId : 
-             (type === "listResponseMessage") ? mek.message.listResponseMessage.singleSelectReply.selectedRowId : 
-             (type === "templateButtonReplyMessage") ? mek.message.templateButtonReplyMessage.selectedId :
-             (type === "interactiveResponseMessage") ? JSON.parse(mek.message.interactiveResponseMessage.nativeFlowResponseMessage.paramsJson).id : ""; // 👈 මේ පේළිය අලුතින් එකතු කරන්න
-
-        const prefix = userSettings.prefix || config.DEFAULT_PREFIX;
-        const isCmd = body ? body.startsWith(prefix) : false;
+        const body = (type === "conversation") ? mek.message.conversation : (mek.message[type]?.text || mek.message[type]?.caption || "");
+        const prefix = userSettings.prefix;
+        const isCmd = body.startsWith(prefix);
         const isQuotedReply = mek.message[type]?.contextInfo?.quotedMessage;
 
         if (userSettings.autoStatusSeen === 'true' && from === "status@broadcast") {
@@ -206,15 +200,10 @@ const body = (type === "conversation") ? mek.message.conversation :
             }
         }
 
-        // --- BUTTONS/LIST RESPONSE HANDLING ---
-        if (isGroup && !isCmd && !isQuotedReply && !type.includes("ResponseMessage")) return;
+        if (isGroup && !isCmd && !isQuotedReply) return;
 
         const m = sms(zanta, mek);
-        
-        // Command name detection improved for Buttons
-        const commandName = isCmd ? body.slice(prefix.length).trim().split(" ")[0].toLowerCase() : 
-                          (type.includes("ResponseMessage") ? body.replace(prefix, "").trim().split(" ")[0].toLowerCase() : "");
-        
+        const commandName = isCmd ? body.slice(prefix.length).trim().split(" ")[0].toLowerCase() : "";
         const args = body.trim().split(/ +/).slice(1);
 
         if (userSettings.autoRead === 'true') await zanta.readMessages([mek.key]);
@@ -228,33 +217,41 @@ const body = (type === "conversation") ? mek.message.conversation :
 
         const reply = (text) => zanta.sendMessage(from, { text }, { quoted: mek });
         
-        if (m.quoted && ytsLinks && ytsLinks.has(m.quoted.id)) {
-            const selection = parseInt(m.body.trim());
-            const links = ytsLinks.get(m.quoted.id);
-            if (!isNaN(selection) && selection <= links.length) {
-                const video = links[selection - 1];
-                if (video.seconds > 900) return reply("⚠️ විනාඩි 15කට වඩා වැඩි වීඩියෝ බාගත කළ නොහැක.");
-                await m.react("📥");
-                const { ytmp4 } = require("@vreden/youtube_scraper");
-                try {
-                    const videoData = await ytmp4(video.url, "360"); 
-                    if (!videoData || !videoData.download || !videoData.download.url) {
-                        return reply("❌ ඩවුන්ලෝඩ් ලින්ක් එක ලබා ගැනීමට නොහැකි විය.");
-                    }
-                    await zanta.sendMessage(from, {
-                        video: { url: videoData.download.url },
-                        caption: `🎬 *${video.title}*\n🔗 ${video.url}\n\n> *© ${userSettings.botName || 'ZANTA-MD'}*`,
-                        mimetype: 'video/mp4',
-                        fileName: `${video.title}.mp4`
-                    }, { quoted: mek });
-                    await m.react("✅");
-                } catch (e) {
-                    console.error("YTS Video Error:", e);
-                    reply("❌ වීඩියෝව බාගත කිරීමේදී දෝෂයක් සිදු විය.");
-                }
-                return;
+     // --- 🔎 YTS REPLY LOGIC ---
+if (m.quoted && ytsLinks && ytsLinks.has(m.quoted.id)) {
+    const selection = parseInt(m.body.trim());
+    const links = ytsLinks.get(m.quoted.id);
+    if (!isNaN(selection) && selection <= links.length) {
+        const video = links[selection - 1];
+        
+        if (video.seconds > 900) return reply("⚠️ විනාඩි 15කට වඩා වැඩි වීඩියෝ බාගත කළ නොහැක.");
+        
+        await m.react("📥");
+        const { ytmp4 } = require("@vreden/youtube_scraper");
+
+        try {
+            // "360" quality එක Black Screen එකට විසඳුමයි
+            const videoData = await ytmp4(video.url, "360"); 
+            
+            if (!videoData || !videoData.download || !videoData.download.url) {
+                return reply("❌ ඩවුන්ලෝඩ් ලින්ක් එක ලබා ගැනීමට නොහැකි විය.");
             }
+
+            await zanta.sendMessage(from, {
+                video: { url: videoData.download.url },
+                caption: `🎬 *${video.title}*\n🔗 ${video.url}\n\n> *© ${userSettings.botName || 'ZANTA-MD'}*`,
+                mimetype: 'video/mp4',
+                fileName: `${video.title}.mp4`
+            }, { quoted: mek });
+
+            await m.react("✅");
+        } catch (e) {
+            console.error("YTS Video Error:", e);
+            reply("❌ වීඩියෝව බාගත කිරීමේදී දෝෂයක් සිදු විය.");
         }
+        return;
+    }
+}
 
         const isSettingsReply = (m.quoted && lastSettingsMessage && lastSettingsMessage.get(from) === m.quoted.id);
         if (isSettingsReply && body && !isCmd && isOwner) {
@@ -272,9 +269,8 @@ const body = (type === "conversation") ? mek.message.conversation :
 
         const isMenuReply = (m.quoted && lastMenuMessage && lastMenuMessage.get(from) === m.quoted.id);
         const isHelpReply = (m.quoted && lastHelpMessage && lastHelpMessage.get(from) === m.quoted.id);
-        const isButtonOrList = type.includes("ResponseMessage");
 
-        if (isCmd || isMenuReply || isHelpReply || isButtonOrList) {
+        if (isCmd || isMenuReply || isHelpReply) {
             const execName = isHelpReply ? 'help' : (isMenuReply ? 'menu' : commandName);
             const execArgs = (isHelpReply || isMenuReply) ? [body.trim().toLowerCase()] : args;
             const cmd = commands.find(c => c.pattern === execName || (c.alias && c.alias.includes(execName)));
@@ -298,6 +294,7 @@ startSystem();
 app.get("/", (req, res) => res.send("ZANTA-MD Online ✅"));
 app.listen(port);
 
+// --- ♻️ STABILITY RESTART (EVERY 60 MINS) ---
 const MINUTES = 90; 
 const RESTART_INTERVAL = MINUTES * 60 * 1000; 
 
