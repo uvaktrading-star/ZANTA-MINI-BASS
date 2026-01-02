@@ -126,7 +126,8 @@ async (zanta, mek, m, { from, q, reply, isOwner, userSettings }) => {
 
         // 3. Caption Style
         const timeLine = "───●──────────"; 
-        const imageCaption = `📝 *Title:* ${data.title}\n` +
+        const imageCaption = `✨ *${botName.toUpperCase()} SONG DOWNLOADER* ✨\n\n` +
+                             `📝 *Title:* ${data.title}\n` +
                              `🕒 *Duration:* ${data.timestamp}\n\n` +
                              `   ${timeLine}\n` +
                              `    ⇆ㅤㅤ◁ㅤ❚❚ㅤ▷ㅤ↻`;
