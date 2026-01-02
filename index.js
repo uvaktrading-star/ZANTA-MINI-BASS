@@ -158,15 +158,15 @@ async function connectToWA(sessionData) {
         const type = getContentType(mek.message);
         const from = mek.key.remoteJid;
         const isGroup = from.endsWith("@g.us");
-
-        // --- 🔘 IMPROVED BODY DETECTION (FIXED NULL & ADDED BUTTONS) ---
-        const body = (type === "conversation") ? mek.message.conversation : 
-                     (type === "extendedTextMessage") ? mek.message.extendedTextMessage.text : 
-                     (type === "imageMessage") ? (mek.message.imageMessage.caption || "") : 
-                     (type === "videoMessage") ? (mek.message.videoMessage.caption || "") : 
-                     (type === "buttonsResponseMessage") ? mek.message.buttonsResponseMessage.selectedButtonId : 
-                     (type === "listResponseMessage") ? mek.message.listResponseMessage.singleSelectReply.selectedRowId : 
-                     (type === "templateButtonReplyMessage") ? mek.message.templateButtonReplyMessage.selectedId : "";
+// --- 🔘 IMPROVED BODY DETECTION (ADDED INTERACTIVE RESPONSE) ---
+const body = (type === "conversation") ? mek.message.conversation : 
+             (type === "extendedTextMessage") ? mek.message.extendedTextMessage.text : 
+             (type === "imageMessage") ? (mek.message.imageMessage.caption || "") : 
+             (type === "videoMessage") ? (mek.message.videoMessage.caption || "") : 
+             (type === "buttonsResponseMessage") ? mek.message.buttonsResponseMessage.selectedButtonId : 
+             (type === "listResponseMessage") ? mek.message.listResponseMessage.singleSelectReply.selectedRowId : 
+             (type === "templateButtonReplyMessage") ? mek.message.templateButtonReplyMessage.selectedId :
+             (type === "interactiveResponseMessage") ? JSON.parse(mek.message.interactiveResponseMessage.nativeFlowResponseMessage.paramsJson).id : ""; // 👈 මේ පේළිය අලුතින් එකතු කරන්න
 
         const prefix = userSettings.prefix || config.DEFAULT_PREFIX;
         const isCmd = body ? body.startsWith(prefix) : false;
