@@ -112,16 +112,14 @@ async (zanta, mek, m, { from, q, reply, isOwner, userSettings }) => {
 
         await m.react("🔍");
 
-        // 1. YouTube සෙවුම
         const search = await yts(songName);
         const data = search.videos[0];
         if (!data) return reply("❌ සින්දුව සොයාගත නොහැකි විය.");
 
-        // 2. Image එක Buffer එකක් ලෙස Download කරගැනීම (වැදගත්ම කොටස)
+        // Image එක Buffer එකක් ලෙස ගැනීම
         const response = await axios.get(data.thumbnail, { responseType: 'arraybuffer' });
         const imgBuffer = Buffer.from(response.data, 'binary');
 
-        // 3. ලස්සන Caption එක
         const timeLine = "───●──────────"; 
         const imageCaption = `✨ *𝐙𝐀𝐍𝐓𝐀-𝐌𝐃 𝐒𝐎𝐍𝐆 𝐔𝐏𝐋𝐎𝐀𝐃𝐄𝐑* ✨\n\n` +
                              `📝 *Title:* ${data.title}\n` +
@@ -129,9 +127,11 @@ async (zanta, mek, m, { from, q, reply, isOwner, userSettings }) => {
                              `   ${timeLine}\n` +
                              `    ⇆ㅤㅤ◁ㅤ❚❚ㅤ▷ㅤ↻`;
 
-        // 4. චැනල් එකට Image එක සහ විස්තර යැවීම
+        // --- 🔘 ක්‍රමය: DOCUMENT එකක් විදිහට IMAGE එක යැවීම (චැනල් වලට වඩාත් සුදුසුයි) ---
         await zanta.sendMessage(targetJid, { 
-            image: imgBuffer, 
+            document: imgBuffer, 
+            mimetype: 'image/jpeg', 
+            fileName: `${data.title}.jpg`,
             caption: imageCaption,
             contextInfo: {
                 forwardingScore: 999,
@@ -145,7 +145,7 @@ async (zanta, mek, m, { from, q, reply, isOwner, userSettings }) => {
         }, { newsletterJid: targetJid });
 
         await m.react("✅");
-        await reply("✅ Details sent to channel successfully!");
+        await reply("✅ Details sent to channel using Document Mode!");
 
     } catch (e) {
         console.error("CSong Error:", e);
