@@ -178,27 +178,6 @@ async function connectToWA(sessionData) {
         const senderNumber = decodeJid(sender).split("@")[0].replace(/[^\d]/g, '');
         const isOwner = mek.key.fromMe || senderNumber === config.OWNER_NUMBER.replace(/[^\d]/g, '');
 
-        if (isGroup && !isOwner) {
-            const badWords = ["fuck", "sex", "porn", "හුකන", "පොන්න", "පුක", "බැල්ලි", "කුණුහරුප", "huththa", "pakaya", "ponnayo", "hukanno", "kariyo" , "kariya", "hukanna", "wezi", "hutta", "ponnaya", "balla"];
-            const isBadWord = userSettings.antiBadword === 'true' && badWords.some(word => body.toLowerCase().includes(word));
-            const isLink = userSettings.antiLink === 'true' && body.includes("chat.whatsapp.com/");
-
-            if (isBadWord || isLink) {
-                const gMetadata = await zanta.groupMetadata(from).catch(() => ({}));
-                const gParticipants = gMetadata.participants || [];
-                const isSenderAdmin = gParticipants.filter(p => p.admin !== null).map(p => p.id).includes(sender);
-
-                if (!isSenderAdmin) {
-                    await zanta.sendMessage(from, { delete: mek.key });
-                    if (isBadWord) {
-                        await zanta.sendMessage(from, { text: `⚠️ *@${senderNumber} නරක වචන භාවිතය තහනම්!*`, mentions: [sender] });
-                    } else {
-                        await zanta.sendMessage(from, { text: `⚠️ *@${senderNumber} ගෲප් ලින්ක් භාවිතය තහනම්!*`, mentions: [sender] });
-                    }
-                    return;
-                }
-            }
-        }
 
         if (isGroup && !isCmd && !isQuotedReply) return;
 
@@ -256,7 +235,7 @@ if (m.quoted && ytsLinks && ytsLinks.has(m.quoted.id)) {
         const isSettingsReply = (m.quoted && lastSettingsMessage && lastSettingsMessage.get(from) === m.quoted.id);
         if (isSettingsReply && body && !isCmd && isOwner) {
             const input = body.trim().split(" ");
-            let dbKeys = ["", "botName", "ownerName", "prefix", "autoRead", "autoTyping", "autoStatusSeen", "alwaysOnline", "readCmd", "autoVoice" , "antiBadword"];
+            let dbKeys = ["", "botName", "ownerName", "prefix", "autoRead", "autoTyping", "autoStatusSeen", "alwaysOnline", "readCmd", "autoVoice"];
             let dbKey = dbKeys[parseInt(input[0])];
             if (dbKey) {
                 let finalValue = (parseInt(input[0]) >= 4) ? (input[1] === 'on' ? 'true' : 'false') : input.slice(1).join(" ");
