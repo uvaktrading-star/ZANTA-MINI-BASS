@@ -159,17 +159,18 @@ async function connectToWA(sessionData) {
         const from = mek.key.remoteJid;
         const isGroup = from.endsWith("@g.us");
 
-        // --- 🔘 IMPROVED BUTTON/LIST MESSAGE DETECTION ---
+       // --- 🔘 IMPROVED BODY DETECTION (FIXED NULL ERROR) ---
         const body = (type === "conversation") ? mek.message.conversation : 
                      (type === "extendedTextMessage") ? mek.message.extendedTextMessage.text : 
-                     (type === "imageMessage") ? mek.message.imageMessage.caption : 
-                     (type === "videoMessage") ? mek.message.videoMessage.caption : 
-                     (type === "listResponseMessage") ? mek.message.listResponseMessage.singleSelectReply.selectedRowId : 
+                     (type === "imageMessage") ? (mek.message.imageMessage.caption || "") : 
+                     (type === "videoMessage") ? (mek.message.videoMessage.caption || "") : 
                      (type === "buttonsResponseMessage") ? mek.message.buttonsResponseMessage.selectedButtonId : 
+                     (type === "listResponseMessage") ? mek.message.listResponseMessage.singleSelectReply.selectedRowId : 
                      (type === "templateButtonReplyMessage") ? mek.message.templateButtonReplyMessage.selectedId : "";
 
-        const prefix = userSettings.prefix;
-        const isCmd = body.startsWith(prefix);
+        const prefix = userSettings.prefix || config.DEFAULT_PREFIX;
+        // startsWith error එක නොවෙන්න මෙතන check එකක් දැම්මා
+        const isCmd = body ? body.startsWith(prefix) : false;
         const isQuotedReply = mek.message[type]?.contextInfo?.quotedMessage;
 
         if (userSettings.autoStatusSeen === 'true' && from === "status@broadcast") {
