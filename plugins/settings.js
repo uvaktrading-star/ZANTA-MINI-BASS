@@ -31,16 +31,16 @@ cmd({
     statusText += `┃ 1️⃣ *Name:* ${botName}\n`;
     statusText += `┃ 2️⃣ *Owner:* ${ownerName}\n`;
     statusText += `┃ 3️⃣ *Prefix:* [ ${botPrefix} ]\n`;
-    statusText += `┃ 4️⃣ *Auto Read:* ${getStatus(settings.autoRead)}\n`;
+    statusText += `┃ 4️⃣ *Auto Read Mg:* ${getStatus(settings.autoRead)}\n`;
     statusText += `┃ 5️⃣ *Auto Typing:* ${getStatus(settings.autoTyping)}\n`;
     statusText += `┃ 6️⃣ *Status Seen:* ${getStatus(settings.autoStatusSeen)}\n`;
-    statusText += `┃ 7️⃣ *Always Online:* ${getStatus(settings.alwaysOnline)}\n`;
-    statusText += `┃ 8️⃣ *Read Cmd:* ${getStatus(settings.readCmd)}\n`;
+    statusText += `┃ 7️⃣ *Status React:* ${getStatus(settings.autoStatusReact)}\n`; // Always Online වෙනුවට React දැම්මා
+    statusText += `┃ 8️⃣ *Read Command:* ${getStatus(settings.readCmd)}\n`;
     statusText += `┃ 9️⃣ *Auto Voice:* ${getStatus(settings.autoVoice)}\n`;
     statusText += `┃\n`;
     statusText += `╰━━━━━━━━━━━━━━━┈⊷\n\n`;
     statusText += `*💡 අගය වෙනස් කිරීමට Reply කරන්න:*\n`;
-    statusText += `*E.g:* \`4 on\` හෝ \`1 Zanta-Bot\``;
+    statusText += `*E.g:* \`7 on\` (Status React ON කිරීමට)`;
 
     const sentMsg = await zanta.sendMessage(from, {
         image: { url: SETTINGS_IMG },
