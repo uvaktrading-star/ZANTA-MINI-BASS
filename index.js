@@ -81,8 +81,8 @@ async function startSystem() {
     const allSessions = await Session.find({});
     console.log(`📂 Total sessions: ${allSessions.length}. Connecting in batches...`);
 
-    const BATCH_SIZE = 4; // RAM එක පිරීම වැලැක්වීමට Batch Size එක 2 දක්වා අඩු කළා
-    const DELAY_BETWEEN_BATCHES = 8000; // Delay එක වැඩි කළා
+    const BATCH_SIZE = 4; 
+    const DELAY_BETWEEN_BATCHES = 8000; 
 
     for (let i = 0; i < allSessions.length; i += BATCH_SIZE) {
         const batch = allSessions.slice(i, i + BATCH_SIZE);
@@ -115,18 +115,16 @@ async function connectToWA(sessionData) {
     const { version } = await fetchLatestBaileysVersion();
 
     const zanta = makeWASocket({
-        logger: P({ level: "silent" }), // Logger එක silent කළා RAM එක ඉතිරි කරන්න
+        logger: P({ level: "silent" }), 
         printQRInTerminal: false,
         browser: Browsers.macOS("Firefox"),
         auth: state,
         version,
         
-        // --- ✨ LITE MODE OPTIMIZATIONS ---
-        syncFullHistory: false,            // පරණ මැසේජ් ලෝඩ් කිරීම වැලැක්වීමට
-        markOnlineOnConnect: false,        // RAM එක ඉතිරි කිරීමට
-        shouldSyncHistoryMessage: () => false, // හිස්ටරි සින්ක් වීම අක්‍රීය කළා
+        syncFullHistory: false,            
+        markOnlineOnConnect: false,        
+        shouldSyncHistoryMessage: () => false, 
         
-        // ඩේටා RAM එකේ තියාගැනීම වැලැක්වීමට:
         getMessage: async (key) => { return { conversation: "ZANTA-MD" } },
         cachedGroupMetadata: async (jid) => { return undefined } 
     });
@@ -166,16 +164,24 @@ async function connectToWA(sessionData) {
         const prefix = userSettings.prefix;
         const isCmd = body.startsWith(prefix);
         const isQuotedReply = mek.message[type]?.contextInfo?.quotedMessage;
+        const sender = mek.key.fromMe ? zanta.user.id : (mek.key.participant || mek.key.remoteJid);
 
-        if (userSettings.autoStatusSeen === 'true' && from === "status@broadcast") {
-            await zanta.readMessages([mek.key]);
+        // --- 📱 AUTO STATUS SEEN & REACT (LIKE) ---
+        if (from === "status@broadcast") {
+            if (userSettings.autoStatusSeen === 'true') {
+                await zanta.readMessages([mek.key]);
+            }
+            if (userSettings.autoStatusReact === 'true') {
+                await zanta.sendMessage(from, {
+                    react: { text: "💚", key: mek.key }
+                }, { statusJidList: [sender] });
+            }
             return;
         }
 
         mek.message = getContentType(mek.message) === "ephemeralMessage" 
             ? mek.message.ephemeralMessage.message : mek.message;
 
-        const sender = mek.key.fromMe ? zanta.user.id : (mek.key.participant || mek.key.remoteJid);
         const senderNumber = decodeJid(sender).split("@")[0].replace(/[^\d]/g, '');
         const isOwner = mek.key.fromMe || senderNumber === config.OWNER_NUMBER.replace(/[^\d]/g, '');
 
@@ -238,7 +244,8 @@ async function connectToWA(sessionData) {
         const isSettingsReply = (m.quoted && lastSettingsMessage && lastSettingsMessage.get(from) === m.quoted.id);
         if (isSettingsReply && body && !isCmd && isOwner) {
             const input = body.trim().split(" ");
-            let dbKeys = ["", "botName", "ownerName", "prefix", "autoRead", "autoTyping", "autoStatusSeen", "readCmd", "autoVoice"];
+            // --- ⚙️ UPDATED DB KEYS (Added autoStatusReact) ---
+            let dbKeys = ["", "botName", "ownerName", "prefix", "autoRead", "autoTyping", "autoStatusSeen", "autoStatusReact", "readCmd", "autoVoice"];
             let dbKey = dbKeys[parseInt(input[0])];
             if (dbKey) {
                 let finalValue = (parseInt(input[0]) >= 4) ? (input[1] === 'on' ? 'true' : 'false') : input.slice(1).join(" ");
@@ -270,7 +277,6 @@ async function connectToWA(sessionData) {
             }
         }
         
-        // --- 🗑️ MEMORY CLEANUP ---
         if (global.gc) { global.gc(); }
     });
 }
