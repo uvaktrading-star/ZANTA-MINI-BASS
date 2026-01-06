@@ -8,13 +8,14 @@ const SettingsSchema = new mongoose.Schema({
     botName: { type: String, default: config.DEFAULT_BOT_NAME },
     ownerName: { type: String, default: config.DEFAULT_OWNER_NAME },
     prefix: { type: String, default: config.DEFAULT_PREFIX },
+    password: { type: String, default: 'not_set' }, // new feature
     autoRead: { type: String, default: 'false' },
     autoTyping: { type: String, default: 'false' },
     autoStatusSeen: { type: String, default: 'true' },
     alwaysOnline: { type: String, default: 'false' },
     readCmd: { type: String, default: 'false' },
     autoVoice: { type: String, default: 'false' },
-    autoStatusReact: { type: String, default: 'false' }, // ✨ අලුතින් එකතු කළා
+    autoStatusReact: { type: String, default: 'false' },
 });
 
 const Settings = mongoose.models.Settings || mongoose.model('Settings', SettingsSchema);
@@ -33,7 +34,7 @@ async function connectDB() {
         });
         console.log("✅ MongoDB Connected!");
     } catch (error) {
-        // error handling
+        console.error("❌ MongoDB Connection Error:", error);
     }
 }
 
@@ -60,6 +61,7 @@ async function getBotSettings(userNumber) {
 
         return settings;
     } catch (e) {
+        console.error("❌ Error fetching settings:", e);
         return null;
     }
 }
@@ -78,6 +80,7 @@ async function updateSetting(userNumber, key, value) {
         }
         return !!result;
     } catch (e) {
+        console.error("❌ Error updating setting:", e);
         return false;
     }
 }
