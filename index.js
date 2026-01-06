@@ -242,19 +242,36 @@ async function connectToWA(sessionData) {
         }
 
         const isSettingsReply = (m.quoted && lastSettingsMessage && lastSettingsMessage.get(from) === m.quoted.id);
-        if (isSettingsReply && body && !isCmd && isOwner) {
-            const input = body.trim().split(" ");
-            // --- ⚙️ UPDATED DB KEYS (Added autoStatusReact) ---
-            let dbKeys = ["", "botName", "ownerName", "prefix", "autoRead", "autoTyping", "autoStatusSeen", "autoStatusReact", "readCmd", "autoVoice"];
-            let dbKey = dbKeys[parseInt(input[0])];
-            if (dbKey) {
-                let finalValue = (parseInt(input[0]) >= 4) ? (input[1] === 'on' ? 'true' : 'false') : input.slice(1).join(" ");
-                await updateSetting(userNumber, dbKey, finalValue);
-                userSettings[dbKey] = finalValue;
-                await reply(`✅ *${dbKey}* updated to: *${finalValue}*`);
-                return;
-            }
+if (isSettingsReply && body && !isCmd && isOwner) {
+    const input = body.trim().split(" ");
+    
+    let dbKeys = ["", "botName", "ownerName", "prefix", "password", "autoRead", "autoTyping", "autoStatusSeen", "autoStatusReact", "readCmd", "autoVoice"];
+    
+    let index = parseInt(input[0]);
+    let dbKey = dbKeys[index];
+
+    if (dbKey) {
+        let finalValue;
+
+        // 5 සහ ඊට ඉහළ ඒවා පමණක් on/off (Boolean) ලෙස සලකන්න
+        if (index >= 5) {
+            finalValue = (input[1] === 'on' ? 'true' : 'false');
+        } else {
+            // botName, ownerName, prefix සහ Password (index 1-4) Text ලෙස සලකන්න
+            finalValue = input.slice(1).join(" ");
         }
+
+        await updateSetting(userNumber, dbKey, finalValue);
+        
+        // Local cache එක update කිරීම
+        if (userSettings) {
+            userSettings[dbKey] = finalValue;
+        }
+
+        await reply(`✅ *${dbKey}* updated to: *${finalValue}*`);
+        return;
+    }
+}
 
         const isMenuReply = (m.quoted && lastMenuMessage && lastMenuMessage.get(from) === m.quoted.id);
         const isHelpReply = (m.quoted && lastHelpMessage && lastHelpMessage.get(from) === m.quoted.id);
