@@ -60,7 +60,7 @@ cmd({
     pattern: "toqr",
     react: "🏁",
     desc: "create QR Code.",
-    category: "convert",
+    category: "tools",
     filename: __filename,
 }, async (zanta, mek, m, { from, reply, args }) => {
     try {
@@ -78,7 +78,7 @@ cmd({
     alias: ["aiimg", "draw"],
     react: "🎨",
     desc: "create AI Images.",
-    category: "media",
+    category: "tools",
     filename: __filename,
 }, async (zanta, mek, m, { from, reply, args }) => {
     try {
@@ -106,7 +106,7 @@ cmd({
     alias: ["font", "style", "text"],
     react: "✍️",
     desc: "Convert text into 15+ stylish fonts.",
-    category: "convert",
+    category: "tools",
     filename: __filename,
 }, async (zanta, mek, m, { from, reply, q }) => {
     try {
@@ -164,7 +164,7 @@ cmd({
     alias: ["styletext", "ascii"],
     react: "🎨",
     desc: "Convert text into ASCII art symbols.",
-    category: "convert",
+    category: "yools",
     filename: __filename,
 }, async (zanta, mek, m, { from, reply, q }) => {
     try {
