@@ -7,7 +7,7 @@ const ytsLinks = new Map();
 
 cmd({
     pattern: "video",
-    alias: ["ytsearch"],
+    alias: ["ytmp4"],
     react: "🔎",
     category: "download",
     filename: __filename,
