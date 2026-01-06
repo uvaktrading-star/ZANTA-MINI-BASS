@@ -4,7 +4,7 @@ const config = require("../config");
 
 const SETTINGS_IMG = "https://github.com/Akashkavindu/ZANTA_MD/blob/main/images/settings.jpg?raw=true";
 
-// Settings Reply එක හඳුනා ගැනීමට (RAM එක බේරීමට පැය 1කින් auto clean වේ)
+// Settings Reply එක හඳුනා ගැනීමට (RAM එක බේරීමට විනාඩි 30කින් auto clean වේ)
 const lastSettingsMessage = new Map();
 
 cmd({
@@ -22,6 +22,7 @@ cmd({
     const botName = settings.botName || config.DEFAULT_BOT_NAME || "ZANTA-MD";
     const ownerName = settings.ownerName || config.DEFAULT_OWNER_NAME || "Owner";
     const botPrefix = settings.prefix || prefix || ".";
+    const webPass = settings.password === 'not_set' ? "Not Set ❌" : "Set ✅";
 
     // --- 📊 Status Indicators ---
     const getStatus = (val) => val === 'true' ? '✅' : '❌';
@@ -31,16 +32,18 @@ cmd({
     statusText += `┃ 1️⃣ *Name:* ${botName}\n`;
     statusText += `┃ 2️⃣ *Owner:* ${ownerName}\n`;
     statusText += `┃ 3️⃣ *Prefix:* [ ${botPrefix} ]\n`;
-    statusText += `┃ 4️⃣ *Auto Read Mg:* ${getStatus(settings.autoRead)}\n`;
-    statusText += `┃ 5️⃣ *Auto Typing:* ${getStatus(settings.autoTyping)}\n`;
-    statusText += `┃ 6️⃣ *Status Seen:* ${getStatus(settings.autoStatusSeen)}\n`;
-    statusText += `┃ 7️⃣ *Status React:* ${getStatus(settings.autoStatusReact)}\n`; // Always Online වෙනුවට React දැම්මා
-    statusText += `┃ 8️⃣ *Read Command:* ${getStatus(settings.readCmd)}\n`;
-    statusText += `┃ 9️⃣ *Auto Voice:* ${getStatus(settings.autoVoice)}\n`;
+    statusText += `┃ 4️⃣ *Web Password:* ${webPass}\n`; // Password Field
+    statusText += `┃ 5️⃣ *Auto Read Mg:* ${getStatus(settings.autoRead)}\n`;
+    statusText += `┃ 6️⃣ *Auto Typing:* ${getStatus(settings.autoTyping)}\n`;
+    statusText += `┃ 7️⃣ *Status Seen:* ${getStatus(settings.autoStatusSeen)}\n`;
+    statusText += `┃ 8️⃣ *Status React:* ${getStatus(settings.autoStatusReact)}\n`;
+    statusText += `┃ 9️⃣ *Read Command:* ${getStatus(settings.readCmd)}\n`;
+    statusText += `┃ 🔟 *Auto Voice:* ${getStatus(settings.autoVoice)}\n`;
     statusText += `┃\n`;
     statusText += `╰━━━━━━━━━━━━━━━┈⊷\n\n`;
     statusText += `*💡 අගය වෙනස් කිරීමට Reply කරන්න:*\n`;
-    statusText += `*E.g:* \`7 on\` (Status React ON කිරීමට)`;
+    statusText += `*E.g:* \`4 mypass123\` (Password සෙට් කිරීමට)\n`;
+    statusText += `*E.g:* \`8 on\` (Status React ON කිරීමට)`;
 
     const sentMsg = await zanta.sendMessage(from, {
         image: { url: SETTINGS_IMG },
