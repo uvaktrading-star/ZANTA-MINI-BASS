@@ -7,7 +7,7 @@ cmd(
         pattern: "send", 
         react: "📥",
         desc: "Download status",
-        category: "media",
+        category: "download",
         filename: __filename,
     },
     async (zanta, mek, m, { from, reply, args, prefix }) => {
