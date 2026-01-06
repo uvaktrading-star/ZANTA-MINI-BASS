@@ -18,7 +18,7 @@ cmd({
     pattern: "love",
     react: "💖",
     desc: "Animated love message.",
-    category: "fun",
+    category: "tools",
     filename: __filename
 }, async (zanta, mek, m, { from, q }) => {
     const user = q.trim() || m.pushName || "User";
@@ -37,7 +37,7 @@ cmd({
     pattern: "fire",
     react: "🔥",
     desc: "Animated fire message.",
-    category: "fun",
+    category: "tools",
     filename: __filename
 }, async (zanta, mek, m, { from, q }) => {
     const text = q.trim() || "ZANTA-MD ON FIRE!";
@@ -56,7 +56,7 @@ cmd({
     pattern: "sad",
     react: "😔",
     desc: "Animated sad message.",
-    category: "fun",
+    category: "tools",
     filename: __filename
 }, async (zanta, mek, m, { from }) => {
     const steps = [
@@ -74,7 +74,7 @@ cmd({
     pattern: "angry",
     react: "😡",
     desc: "Animated angry message.",
-    category: "fun",
+    category: "tools",
     filename: __filename
 }, async (zanta, mek, m, { from, q }) => {
     const target = q.trim() || "YOU";
@@ -93,7 +93,7 @@ cmd({
     pattern: "loading",
     react: "⏭",
     desc: "Loading animation effect.",
-    category: "fun",
+    category: "tools",
     filename: __filename
 }, async (zanta, mek, m, { from, q }) => {
     const user = q.trim() || m.pushName || "User";
