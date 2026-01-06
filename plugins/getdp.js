@@ -6,7 +6,7 @@ cmd(
         pattern: "getdp",
         react: "👤",
         desc: "Get the profile picture.",
-        category: "media",
+        category: "tools",
         filename: __filename,
     },
     async (
