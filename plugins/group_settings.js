@@ -23,7 +23,7 @@ const checkPerms = (zanta, m, groupAdmins, isOwner, sender) => {
 
 // --- 🔒 MUTE ---
 cmd({
-    pattern: "mute", alias: ["close"], react: "🔒", desc: "Mute gruop.", category: "group", filename: __filename,
+    pattern: "mute", alias: ["close"], react: "🔒", desc: "Mute gruop.", category: "tools", filename: __filename,
 }, async (zanta, mek, m, { from, reply, isGroup, groupAdmins, sender, isOwner }) => {
     if (!isGroup) return reply("❌ *Groups only.*");
     const perm = checkPerms(zanta, m, groupAdmins, isOwner, sender);
@@ -37,7 +37,7 @@ cmd({
 
 // --- 🔓 UNMUTE ---
 cmd({
-    pattern: "unmute", alias: ["open"], react: "🔓", desc: "Unmute gruop.", category: "group", filename: __filename,
+    pattern: "unmute", alias: ["open"], react: "🔓", desc: "Unmute gruop.", category: "tools", filename: __filename,
 }, async (zanta, mek, m, { from, reply, isGroup, groupAdmins, sender, isOwner }) => {
     if (!isGroup) return reply("❌ *Groups only.*");
     const perm = checkPerms(zanta, m, groupAdmins, isOwner, sender);
@@ -54,7 +54,7 @@ cmd({
     pattern: "kick", 
     react: "🚫", 
     desc: "Remove gruop member.",
-    category: "group", 
+    category: "tools", 
     filename: __filename,
 }, async (zanta, mek, m, { from, reply, isGroup, groupAdmins, sender, isOwner, q }) => {
     if (!isGroup) return reply("❌ *Groups only.*");
@@ -96,7 +96,7 @@ cmd({
     pattern: "promote", 
     react: "⭐", 
     desc: "Promote gruop member.",
-    category: "group", 
+    category: "tools", 
     filename: __filename,
 }, async (zanta, mek, m, { from, reply, isGroup, groupAdmins, sender, isOwner, q }) => {
     try {
@@ -135,7 +135,7 @@ cmd({
     pattern: "demote", 
     react: "📉", 
     desc: "Demote gruop member.",
-    category: "group", 
+    category: "tools", 
     filename: __filename,
 }, async (zanta, mek, m, { from, reply, isGroup, groupAdmins, sender, isOwner, q }) => {
     try {
@@ -171,7 +171,7 @@ cmd({
 
 // --- ➕ ADD MEMBER ---
 cmd({
-    pattern: "add", react: "➕", category: "group", desc: "Add member.", filename: __filename,
+    pattern: "add", react: "➕", category: "tools", desc: "Add member.", filename: __filename,
 }, async (zanta, mek, m, { from, reply, isGroup, groupAdmins, sender, isOwner, q }) => {
     if (!isGroup) return reply("❌ *Groups only.*");
     const perm = checkPerms(zanta, m, groupAdmins, isOwner, sender);
@@ -190,7 +190,7 @@ cmd({
 
 // --- 🔗 INVITE ---
 cmd({
-  pattern: "invite", alias: ["link"], react: "🔗", desc: "Get invite link.", category: "group", filename: __filename,
+  pattern: "invite", alias: ["link"], react: "🔗", desc: "Get invite link.", category: "tools", filename: __filename,
 }, async (zanta, mek, m, { from, reply, isGroup, groupMetadata, groupAdmins }) => {
   try {
       if (!isGroup) return reply("❌ *Groups only.*");
@@ -210,7 +210,7 @@ cmd({
 
 // --- 🔔 TAGALL ---
 cmd({
-    pattern: "tagall", alias: ["all"], react: "📢", category: "group", desc: "Tag all.", filename: __filename,
+    pattern: "tagall", alias: ["all"], react: "📢", category: "tools", desc: "Tag all.", filename: __filename,
 }, async (zanta, mek, m, { from, reply, isGroup, participants, groupAdmins, sender, isOwner, q }) => {
     if (!isGroup) return reply("❌ *Groups only.*");
     const perm = checkPerms(zanta, m, groupAdmins, isOwner, sender);
@@ -223,7 +223,7 @@ cmd({
 
 // --- 👋 LEFT ---
 cmd({
-    pattern: "left", react: "👋", category: "group", desc: "Leave in gruop.", filename: __filename,
+    pattern: "left", react: "👋", category: "tools", desc: "Leave in gruop.", filename: __filename,
 }, async (zanta, mek, m, { from, isGroup, isOwner, reply }) => {
     if (!isGroup) return reply("❌ *Groups only.*");
     if (!isOwner) return reply("❌ *Owner Only!*");
