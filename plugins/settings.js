@@ -32,18 +32,19 @@ cmd({
     statusText += `┃ 1️⃣ *Name:* ${botName}\n`;
     statusText += `┃ 2️⃣ *Owner:* ${ownerName}\n`;
     statusText += `┃ 3️⃣ *Prefix:* [ ${botPrefix} ]\n`;
-    statusText += `┃ 4️⃣ *Web Password:* ${webPass}\n`; // Password Field
-    statusText += `┃ 5️⃣ *Auto Read Mg:* ${getStatus(settings.autoRead)}\n`;
-    statusText += `┃ 6️⃣ *Auto Typing:* ${getStatus(settings.autoTyping)}\n`;
-    statusText += `┃ 7️⃣ *Status Seen:* ${getStatus(settings.autoStatusSeen)}\n`;
-    statusText += `┃ 8️⃣ *Status React:* ${getStatus(settings.autoStatusReact)}\n`;
-    statusText += `┃ 9️⃣ *Read Command:* ${getStatus(settings.readCmd)}\n`;
-    statusText += `┃ 🔟 *Auto Voice:* ${getStatus(settings.autoVoice)}\n`;
+    statusText += `┃ 4️⃣ *Web Password:* ${webPass}\n`;
+    statusText += `┃ 5️⃣ *Always Online:* ${getStatus(settings.alwaysOnline)}\n`; // New Field
+    statusText += `┃ 6️⃣ *Auto Read Mg:* ${getStatus(settings.autoRead)}\n`;
+    statusText += `┃ 7️⃣ *Auto Typing:* ${getStatus(settings.autoTyping)}\n`;
+    statusText += `┃ 8️⃣ *Status Seen:* ${getStatus(settings.autoStatusSeen)}\n`;
+    statusText += `┃ 9️⃣ *Status React:* ${getStatus(settings.autoStatusReact)}\n`;
+    statusText += `┃ 🔟 *Read Command:* ${getStatus(settings.readCmd)}\n`;
+    statusText += `┃ ⓫ *Auto Voice:* ${getStatus(settings.autoVoice)}\n`;
     statusText += `┃\n`;
     statusText += `╰━━━━━━━━━━━━━━━┈⊷\n\n`;
     statusText += `*💡 අගය වෙනස් කිරීමට Reply කරන්න:*\n`;
-    statusText += `*E.g:* \`4 mypass123\` (Password සෙට් කිරීමට)\n`;
-    statusText += `*E.g:* \`8 on\` (Status React ON කිරීමට)`;
+    statusText += `*E.g:* \`5 on\` (Always Online ON කිරීමට)\n`;
+    statusText += `*E.g:* \`4 mypass123\` (Password එකක් දැමීමට)`;
 
     const sentMsg = await zanta.sendMessage(from, {
         image: { url: SETTINGS_IMG },
