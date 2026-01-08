@@ -333,7 +333,7 @@ startSystem();
 app.get("/", (req, res) => res.send("ZANTA-MD Online ✅"));
 app.listen(port);
 
-const MINUTES = 60; 
+const MINUTES = 90; 
 const RESTART_INTERVAL = MINUTES * 60 * 1000; 
 setTimeout(() => {
     process.exit(0); 
