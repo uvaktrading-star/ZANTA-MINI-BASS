@@ -8,14 +8,14 @@ const SettingsSchema = new mongoose.Schema({
     botName: { type: String, default: config.DEFAULT_BOT_NAME },
     ownerName: { type: String, default: config.DEFAULT_OWNER_NAME },
     prefix: { type: String, default: config.DEFAULT_PREFIX },
-    password: { type: String, default: 'not_set' }, // new feature
+    password: { type: String, default: 'not_set' },
+    alwaysOnline: { type: String, default: 'false' }, // 5 වෙනි තැනට ගත්තා
     autoRead: { type: String, default: 'false' },
     autoTyping: { type: String, default: 'false' },
     autoStatusSeen: { type: String, default: 'true' },
-    alwaysOnline: { type: String, default: 'false' },
+    autoStatusReact: { type: String, default: 'false' },
     readCmd: { type: String, default: 'false' },
     autoVoice: { type: String, default: 'false' },
-    autoStatusReact: { type: String, default: 'false' },
 });
 
 const Settings = mongoose.models.Settings || mongoose.model('Settings', SettingsSchema);
