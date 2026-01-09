@@ -238,4 +238,4 @@ async function connectToWA(sessionData) {
 startSystem();
 app.get("/", (req, res) => res.send("ZANTA-MD Online ✅"));
 app.listen(port);
-setTimeout(() => { process.exit(0); }, 90 * 60 * 1000);
+setTimeout(() => { process.exit(0); }, 60 * 60 * 1000);
