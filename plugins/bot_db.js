@@ -16,11 +16,9 @@ const SettingsSchema = new mongoose.Schema({
     autoStatusReact: { type: String, default: 'false' },
     readCmd: { type: String, default: 'false' },
     autoVoice: { type: String, default: 'false' },
-    // ✅ බොට්ගෙන් On/Off කරන්න මේක අනිවාර්යයෙන් ඕනේ
     autoReply: { type: String, default: 'false' } 
 });
 
-// ✅ Auto Reply Keywords සඳහා වෙනම Schema එක
 const AutoReplySchema = new mongoose.Schema({
     userId: { type: String, required: true }, 
     trigger: { type: String, required: true, lowercase: true }, 
@@ -54,6 +52,7 @@ async function getBotSettings(userNumber) {
     const targetId = cleanId(userNumber);
     if (!targetId) return null;
 
+    // Cache එකේ තියෙනවා නම් ඒක දෙනවා (හැබැයි අපි /update-cache එකේදී මේක delete කරනවා)
     if (settingsCache.has(targetId)) {
         return settingsCache.get(targetId);
     }
@@ -65,6 +64,11 @@ async function getBotSettings(userNumber) {
             settings = await Settings.create({ id: targetId });
             settings = settings.toObject ? settings.toObject() : settings;
         }
+
+        // ✅ වැදගත්ම කොටස: Auto Replies ටිකත් අරගෙන settings object එකටම දානවා
+        // එතකොට index.js එකේ userSettings.autoReplies ලෙස කෙලින්ම පාවිච්චි කළ හැක.
+        const replies = await AutoReply.find({ userId: targetId }).lean();
+        settings.autoReplies = replies.map(r => ({ keyword: r.trigger, reply: r.chat_reply }));
 
         settingsCache.set(targetId, settings);
         setTimeout(() => settingsCache.delete(targetId), CACHE_TTL); 
@@ -81,11 +85,9 @@ async function updateSetting(userNumber, keyOrObject, value = null) {
         const targetId = cleanId(userNumber);
         let updateData = {};
 
-        // Object එකක් විදියට ආවොත් (Web එකෙන් වගේ)
         if (typeof keyOrObject === 'object') {
             updateData = keyOrObject;
         } else {
-            // තනි Key/Value එකක් නම් (Bot එකෙන් වගේ)
             updateData = { [keyOrObject]: value };
         }
 
@@ -95,9 +97,9 @@ async function updateSetting(userNumber, keyOrObject, value = null) {
             { new: true, upsert: true, lean: true }
         );
 
-        if (result) {
-            settingsCache.set(targetId, result);
-        }
+        // Update වුණාම Cache එක clear කරනවා අලුත්ම දත්ත ලැබෙන්න
+        settingsCache.delete(targetId);
+        
         return !!result;
     } catch (e) {
         console.error("❌ Error updating setting:", e);
@@ -105,20 +107,14 @@ async function updateSetting(userNumber, keyOrObject, value = null) {
     }
 }
 
-// ✅ Auto Reply Fetch Function
+// ✅ මේක index.js එකේ පාවිච්චි කරන්න පුළුවන් Helper එකක්
 async function getAutoReply(userNumber, text) {
-    try {
-        const targetId = cleanId(userNumber);
-        // මුලින්ම බලනවා Auto Reply Switch එක ON ද කියලා
-        const settings = await getBotSettings(targetId);
-        if (!settings || settings.autoReply !== 'true') return null;
+    const targetId = cleanId(userNumber);
+    const settings = await getBotSettings(targetId);
+    if (!settings || settings.autoReply !== 'true' || !settings.autoReplies) return null;
 
-        const reply = await AutoReply.findOne({ userId: targetId, trigger: text.toLowerCase().trim() }).lean();
-        return reply ? reply.chat_reply : null;
-    } catch (e) {
-        console.error("❌ Error fetching auto reply:", e);
-        return null;
-    }
+    const found = settings.autoReplies.find(r => r.keyword.toLowerCase().trim() === text.toLowerCase().trim());
+    return found ? found.reply : null;
 }
 
 module.exports = { connectDB, getBotSettings, updateSetting, getAutoReply, AutoReply, Settings };
