@@ -9,7 +9,7 @@ const SettingsSchema = new mongoose.Schema({
     ownerName: { type: String, default: config.DEFAULT_OWNER_NAME },
     prefix: { type: String, default: config.DEFAULT_PREFIX },
     password: { type: String, default: 'not_set' },
-    alwaysOnline: { type: String, default: 'false' }, // 5 වෙනි තැනට ගත්තා
+    alwaysOnline: { type: String, default: 'false' },
     autoRead: { type: String, default: 'false' },
     autoTyping: { type: String, default: 'false' },
     autoStatusSeen: { type: String, default: 'true' },
@@ -18,7 +18,15 @@ const SettingsSchema = new mongoose.Schema({
     autoVoice: { type: String, default: 'false' },
 });
 
+// ✅ Auto Reply සඳහා අලුත් Schema එක
+const AutoReplySchema = new mongoose.Schema({
+    userId: { type: String, required: true }, // කාගේ බොට් එකටද අදාළ වෙන්නේ කියලා අඳුරගන්න
+    trigger: { type: String, required: true, lowercase: true }, // යූසර් එවන වචනය
+    chat_reply: { type: String, required: true } // බොට් දෙන රිප්ලයි එක
+});
+
 const Settings = mongoose.models.Settings || mongoose.model('Settings', SettingsSchema);
+const AutoReply = mongoose.models.AutoReply || mongoose.model('AutoReply', AutoReplySchema);
 
 // --- [MEMORY CACHE] ---
 const settingsCache = new Map();
@@ -85,4 +93,16 @@ async function updateSetting(userNumber, key, value) {
     }
 }
 
-module.exports = { connectDB, getBotSettings, updateSetting };
+// ✅ Auto Reply සඳහා අලුතින් එක් කළ Functions
+async function getAutoReply(userNumber, text) {
+    try {
+        const targetId = cleanId(userNumber);
+        const reply = await AutoReply.findOne({ userId: targetId, trigger: text.toLowerCase().trim() }).lean();
+        return reply ? reply.chat_reply : null;
+    } catch (e) {
+        console.error("❌ Error fetching auto reply:", e);
+        return null;
+    }
+}
+
+module.exports = { connectDB, getBotSettings, updateSetting, getAutoReply, AutoReply };
