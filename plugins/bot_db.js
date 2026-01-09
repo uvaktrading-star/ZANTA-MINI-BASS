@@ -16,13 +16,15 @@ const SettingsSchema = new mongoose.Schema({
     autoStatusReact: { type: String, default: 'false' },
     readCmd: { type: String, default: 'false' },
     autoVoice: { type: String, default: 'false' },
+    // ✅ බොට්ගෙන් On/Off කරන්න මේක අනිවාර්යයෙන් ඕනේ
+    autoReply: { type: String, default: 'false' } 
 });
 
-// ✅ Auto Reply සඳහා අලුත් Schema එක
+// ✅ Auto Reply Keywords සඳහා වෙනම Schema එක
 const AutoReplySchema = new mongoose.Schema({
-    userId: { type: String, required: true }, // කාගේ බොට් එකටද අදාළ වෙන්නේ කියලා අඳුරගන්න
-    trigger: { type: String, required: true, lowercase: true }, // යූසර් එවන වචනය
-    chat_reply: { type: String, required: true } // බොට් දෙන රිප්ලයි එක
+    userId: { type: String, required: true }, 
+    trigger: { type: String, required: true, lowercase: true }, 
+    chat_reply: { type: String, required: true } 
 });
 
 const Settings = mongoose.models.Settings || mongoose.model('Settings', SettingsSchema);
@@ -61,7 +63,7 @@ async function getBotSettings(userNumber) {
         
         if (!settings) {
             settings = await Settings.create({ id: targetId });
-            settings = settings.toObject();
+            settings = settings.toObject ? settings.toObject() : settings;
         }
 
         settingsCache.set(targetId, settings);
@@ -74,12 +76,22 @@ async function getBotSettings(userNumber) {
     }
 }
 
-async function updateSetting(userNumber, key, value) {
+async function updateSetting(userNumber, keyOrObject, value = null) {
     try {
         const targetId = cleanId(userNumber);
+        let updateData = {};
+
+        // Object එකක් විදියට ආවොත් (Web එකෙන් වගේ)
+        if (typeof keyOrObject === 'object') {
+            updateData = keyOrObject;
+        } else {
+            // තනි Key/Value එකක් නම් (Bot එකෙන් වගේ)
+            updateData = { [keyOrObject]: value };
+        }
+
         const result = await Settings.findOneAndUpdate(
             { id: targetId },
-            { $set: { [key]: value } },
+            { $set: updateData },
             { new: true, upsert: true, lean: true }
         );
 
@@ -93,10 +105,14 @@ async function updateSetting(userNumber, key, value) {
     }
 }
 
-// ✅ Auto Reply සඳහා අලුතින් එක් කළ Functions
+// ✅ Auto Reply Fetch Function
 async function getAutoReply(userNumber, text) {
     try {
         const targetId = cleanId(userNumber);
+        // මුලින්ම බලනවා Auto Reply Switch එක ON ද කියලා
+        const settings = await getBotSettings(targetId);
+        if (!settings || settings.autoReply !== 'true') return null;
+
         const reply = await AutoReply.findOne({ userId: targetId, trigger: text.toLowerCase().trim() }).lean();
         return reply ? reply.chat_reply : null;
     } catch (e) {
@@ -105,4 +121,4 @@ async function getAutoReply(userNumber, text) {
     }
 }
 
-module.exports = { connectDB, getBotSettings, updateSetting, getAutoReply, AutoReply };
+module.exports = { connectDB, getBotSettings, updateSetting, getAutoReply, AutoReply, Settings };
