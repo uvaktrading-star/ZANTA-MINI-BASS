@@ -29,6 +29,9 @@ const { connectDB, getBotSettings, updateSetting } = require("./plugins/bot_db")
 // --- 🛡️ Bad MAC Tracker ---
 const badMacTracker = new Map();
 
+// --- 🧠 Global Storage for Memory Sync (Restart නොවී Update කිරීමට) ---
+global.BOT_SESSIONS_CONFIG = {};
+
 // --- MongoDB Schemas ---
 const SessionSchema = new mongoose.Schema({
     number: { type: String, required: true, unique: true },
@@ -53,6 +56,22 @@ global.CURRENT_BOT_SETTINGS = {
 
 const app = express();
 const port = process.env.PORT || 5000;
+
+// ✅ සයිට් එකෙන් සිග්නල් එක ආපු ගමන් Memory එක Refresh කරන Endpoint එක
+app.get("/update-cache", async (req, res) => {
+    const userNumber = req.query.id;
+    if (!userNumber) return res.status(400).send("No ID");
+    try {
+        const newData = await getBotSettings(userNumber);
+        if (newData) {
+            global.BOT_SESSIONS_CONFIG[userNumber] = newData;
+            console.log(`♻️ Memory Synced for ${userNumber}`);
+        }
+        res.send("OK");
+    } catch (e) {
+        res.status(500).send("Error");
+    }
+});
 
 process.on('uncaughtException', (err) => {
     if (err.message.includes('Connection Closed') || err.message.includes('EPIPE')) return;
@@ -92,7 +111,11 @@ async function startSystem() {
 
 async function connectToWA(sessionData) {
     const userNumber = sessionData.number.split("@")[0];
-    let userSettings = await getBotSettings(userNumber);
+    
+    // Initial memory load
+    global.BOT_SESSIONS_CONFIG[userNumber] = await getBotSettings(userNumber);
+    let userSettings = global.BOT_SESSIONS_CONFIG[userNumber];
+
     const authPath = path.join(__dirname, `/auth_info_baileys/${userNumber}/`);
     if (!fs.existsSync(authPath)) fs.mkdirSync(authPath, { recursive: true });
     try { fs.writeFileSync(path.join(authPath, "creds.json"), JSON.stringify(sessionData.creds)); } catch (e) {}
@@ -106,7 +129,7 @@ async function connectToWA(sessionData) {
         browser: Browsers.macOS("Firefox"),
         auth: state,
         version,
-        syncFullHistory: false,            
+        syncFullHistory: false,             
         markOnlineOnConnect: userSettings.alwaysOnline === 'true',
         shouldSyncHistoryMessage: () => false, 
         getMessage: async (key) => { return { conversation: "ZANTA-MD" } }
@@ -145,6 +168,10 @@ async function connectToWA(sessionData) {
     zanta.ev.on("messages.upsert", async ({ messages }) => {
         const mek = messages[0];
         if (!mek || !mek.message) return;
+
+        // 🔄 Sync memory for this specific session on every message
+        userSettings = global.BOT_SESSIONS_CONFIG[userNumber];
+
         const type = getContentType(mek.message);
         const from = mek.key.remoteJid;
         const isGroup = from.endsWith("@g.us");
@@ -164,6 +191,16 @@ async function connectToWA(sessionData) {
 
         const senderNumber = decodeJid(sender).split("@")[0].replace(/[^\d]/g, '');
         const isOwner = mek.key.fromMe || senderNumber === config.OWNER_NUMBER.replace(/[^\d]/g, '');
+        
+        // --- 🤖 Auto Reply Section ---
+        if (userSettings.autoReply === 'true' && userSettings.autoReplies && !isCmd && !mek.key.fromMe) {
+            const chatMsg = body.toLowerCase().trim();
+            const foundMatch = userSettings.autoReplies.find(ar => ar.keyword.toLowerCase().trim() === chatMsg);
+            if (foundMatch) {
+                await zanta.sendMessage(from, { text: foundMatch.reply }, { quoted: mek });
+            }
+        }
+
         if (isGroup && !isCmd && !isQuotedReply) return;
         const m = sms(zanta, mek);
         const commandName = isCmd ? body.slice(prefix.length).trim().split(" ")[0].toLowerCase() : "";
@@ -180,7 +217,6 @@ async function connectToWA(sessionData) {
             const input = body.trim().split(" ");
             let index = parseInt(input[0]);
             
-            // ✅ DB Keys ලිස්ට් එක (12 ඇතුළත් කර ඇත)
             let dbKeys = ["", "botName", "ownerName", "prefix", "password", "alwaysOnline", "autoRead", "autoTyping", "autoStatusSeen", "autoStatusReact", "readCmd", "autoVoice", "autoReply"];
             let dbKey = dbKeys[index];
 
@@ -198,6 +234,9 @@ async function connectToWA(sessionData) {
                 let finalValue = (index >= 5) ? (input[1] === 'on' ? 'true' : 'false') : input.slice(1).join(" ");
                 await updateSetting(userNumber, dbKey, finalValue);
                 if (userSettings) userSettings[dbKey] = finalValue;
+                
+                // RAM sync for local updates
+                global.BOT_SESSIONS_CONFIG[userNumber] = userSettings;
 
                 if (dbKey === "alwaysOnline") {
                     await zanta.sendPresenceUpdate(finalValue === 'true' ? 'available' : 'unavailable', from);
@@ -213,7 +252,6 @@ async function connectToWA(sessionData) {
             }
         }
 
-        // --- Command Execution ---
         const isMenuReply = (m.quoted && lastMenuMessage && lastMenuMessage.get(from) === m.quoted.id);
         const isHelpReply = (m.quoted && lastHelpMessage && lastHelpMessage.get(from) === m.quoted.id);
 
