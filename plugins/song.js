@@ -20,19 +20,13 @@ cmd({
         const data = search.videos[0];
         if (!data) return await zanta.sendMessage(from, { text: "❌ *සින්දුව සොයාගත නොහැකි විය.*", edit: loading.key });
 
-        // DATABASE BOT NAME
         const settings = userSettings || global.CURRENT_BOT_SETTINGS || {};
         const botName = settings.botName || config.DEFAULT_BOT_NAME || "ZANTA-MD";
-
-        // ලෝගෝ එක Buffer එකක් විදියට මෙතැනදී ගන්නවා
-        let logoResponse = await axios.get("https://github.com/Akashkavindu/ZANTA_MD/blob/main/images/WhatsApp%20Image%202025-12-29%20at%209.28.43%20AM.jpeg?raw=true", { responseType: 'arraybuffer' });
-        let logoBuffer = Buffer.from(logoResponse.data, 'binary');
 
         if (data.seconds > 3600) {
             return await zanta.sendMessage(from, { text: "⏳ *විනාඩි 60 ට වැඩි Audio දැනට සහය නොදක්වයි.*", edit: loading.key });
         }
 
-        // --- 🎨 YOUR REQUESTED CAPTION STYLE ---
         let stylishDesc = `🎶 *|${botName.toUpperCase()} SONG PLAYER|* 🎶
         
 🎬 *Title:* ${data.title}
@@ -43,27 +37,33 @@ cmd({
 
 > *©️ ${botName.toUpperCase()}*`;
 
-        // --- 🖼️ UI WITHOUT AD REPLY ---
-await zanta.sendMessage(from, { 
-    image: { url: data.thumbnail }, 
-    caption: stylishDesc
-});
-                
-            
+        // Thumbnail UI
+        await zanta.sendMessage(from, { 
+            image: { url: data.thumbnail }, 
+            caption: stylishDesc
         }, { quoted: mek });
 
+        // Download Audio
         const songData = await ytmp3(data.url, "192");
 
         if (!songData || !songData.download || !songData.download.url) {
             return await zanta.sendMessage(from, { text: "❌ *ඩවුන්ලෝඩ් ලින්ක් එක ලබා ගැනීමට නොහැක.*", edit: loading.key });
         }
 
-        // --- AUDIO FILE UPLOAD ---
+        // Send Audio File
         await zanta.sendMessage(from, {
             audio: { url: songData.download.url },
             mimetype: "audio/mpeg",
             fileName: `${data.title}.mp3`,
             contextInfo: {
+                externalAdReply: {
+                    title: data.title,
+                    body: botName,
+                    thumbnailUrl: data.thumbnail,
+                    sourceUrl: data.url,
+                    mediaType: 1,
+                    showAdAttribution: true
+                }
             }
         }, { quoted: mek });
 
@@ -100,29 +100,24 @@ async (zanta, mek, m, { from, q, reply, isOwner, userSettings }) => {
 
         await m.react("🔍");
 
-        // 1. YouTube Search
         const search = await yts(songName);
         const data = search.videos[0];
         if (!data) return reply("❌ සින්දුව සොයාගත නොහැකි විය.");
 
-        // 40 Mins Limit
         if (data.seconds > 2400) { 
             return reply(`⚠️ *සින්දුව ගොඩක් දිග වැඩියි!* (Max: 40 Mins)`);
         }
 
-        // 2. Image Buffer
         const response = await axios.get(data.thumbnail, { responseType: 'arraybuffer' });
         const imgBuffer = Buffer.from(response.data, 'binary');
 
-        // 3. Caption Style
         const timeLine = "───●──────────"; 
         const imageCaption = `✨ *${botName.toUpperCase()} SONG DOWNLOADER* ✨\n\n` +
                              `📝 *Title:* ${data.title}\n` +
                              `🕒 *Duration:* ${data.timestamp}\n\n` +
                              `   ${timeLine}\n` +
-                             `    ⇆ㅤㅤ◁ㅤ❚❚ㅤ▷ㅤ↻`;
+                             `   ⇆ㅤㅤ◁ㅤ❚❚ㅤ▷ㅤ↻`;
 
-        // 4. STEP 1: Image & Details (No Ad Cards)
         await zanta.sendMessage(targetJid, { 
             image: imgBuffer, 
             caption: imageCaption 
@@ -130,13 +125,11 @@ async (zanta, mek, m, { from, q, reply, isOwner, userSettings }) => {
 
         await m.react("📥");
 
-        // 5. STEP 2: Download & Send Audio File
         const songData = await ytmp3(data.url, "128");
         if (!songData || !songData.download || !songData.download.url) {
             return reply("❌ Download error.");
         }
 
-        // Audio එක යවද්දී contextInfo කොටස සම්පූර්ණයෙන්ම අයින් කළා (Add Card එක නැති වෙන්න)
         await zanta.sendMessage(targetJid, { 
             audio: { url: songData.download.url }, 
             mimetype: 'audio/mpeg', 
