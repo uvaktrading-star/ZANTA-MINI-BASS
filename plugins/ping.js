@@ -3,7 +3,7 @@ const os = require('os');
 const { runtime } = require('../lib/functions');
 const config = require("../config");
 
-const STATUS_IMAGE_URL = "https://github.com/Akashkavindu/ZANTA_MD/blob/main/images/alive-new.jpg?raw=true";
+const STATUS_IMAGE_URL = "https://github.com/Akashkavindu/ZANTA_MD/blob/main/images/Gemini_Generated_Image_4xcl2e4xcl2e4xcl.png?raw=true";
 
 // දත්ත ප්‍රමාණයන් කියවීමට පහසු ලෙස සැකසීම
 function bytesToSize(bytes) {
