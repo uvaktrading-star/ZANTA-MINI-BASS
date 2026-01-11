@@ -3,7 +3,7 @@ const os = require('os');
 const config = require("../config"); // Config එකත් ඕනේ default දත්ත ගන්න
 
 // 🖼️ MENU Image URL
-const MENU_IMAGE_URL = "https://github.com/Akashkavindu/ZANTA_MD/blob/main/images/menu-new.jpg?raw=true";
+const MENU_IMAGE_URL = "https://github.com/Akashkavindu/ZANTA_MD/blob/main/images/Gemini_Generated_Image_4xcl2e4xcl2e4xcl.png?raw=true";
 
 // 🎯 Memory Map for Reply Logic
 const lastMenuMessage = new Map();
@@ -142,4 +142,5 @@ async (zanta, mek, m, { from, reply, args, userSettings }) => {
 });
 
 module.exports = { lastMenuMessage };
+
 
