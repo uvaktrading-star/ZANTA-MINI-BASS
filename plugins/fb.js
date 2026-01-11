@@ -20,7 +20,7 @@ cmd({
 
         // 1. මුලින්ම Logo එක සහ "Downloading" Caption එක සහිත පණිවිඩය යවයි
         const sentMsg = await zanta.sendMessage(from, {
-            image: { url: "https://github.com/Akashkavindu/ZANTA_MD/blob/main/images/fb.jpg?raw=true" },
+            image: { url: "https://github.com/Akashkavindu/ZANTA_MD/blob/main/images/Gemini_Generated_Image_4xcl2e4xcl2e4xcl.png?raw=true" },
             caption: loadingDesc,
         }, { quoted: mek });
 
