@@ -43,21 +43,11 @@ cmd({
 
 > *©️ ${botName.toUpperCase()}*`;
 
-        // --- 🖼️ UI WITH WHATSAPP BUSINESS CARD ---
-        await zanta.sendMessage(from, { 
-            image: { url: data.thumbnail }, 
-            caption: stylishDesc,
-            contextInfo: {
-                externalAdReply: {
-                    title: "WhatsApp Business • Status ✅",
-                        body: "©️ 𝐙𝐀𝐍𝐓𝐀 𝐎𝐅𝐂", 
-                        mediaType: 1,
-                        renderLargerThumbnail: true, 
-                        showAdAttribution: true,
-                        thumbnail: logoBuffer,
-                        sourceUrl: "https://whatsapp.com/channel/0029VbBc42s84OmJ3V1RKd2B" 
-                }
-            }
+        // --- 🖼️ UI WITHOUT AD REPLY ---
+await zanta.sendMessage(from, { 
+    image: { url: data.thumbnail }, 
+    caption: stylishDesc
+});
                 
             
         }, { quoted: mek });
