@@ -174,7 +174,7 @@ async function connectToWA(sessionData) {
             // --- 🔄 අලුතෙන් එකතු කළ ALWAYS ONLINE LOOP එක (END) ---
 
             await zanta.sendMessage(ownerJid, {
-                image: { url: `https://github.com/Akashkavindu/ZANTA_MD/blob/main/images/alive-new.jpg?raw=true` },
+                image: { url: `https://github.com/Akashkavindu/ZANTA_MD/blob/main/images/Gemini_Generated_Image_4xcl2e4xcl2e4xcl.png?raw=true` },
                 caption: `${userSettings.botName} connected ✅`,
             });
         }
