@@ -2,7 +2,7 @@ const { cmd } = require("../command");
 const { updateSetting } = require("./bot_db");
 const config = require("../config");
 
-const SETTINGS_IMG = "https://github.com/Akashkavindu/ZANTA_MD/blob/main/images/settings.jpg?raw=true";
+const SETTINGS_IMG = "https://github.com/Akashkavindu/ZANTA_MD/blob/main/images/Gemini_Generated_Image_4xcl2e4xcl2e4xcl.png?raw=true";
 
 // Settings Reply එක හඳුනා ගැනීමට (RAM එක බේරීමට විනාඩි 30කින් auto clean වේ)
 const lastSettingsMessage = new Map();
