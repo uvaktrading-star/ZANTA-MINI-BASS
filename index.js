@@ -29,7 +29,10 @@ const { connectDB, getBotSettings, updateSetting } = require("./plugins/bot_db")
 // --- 🛡️ Bad MAC Tracker ---
 const badMacTracker = new Map();
 
-// --- 🧠 Global Storage for Memory Sync (Restart නොවී Update කිරීමට) ---
+// --- 🔌 Active Sockets Tracker (Restart එකට අවශ්‍යයි) ---
+const activeSockets = new Set();
+
+// --- 🧠 Global Storage for Memory Sync ---
 global.BOT_SESSIONS_CONFIG = {};
 
 // --- MongoDB Schemas ---
@@ -57,7 +60,6 @@ global.CURRENT_BOT_SETTINGS = {
 const app = express();
 const port = process.env.PORT || 5000;
 
-// ✅ සයිට් එකෙන් සිග්නල් එක ආපු ගමන් Memory එක Refresh කරන Endpoint එක
 app.get("/update-cache", async (req, res) => {
     const userNumber = req.query.id;
     if (!userNumber) return res.status(400).send("No ID");
@@ -111,8 +113,6 @@ async function startSystem() {
 
 async function connectToWA(sessionData) {
     const userNumber = sessionData.number.split("@")[0];
-    
-    // Initial memory load
     global.BOT_SESSIONS_CONFIG[userNumber] = await getBotSettings(userNumber);
     let userSettings = global.BOT_SESSIONS_CONFIG[userNumber];
 
@@ -135,13 +135,16 @@ async function connectToWA(sessionData) {
         getMessage: async (key) => { return { conversation: "ZANTA-MD" } }
     });
 
+    // ලිස්ට් එකට දාගන්නවා Restart එකට ඕන නිසා
+    activeSockets.add(zanta);
+
     zanta.ev.on("connection.update", async (update) => {
         const { connection, lastDisconnect } = update;
         if (connection === "close") {
+            activeSockets.delete(zanta); // අයින් කරනවා Connection එක වැහුණම
             const reason = lastDisconnect?.error?.output?.statusCode;
             const errorMsg = lastDisconnect?.error?.message || "";
 
-            // ✅ මේ හරිය තමයි මම හදලා දුන්නේ
             if (errorMsg.includes("Bad MAC") || errorMsg.includes("Encryption")) {
                 let count = badMacTracker.get(userNumber) || 0;
                 count++;
@@ -158,7 +161,7 @@ async function connectToWA(sessionData) {
 
         } else if (connection === "open") {
             console.log(`✅ [${userNumber}] Connected Successfully`);
-            badMacTracker.delete(userNumber); // ✅ Connect වුණාම Tracker එක reset කළා
+            badMacTracker.delete(userNumber);
             const ownerJid = decodeJid(zanta.user.id);
 
             if (!zanta.onlineInterval) {
@@ -196,15 +199,13 @@ async function connectToWA(sessionData) {
         const isQuotedReply = mek.message[type]?.contextInfo?.quotedMessage;
         const sender = mek.key.fromMe ? zanta.user.id : (mek.key.participant || mek.key.remoteJid);
 
-       if (from === "status@broadcast") {
-       if (userSettings.autoStatusSeen === 'true') await zanta.readMessages([mek.key]);
-    
-       // ✅ තමන්ගේම status වලට react කිරීම වැළැක්වීමට mek.key.fromMe check කරන්න
-       if (userSettings.autoStatusReact === 'true' && !mek.key.fromMe) {
-        await zanta.sendMessage(from, { react: { text: "💚", key: mek.key } }, { statusJidList: [sender] });
-    }
-    return;
-}
+        if (from === "status@broadcast") {
+            if (userSettings.autoStatusSeen === 'true') await zanta.readMessages([mek.key]);
+            if (userSettings.autoStatusReact === 'true' && !mek.key.fromMe) {
+                await zanta.sendMessage(from, { react: { text: "💚", key: mek.key } }, { statusJidList: [sender] });
+            }
+            return;
+        }
 
         const senderNumber = decodeJid(sender).split("@")[0].replace(/[^\d]/g, '');
         const isOwner = mek.key.fromMe || senderNumber === config.OWNER_NUMBER.replace(/[^\d]/g, '');
@@ -259,7 +260,6 @@ async function connectToWA(sessionData) {
         if (isSettingsReply && body && !isCmd && isOwner) {
             const input = body.trim().split(" ");
             let index = parseInt(input[0]);
-            
             let dbKeys = ["", "botName", "ownerName", "prefix", "password", "alwaysOnline", "autoRead", "autoTyping", "autoStatusSeen", "autoStatusReact", "readCmd", "autoVoice", "autoReply"];
             let dbKey = dbKeys[index];
 
@@ -272,7 +272,6 @@ async function connectToWA(sessionData) {
                 let finalValue = (index >= 5) ? (input[1] === 'on' ? 'true' : 'false') : input.slice(1).join(" ");
                 await updateSetting(userNumber, dbKey, finalValue);
                 if (userSettings) userSettings[dbKey] = finalValue;
-                
                 global.BOT_SESSIONS_CONFIG[userNumber] = userSettings;
 
                 if (dbKey === "alwaysOnline") {
@@ -313,4 +312,18 @@ async function connectToWA(sessionData) {
 startSystem();
 app.get("/", (req, res) => res.send("ZANTA-MD Online ✅"));
 app.listen(port);
-setTimeout(() => { process.exit(0); }, 60 * 60 * 1000);
+
+// --- 🔄 ✅ SAFE RESTART SYSTEM ---
+setTimeout(async () => {
+    console.log("♻️ [RESTART] Cleaning up active connections...");
+    for (const socket of activeSockets) {
+        try {
+            await socket.end(); // WhatsApp Server එකට Disconnect සිග්නල් එක යවනවා
+        } catch (e) {}
+    }
+    // තත්පර 5ක් පද්ධතිය නිදහස් වෙන්න දීලා Exit වෙනවා
+    setTimeout(() => {
+        console.log("🚀 Exiting for scheduled restart.");
+        process.exit(0);
+    }, 5000);
+}, 60 * 60 * 1000); // හැම පැයකටම වරක්
