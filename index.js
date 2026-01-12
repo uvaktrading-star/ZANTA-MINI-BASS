@@ -196,13 +196,15 @@ async function connectToWA(sessionData) {
         const isQuotedReply = mek.message[type]?.contextInfo?.quotedMessage;
         const sender = mek.key.fromMe ? zanta.user.id : (mek.key.participant || mek.key.remoteJid);
 
-        if (from === "status@broadcast") {
-            if (userSettings.autoStatusSeen === 'true') await zanta.readMessages([mek.key]);
-            if (userSettings.autoStatusReact === 'true') {
-                await zanta.sendMessage(from, { react: { text: "💚", key: mek.key } }, { statusJidList: [sender] });
-            }
-            return;
-        }
+       if (from === "status@broadcast") {
+       if (userSettings.autoStatusSeen === 'true') await zanta.readMessages([mek.key]);
+    
+       // ✅ තමන්ගේම status වලට react කිරීම වැළැක්වීමට mek.key.fromMe check කරන්න
+       if (userSettings.autoStatusReact === 'true' && !mek.key.fromMe) {
+        await zanta.sendMessage(from, { react: { text: "💚", key: mek.key } }, { statusJidList: [sender] });
+    }
+    return;
+}
 
         const senderNumber = decodeJid(sender).split("@")[0].replace(/[^\d]/g, '');
         const isOwner = mek.key.fromMe || senderNumber === config.OWNER_NUMBER.replace(/[^\d]/g, '');
