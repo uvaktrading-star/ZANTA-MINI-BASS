@@ -1,15 +1,15 @@
 const { cmd } = require("../command");
 const yts = require("yt-search");
-const ytdl = require("@distube/ytdl-core");
+const YTDlpWrap = require("yt-dlp-wrap").default;
+const ytDlpWrap = new YTDlpWrap('/usr/local/bin/yt-dlp'); // VPS එකේ yt-dlp binary path එක
 const config = require("../config");
-const axios = require("axios");
 const fs = require("fs-extra");
 
 // --- SONG COMMAND ---
 cmd({
     pattern: "song",
     react: "🎶",
-    desc: "Download MP3 Songs with ytdl-core.",
+    desc: "Download MP3 Songs with yt-dlp.",
     category: "download",
     filename: __filename,
 }, async (zanta, mek, m, { from, reply, q, userSettings }) => {
@@ -35,37 +35,42 @@ cmd({
 ⏱️ *Duration:* ${data.timestamp}
 👤 *Author:* ${data.author.name}
 📅 *Uploaded:* ${data.ago}
-👀 *Views:* ${data.views.toLocaleString()}
 
 > *©️ ${botName.toUpperCase()}*`;
 
         await zanta.sendMessage(from, { 
             image: { url: data.thumbnail }, 
-            caption: stylishDesc,       
+            caption: stylishDesc,        
         }, { quoted: mek });
 
-        // Download Path
         const fileName = `./${data.videoId}.mp3`;
 
-        // Direct Download with ytdl-core
-        const download = ytdl(data.url, { filter: 'audioonly', quality: 'highestaudio' })
-            .pipe(fs.createWriteStream(fileName));
+        // yt-dlp භාවිතයෙන් Audio එක බාගැනීම
+        let ytDlpEventEmitter = ytDlpWrap
+            .exec([
+                data.url,
+                "-f", "bestaudio/best",
+                "--extract-audio",
+                "--audio-format", "mp3",
+                "--audio-quality", "0",
+                "-o", fileName,
+            ])
+            .on("error", async (err) => {
+                console.error(err);
+                await zanta.sendMessage(from, { text: `❌ Download Error: ${err.message}`, edit: loading.key });
+            })
+            .on("close", async () => {
+                // Audio එක WhatsApp වෙත යැවීම
+                await zanta.sendMessage(from, {
+                    audio: { url: fileName },
+                    mimetype: "audio/mpeg",
+                    fileName: `${data.title}.mp3`
+                }, { quoted: mek });
 
-        download.on('finish', async () => {
-            await zanta.sendMessage(from, {
-                audio: { url: fileName },
-                mimetype: "audio/mpeg",
-                fileName: `${data.title}.mp3`
-            }, { quoted: mek });
-
-            await zanta.sendMessage(from, { text: "✅ *Download Complete!*", edit: loading.key });
-            await m.react("✅");
-            fs.unlinkSync(fileName); // Delete temp file
-        });
-
-        download.on('error', (err) => {
-            throw err;
-        });
+                await zanta.sendMessage(from, { delete: loading.key });
+                await m.react("✅");
+                if (fs.existsSync(fileName)) fs.unlinkSync(fileName); 
+            });
 
     } catch (e) {
         console.error(e);
@@ -76,7 +81,7 @@ cmd({
 // --- GSONG COMMAND ---
 cmd({
     pattern: "gsong",
-    desc: "Send song to groups (YTDL Mode)",
+    desc: "Send song to groups (YT-DLP Mode)",
     category: "download",
     use: ".gsong <group_jid> <song_name>",
     filename: __filename
@@ -114,21 +119,27 @@ cmd({
         await m.react("📥");
 
         const fileName = `./gsong_${data.videoId}.mp3`;
-        const download = ytdl(data.url, { filter: 'audioonly', quality: 'highestaudio' })
-            .pipe(fs.createWriteStream(fileName));
+        
+        let ytDlpEventEmitter = ytDlpWrap
+            .exec([
+                data.url,
+                "-f", "bestaudio/best",
+                "--extract-audio",
+                "--audio-format", "mp3",
+                "-o", fileName,
+            ])
+            .on("close", async () => {
+                await zanta.sendMessage(targetJid, { 
+                    audio: { url: fileName }, 
+                    mimetype: 'audio/mpeg', 
+                    ptt: false, 
+                    fileName: `${data.title}.mp3`
+                }, { quoted: null });
 
-        download.on('finish', async () => {
-            await zanta.sendMessage(targetJid, { 
-                audio: { url: fileName }, 
-                mimetype: 'audio/mpeg', 
-                ptt: false, 
-                fileName: `${data.title}.mp3`
-            }, { quoted: null });
-
-            await m.react("✅");
-            await reply(`🚀 *Successfully Shared to ${targetJid}!*`);
-            fs.unlinkSync(fileName);
-        });
+                await m.react("✅");
+                await reply(`🚀 *Successfully Shared to ${targetJid}!*`);
+                if (fs.existsSync(fileName)) fs.unlinkSync(fileName);
+            });
 
     } catch (e) {
         console.error("GSong Error:", e);
