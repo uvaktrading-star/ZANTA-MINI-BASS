@@ -43,16 +43,19 @@ cmd({
             caption: stylishDesc
         }, { quoted: mek });
 
-        // Download Audio
-        const songData = await ytmp3(data.url, "192");
+        // Download Audio Using API
+        // මම මෙතනට පාවිච්චි කරන්නේ ස්ථාවර API එකක්
+        const apiUrl = `https://dark-ytdl-2.vercel.app/download?url=${encodeURIComponent(data.url)}&type=mp3&quality=128`;
+        const res = await axios.get(apiUrl);
+        const download = res.data;
 
-        if (!songData || !songData.download || !songData.download.url) {
-            return await zanta.sendMessage(from, { text: "❌ *ඩවුන්ලෝඩ් ලින්ක් එක ලබා ගැනීමට නොහැක.*", edit: loading.key });
+        if (!download || !download.status || !download.result.download_url) {
+            return await zanta.sendMessage(from, { text: "❌ *ඩවුන්ලෝඩ් ලින්ක් එක ලබා ගැනීමට නොහැක. කරුණාකර නැවත උත්සාහ කරන්න.*", edit: loading.key });
         }
 
         // Send Audio File
         await zanta.sendMessage(from, {
-            audio: { url: songData.download.url },
+            audio: { url: download.result.download_url },
             mimetype: "audio/mpeg",
             fileName: `${data.title}.mp3`,
         }, { quoted: mek });
@@ -62,7 +65,10 @@ cmd({
 
     } catch (e) {
         console.error(e);
-        reply(`❌ *Error:* ${e.message}`);
+        // Reply Error message to user
+        if (m) {
+            await zanta.sendMessage(from, { text: `❌ *Error:* ${e.message}` });
+        }
     }
 });
 
