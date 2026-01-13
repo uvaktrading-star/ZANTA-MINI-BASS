@@ -1,6 +1,5 @@
 const { cmd } = require("../command");
 const yts = require("yt-search");
-const ytdl = require("@distube/ytdl-core");
 const fs = require("fs-extra");
 
 // සර්ච් රිසල්ට් මතක තබා ගැනීමට (Global Variable)
@@ -52,6 +51,3 @@ cmd({
         reply("❌ සෙවීමේදී දෝෂයක් සිදු විය.");
     }
 });
-
-// රිප්ලයි හසුරුවන කොටස index.js එකේ තිබිය යුතුයි. 
-// නමුත් ප්ලගින් එකේ error එක එන එක නතර කරන්න මම ඒ logic එක මෙතැනින් අයින් කළා.
