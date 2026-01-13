@@ -10,7 +10,6 @@
   },
   "dependencies": {
     "@faouzkk/tiktok-dl": "^1.0.1",
-    "@vreden/youtube_scraper": "^1.2.8",
     "@whiskeysockets/baileys": "^7.0.0-rc.9",
     "@xaviabot/fb-downloader": "^1.0.14",
     "@vitalets/google-translate-api": "^9.2.1",
