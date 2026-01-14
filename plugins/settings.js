@@ -15,7 +15,7 @@ cmd({
     react: "⚙️",
     filename: __filename,
 }, async (zanta, mek, m, { from, reply, isOwner, prefix, userSettings }) => {
-    
+
     if (!isOwner) return reply("⚠️ *මෙම Dashboard එක භාවිතා කළ හැක්කේ බොට් අයිතිකරුට පමණි!*");
 
     const settings = userSettings || global.CURRENT_BOT_SETTINGS || {};
@@ -40,12 +40,13 @@ cmd({
     statusText += `┃ ❾ *Status React:* ${getStatus(settings.autoStatusReact)}\n`;
     statusText += `┃ ❿ *Read Command:* ${getStatus(settings.readCmd)}\n`;
     statusText += `┃ ⓫ *Auto Voice:* ${getStatus(settings.autoVoice)}\n`;
-    statusText += `┃ ⓬ *Auto Reply:* ${getStatus(settings.autoReply)} (Set in web)\n`; // Update: දැන් ON/OFF පේනවා
+    statusText += `┃ ⓬ *Auto Reply:* ${getStatus(settings.autoReply)}\n`;
+    statusText += `┃ ⓭ *Connect Msg:* ${getStatus(settings.connectionMsg)}\n`; // ✅ අලුතින් එකතු කළා
     statusText += `┃\n`;
     statusText += `╰━━━━━━━━━━━━━━━┈⊷\n\n`;
     statusText += `*💡 අගය වෙනස් කිරීමට Reply කරන්න:*\n`;
     statusText += `*E.g:* \`5 on\` (Always Online ON කිරීමට)\n`;
-    statusText += `*E.g:* \`12 off\` (Auto Reply OFF කිරීමට)\n`; // Example එකක් එකතු කළා
+    statusText += `*E.g:* \`13 off\` (Connect Message OFF කිරීමට)\n`; // Example එක Update කළා
     statusText += `*E.g:* \`4 mypass123\` (Password එකක් දැමීමට)`;
 
     const sentMsg = await zanta.sendMessage(from, {
