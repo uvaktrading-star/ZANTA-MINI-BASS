@@ -17,7 +17,6 @@
     "audio-decode": "^2.2.3",
     "axios": "^1.13.2",
     "figlet": "^1.9.4",
-    "sadaslk-dlcore": "^1.0.0",
     "abir-photo360-apis" :"^1.0.2",
     "browser-id3-writer": "^6.3.1",
     "cheerio": "^1.1.2",
