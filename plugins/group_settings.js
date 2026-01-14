@@ -171,21 +171,57 @@ cmd({
 
 // --- ➕ ADD MEMBER ---
 cmd({
-    pattern: "add", react: "➕", category: "tools", desc: "Add member.", filename: __filename,
+    pattern: "add", 
+    react: "➕", 
+    category: "tools", 
+    desc: "Add multiple members at once.", 
+    filename: __filename,
 }, async (zanta, mek, m, { from, reply, isGroup, groupAdmins, sender, isOwner, q }) => {
     if (!isGroup) return reply("❌ *Groups only.*");
+
+    // පර්මිෂන් චෙක් කිරීම
     const perm = checkPerms(zanta, m, groupAdmins, isOwner, sender);
     if (perm === "bot_not_admin") return reply("❌ *මාව Admin කරන්න!*");
     if (perm === "not_admin") return reply("❌ *ඔබ Admin කෙනෙක් නෙවෙයි!*");
 
-    if (!q) return reply("❌ *අංකය ලබා දෙන්න (Ex: .add 947xxxxxxxx).*");
-    let user = q.replace(/[^0-9]/g, "") + "@s.whatsapp.net";
+    if (!q) return reply("❌ *අංකය හෝ අංක කිහිපයක් ලබා දෙන්න.*\n\n*Ex:* .add 947xxxxxxxx,947yyyyyyyy");
+
+    // කොමා වලින් වෙන් කර ඇති අංක ටික Array එකකට ගැනීම
+    let inputUsers = q.split(",");
+    let usersToAdd = [];
+    let feedbackMsg = "";
+
+    inputUsers.forEach(u => {
+        let cleanNumber = u.replace(/[^0-9]/g, "");
+        if (cleanNumber.length > 8) { // වලංගු අංකයක්දැයි බැලීමට පොඩි check එකක්
+            usersToAdd.push(cleanNumber + "@s.whatsapp.net");
+        }
+    });
+
+    if (usersToAdd.length === 0) return reply("❌ *වලංගු දුරකථන අංකයක් ලබා දෙන්න.*");
+    if (usersToAdd.length > 20) return reply("⚠️ *එක් වරකට උපරිම සාමාජිකයින් 20ක් පමණක් ඇතුළත් කළ හැක.*");
 
     try {
-        await zanta.groupParticipantsUpdate(from, [user], "add");
-        let desc = `\n╭━─━─━─━─━─╮\n┃    *MEMBER ADDED*\n╰━─━─━─━─━─╯\n\n👤 *User:* @${user.split('@')[0]}\n✅ *Status:* Added Success\n👮 *By:* @${sender.split('@')[0]}`;
-        await zanta.sendMessage(from, { text: desc, mentions: [user, sender] }, { quoted: mek });
-    } catch (e) { reply("❌ එක් කිරීමට නොහැක. (Privacy Settings හෝ අංකය වැරදියි)"); }
+        // WhatsApp එකට array එකක් ලෙස අංක ටික යැවීම
+        await zanta.groupParticipantsUpdate(from, usersToAdd, "add");
+
+        let userList = usersToAdd.map(u => `@${u.split('@')[0]}`).join("\n");
+
+        let desc = `
+╭━─━─━─━─━─╮
+┃    *MEMBERS ADDED*
+╰━─━─━─━─━─╯
+
+✅ *Status:* Successfully Added
+👥 *Added Users:* ${userList}
+
+👮 *By:* @${sender.split('@')[0]}`;
+
+        await zanta.sendMessage(from, { text: desc, mentions: [...usersToAdd, sender] }, { quoted: mek });
+
+    } catch (e) { 
+        reply("❌ සාමාජිකයින් එක් කිරීමට නොහැක.\n*(හේතුව: Privacy Settings හෝ ඔබ ලබා දුන් අංක වැරදි විය හැක)*"); 
+    }
 });
 
 // --- 🔗 INVITE ---
