@@ -85,7 +85,7 @@ async (zanta, mek, m, { from, reply, args, userSettings }) => {
 
             // Category එකට අදාළ Emoji එක තෝරාගැනීම
             let emoji = { 
-                main: '🏠', download: '📥', tools: '🛠', owner: '👑', group: '👥'
+                main: '🏠', download: '📥', tools: '🛠', owner: '👑', logo: '🎨'
             }[selectedCategory.toLowerCase()] || '📌';
 
             let commandList = `╭━━〔 ${emoji} ${displayTitle} 〕━━┈⊷\n`;
@@ -154,6 +154,7 @@ async (zanta, mek, m, { from, reply, args, userSettings }) => {
 });
 
 module.exports = { lastMenuMessage };
+
 
 
 
