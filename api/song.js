@@ -12,10 +12,8 @@ async function getAudioFile(url) {
         const fileName = `temp_${Date.now()}.mp3`;
         const filePath = path.join(__dirname, '..', 'temp', fileName); 
 
-        // yt-dlp හරහා MP3 එකක් විදිහට Download කිරීම
-        // -x: audio extract, --audio-format mp3: convert to mp3
-
-        const cmd = `python3 -m yt_dlp "${url}" -x --audio-format mp3 -o "${filePath}"`;
+        // python3 -m කෑල්ල අයින් කර කෙලින්ම yt-dlp පාවිච්චි කිරීම
+        const cmd = `yt-dlp "${url}" -x --audio-format mp3 -o "${filePath}"`;
 
         await execPromise(cmd);
         return {
@@ -23,8 +21,8 @@ async function getAudioFile(url) {
             filePath: filePath
         };
     } catch (e) {
-        console.error("YT-DLP API Error:", e);
-        return { status: false, error: "Download failed" };
+        console.error("YT-DLP Audio Error:", e);
+        return { status: false, error: "Audio download failed" };
     }
 }
 
@@ -37,8 +35,8 @@ async function getVideoFile(url) {
         const filePath = path.join(__dirname, '..', 'temp', fileName);
 
         // --recode-video mp4 : වීඩියෝව mp4 වලට හරවයි (Black screen ප්‍රශ්නය වළක්වයි)
-        // -S res:480,vcodec:h264 : WhatsApp වලට ගැලපෙන resolution සහ codec එක තෝරයි
-        const cmd = `python3 -m yt_dlp "${url}" -f "bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/best[height<=480]/best" --recode-video mp4 -o "${filePath}"`;
+        // python3 -m කෑල්ල මෙතනිනුත් අයින් කළා
+        const cmd = `yt-dlp "${url}" -f "bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/best[height<=480]/best" --recode-video mp4 -o "${filePath}"`;
 
         await execPromise(cmd);
 
@@ -47,7 +45,7 @@ async function getVideoFile(url) {
             filePath: filePath
         };
     } catch (e) {
-        console.error("Video Download Error:", e);
+        console.error("YT-DLP Video Error:", e);
         return { status: false, error: "Video download failed" };
     }
 }
