@@ -83,17 +83,29 @@ async (zanta, mek, m, { from, reply, args, userSettings }) => {
             // 📄 SHOW COMMANDS IN SELECTED CATEGORY
             let displayTitle = selectedCategory.toUpperCase() === 'OTHER' ? 'GENERAL' : selectedCategory.toUpperCase();
 
-            let commandList = `*Hello.. ${m.pushName || 'User'}🖐*\n`;
-            commandList += `╭━─━─━─━─━─━─━─━╮\n┃🎡 ${displayTitle} Commands\n╰━─━─━─━─━─━─━─━╯\n`;
+            // Category එකට අදාළ Emoji එක තෝරාගැනීම
+            let emoji = { 
+                main: '🏠', download: '📥', tools: '🛠', owner: '👑', group: '👥'
+            }[selectedCategory.toLowerCase()] || '📌';
+
+            let commandList = `╭━━〔 ${emoji} ${displayTitle} 〕━━┈⊷\n`;
+            commandList += `┃★╭──────────────·๏\n`;
+            commandList += `┃★│ 📝 Category : ${displayTitle}\n`;
+            commandList += `┃★│ 📊 Available : ${groupedCommands[selectedCategory].length}\n`;
+            commandList += `┃★╰──────────────·๏\n`;
+            commandList += `╰━━━━━━━━━━━━━━┈⊷\n\n`;
+
+            commandList += `╭━━〔 💻 COMMANDS 〕━━┈⊷\n`;
 
             groupedCommands[selectedCategory].forEach((c) => {
-                const descLine = c.desc ? c.desc.split('\n')[0].trim() : 'No description.';
-                commandList += `\n╭──────────●●►\n│⛩ Command ☛ ${finalPrefix}${c.pattern}\n│🌟 Desc ☛ ${descLine}\n╰──────────●●►\n`;
+                // අංක වෙනුවට Technical Bullet Point එකක් පාවිච්චි කරමු
+                commandList += `┃ ◈ ⚡️ ${finalPrefix}${c.pattern}\n`;
             });
 
-            commandList += `\n> *© ${botName}*`;
-            return reply(commandList); 
+            commandList += `╰━━━━━━━━━━━━━━┈⊷\n\n`;
+            commandList += `> *© ${botName} - Cyber System*`;
 
+            return reply(commandList); 
         }
 
         // ------------------------------------------------------------------
