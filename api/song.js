@@ -2,7 +2,7 @@ const { exec } = require('child_process');
 const { promisify } = require('util');
 const path = require('path');
 const fs = require('fs');
-const axios = require('axios'); // මේක අනිවාර්යයෙන් ඕනේ
+const axios = require('axios');
 const execPromise = promisify(exec);
 
 async function getAudioFile(url) {
@@ -11,39 +11,55 @@ async function getAudioFile(url) {
     if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
     const filePath = path.join(tempDir, fileName);
 
+    console.log("🚀 Starting Download for:", url);
+
     try {
-        // --- 1. පියවර: YT-DLP එකෙන් උත්සාහ කිරීම ---
+        console.log("🔍 Trying YT-DLP...");
         const cmd = `yt-dlp --force-ipv4 --no-check-certificates "${url}" -x --audio-format mp3 -o "${filePath}"`;
         await execPromise(cmd);
-        return { status: true, filePath: filePath };
+        
+        if (fs.existsSync(filePath)) {
+            console.log("✅ YT-DLP Success:", filePath);
+            return { status: true, filePath: filePath };
+        } else {
+            throw new Error("File not created by YT-DLP");
+        }
 
     } catch (e) {
-        console.log("YT-DLP Failed! Switching to API Fallback...");
+        console.log("⚠️ YT-DLP Failed. Trying Fallback API...");
 
         try {
-            // --- 2. පියවර: YT-DLP fail වුණොත් API එකෙන් ගැනීම ---
             const apiUrl = `https://api.giftedtech.my.id/api/download/dlmp3?url=${encodeURIComponent(url)}&apikey=gifted`;
             const res = await axios.get(apiUrl);
             
-            if (res.data.status !== 200) throw new Error("API Status Error");
+            if (!res.data || !res.data.result) throw new Error("Invalid API Response");
             const downloadUrl = res.data.result.download_url;
 
+            console.log("📥 Downloading from API Stream...");
             const writer = fs.createWriteStream(filePath);
             const response = await axios({ url: downloadUrl, method: 'GET', responseType: 'stream' });
+            
             response.data.pipe(writer);
 
             return new Promise((resolve) => {
-                writer.on('finish', () => resolve({ status: true, filePath: filePath }));
-                writer.on('error', (err) => resolve({ status: false, error: "Fallback Download Failed" }));
+                writer.on('finish', () => {
+                    console.log("✅ API Download Success:", filePath);
+                    resolve({ status: true, filePath: filePath });
+                });
+                writer.on('error', (err) => {
+                    console.log("❌ API Writer Error:", err.message);
+                    resolve({ status: false, error: err.message });
+                });
             });
 
         } catch (apiErr) {
-            console.error("All methods failed for Audio:", apiErr.message);
-            return { status: false, error: "Updating this cmd.please try again later.." };
+            console.error("❌ All methods failed:", apiErr.message);
+            return { status: false, error: "Download failed" };
         }
     }
 }
 
+// Video function එකටත් මේ වගේම logs ටිකක් දාගන්න.
 async function getVideoFile(url) {
     const fileName = `temp_vid_${Date.now()}.mp4`;
     const tempDir = path.join(__dirname, '..', 'temp');
@@ -51,35 +67,25 @@ async function getVideoFile(url) {
     const filePath = path.join(tempDir, fileName);
 
     try {
-        // --- 1. පියවර: YT-DLP එකෙන් උත්සාහ කිරීම ---
+        console.log("🔍 Trying Video YT-DLP...");
         const cmd = `yt-dlp --force-ipv4 --no-check-certificates "${url}" -f "bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/best[height<=480]/best" --recode-video mp4 -o "${filePath}"`;
         await execPromise(cmd);
         return { status: true, filePath: filePath };
-
     } catch (e) {
-        console.log("YT-DLP Video Failed! Switching to API Fallback...");
-
+        console.log("⚠️ Video YT-DLP Failed. Trying Fallback...");
         try {
-            // --- 2. පියවර: API Fallback ---
-            // වෙනත් API එකක් වීඩියෝ සඳහා (උදාහරණයක් ලෙස)
             const apiUrl = `https://api.giftedtech.my.id/api/download/dlmp4?url=${encodeURIComponent(url)}&apikey=gifted`;
             const res = await axios.get(apiUrl);
-            
-            if (res.data.status !== 200) throw new Error("API Status Error");
             const downloadUrl = res.data.result.download_url;
-
             const writer = fs.createWriteStream(filePath);
             const response = await axios({ url: downloadUrl, method: 'GET', responseType: 'stream' });
             response.data.pipe(writer);
-
             return new Promise((resolve) => {
                 writer.on('finish', () => resolve({ status: true, filePath: filePath }));
-                writer.on('error', (err) => resolve({ status: false, error: "Fallback Video Failed" }));
+                writer.on('error', () => resolve({ status: false }));
             });
-
-        } catch (apiErr) {
-            console.error("All methods failed for Video:", apiErr.message);
-            return { status: false, error: "වීඩියෝව ලබාගත නොහැක." };
+        } catch (err) {
+            return { status: false };
         }
     }
 }
