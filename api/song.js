@@ -4,7 +4,6 @@ const path = require('path');
 const fs = require('fs');
 const execPromise = promisify(exec);
 
-// cookies.txt ෆයිල් එක තිබුණොත් පාවිච්චි කරන්න පාර හදාගන්නවා
 const cookiesPath = path.join(__dirname, '..', 'cookies.txt');
 
 async function getAudioFile(url) {
@@ -14,10 +13,9 @@ async function getAudioFile(url) {
 
         const cookiesArg = fs.existsSync(cookiesPath) ? `--cookies "${cookiesPath}"` : "";
 
-        // YouTube එකට අපි ඇන්ඩ්‍රොයිඩ් ඇප් එකක් කියලා අඟවන්න මේ extractor-args පාවිච්චි කරනවා
-        // මේකෙන් Cookies නැතුව වුණත් ගොඩක් වෙලාවට වැඩ කරනවා
-        const extraArgs = `--extractor-args "youtube:player_client=android,web;player_skip=webpage,configs"`;
-        const userAgent = `--user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"`;
+        // YouTube බ්ලොක් එක බයිපාස් කරන්න iOS (iPhone) Client එක පාවිච්චි කරනවා
+        const extraArgs = `--extractor-args "youtube:player_client=ios,android;player_skip=webpage,configs"`;
+        const userAgent = `--user-agent "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"`;
 
         const cmd = `yt-dlp ${cookiesArg} ${extraArgs} ${userAgent} "${url}" -x --audio-format mp3 -o "${filePath}"`;
 
@@ -35,8 +33,8 @@ async function getVideoFile(url) {
         const filePath = path.join(__dirname, '..', 'temp', fileName);
 
         const cookiesArg = fs.existsSync(cookiesPath) ? `--cookies "${cookiesPath}"` : "";
-        const extraArgs = `--extractor-args "youtube:player_client=android,web;player_skip=webpage,configs"`;
-        const userAgent = `--user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"`;
+        const extraArgs = `--extractor-args "youtube:player_client=ios,android;player_skip=webpage,configs"`;
+        const userAgent = `--user-agent "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"`;
 
         const cmd = `yt-dlp ${cookiesArg} ${extraArgs} ${userAgent} "${url}" -f "bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/best[height<=480]/best" --recode-video mp4 -o "${filePath}"`;
 
