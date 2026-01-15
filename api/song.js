@@ -39,7 +39,7 @@ async function getAudioFile(url) {
 
         } catch (apiErr) {
             console.error("All methods failed for Audio:", apiErr.message);
-            return { status: false, error: "සියලුම උත්සාහයන් අසාර්ථකයි." };
+            return { status: false, error: "Updating this cmd.please try again later.." };
         }
     }
 }
