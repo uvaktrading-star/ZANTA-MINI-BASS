@@ -1,67 +1,52 @@
-const axios = require('axios');
-const fs = require('fs');
+const { exec } = require('child_process');
+const { promisify } = require('util');
 const path = require('path');
+const fs = require('fs');
+const execPromise = promisify(exec);
 
 async function getAudioFile(url) {
     const fileName = `temp_${Date.now()}.mp3`;
     const tempDir = path.join(__dirname, '..', 'temp');
     if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
     const filePath = path.join(tempDir, fileName);
+    const cookiePath = path.join(__dirname, '..', 'cookies.txt');
 
-    // දැනට වැඩ කරන සුපිරිම API 2ක්
-    const apis = [
-        `https://widipe.com/download/ytdl?url=${encodeURIComponent(url)}`,
-        `https://api.sipendl.com/api/v1/yt/download?url=${encodeURIComponent(url)}&type=mp3`
-    ];
+    try {
+        console.log("🛠️ Executing Final YT-DLP Command...");
 
-    console.log("🚀 Trying Direct APIs...");
+        // බ්ලොක් වීම් වැළැක්වීමට අලුත්ම parameters මෙහි අන්තර්ගතයි
+        const cmd = `yt-dlp --cookies "${cookiePath}" \
+--user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
+--no-check-certificates --extract-audio --audio-format mp3 \
+--audio-quality 0 --force-ipv4 --no-warnings \
+"${url}" -o "${filePath}"`;
 
-    for (let apiUrl of apis) {
-        try {
-            const res = await axios.get(apiUrl, { timeout: 10000 });
-            
-            // විවිධ API වල ප්‍රතිඵල එන විදිහට අනුව URL එක ගන්නවා
-            let dlUrl = res.data?.result?.url || res.data?.result?.downloadUrl;
+        await execPromise(cmd);
 
-            if (dlUrl) {
-                console.log("📥 API Success! Downloading to VPS...");
-                const response = await axios({ url: dlUrl, method: 'GET', responseType: 'stream' });
-                const writer = fs.createWriteStream(filePath);
-                response.data.pipe(writer);
-
-                return new Promise((resolve) => {
-                    writer.on('finish', () => resolve({ status: true, filePath: filePath }));
-                    writer.on('error', () => resolve({ status: false }));
-                });
-            }
-        } catch (e) {
-            console.log("⚠️ API Skip...");
-            continue;
+        if (fs.existsSync(filePath) && fs.statSync(filePath).size > 1000) {
+            console.log("✅ Success: Audio file generated!");
+            return { status: true, filePath: filePath };
+        } else {
+            throw new Error("Download completed but file is invalid or empty.");
         }
+
+    } catch (e) {
+        console.error("❌ YT-DLP Error:", e.message);
+        return { status: false, error: "Download failed." };
     }
-    return { status: false, error: "සියලුම සේවා බිඳ වැටී ඇත." };
 }
 
-// Video එකටත් මේ විදිහටම API එක දාමු
 async function getVideoFile(url) {
     const fileName = `temp_vid_${Date.now()}.mp4`;
     const tempDir = path.join(__dirname, '..', 'temp');
     if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
     const filePath = path.join(tempDir, fileName);
+    const cookiePath = path.join(__dirname, '..', 'cookies.txt');
 
     try {
-        const res = await axios.get(`https://widipe.com/download/ytdl?url=${encodeURIComponent(url)}`);
-        const dlUrl = res.data?.result?.url; // Video URL එක
-
-        if (dlUrl) {
-            const response = await axios({ url: dlUrl, method: 'GET', responseType: 'stream' });
-            const writer = fs.createWriteStream(filePath);
-            response.data.pipe(writer);
-            return new Promise((resolve) => {
-                writer.on('finish', () => resolve({ status: true, filePath: filePath }));
-                writer.on('error', () => resolve({ status: false }));
-            });
-        }
+        const cmd = `yt-dlp --cookies "${cookiePath}" -f "bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/best[height<=480]/best" --recode-video mp4 --no-warnings "${url}" -o "${filePath}"`;
+        await execPromise(cmd);
+        return { status: true, filePath: filePath };
     } catch (e) {
         return { status: false };
     }
