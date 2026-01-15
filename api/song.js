@@ -1,38 +1,77 @@
-const { exec } = require('child_process');
-const { promisify } = require('util');
-const path = require('path');
+const axios = require('axios');
 const fs = require('fs');
-const execPromise = promisify(exec);
+const path = require('path');
 
 async function getAudioFile(url) {
     const fileName = `temp_${Date.now()}.mp3`;
     const tempDir = path.join(__dirname, '..', 'temp');
     if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
     const filePath = path.join(tempDir, fileName);
-    const cookiePath = path.join(__dirname, '..', 'cookies.txt');
 
     try {
-        console.log("🛠️ Executing Final YT-DLP Command...");
+        console.log("📡 Connecting to Cobalt API for:", url);
 
-        // බ්ලොක් වීම් වැළැක්වීමට අලුත්ම parameters මෙහි අන්තර්ගතයි
-        const cmd = `yt-dlp --cookies "${cookiePath}" \
---user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
---no-check-certificates --extract-audio --audio-format mp3 \
---audio-quality 0 --force-ipv4 --no-warnings \
-"${url}" -o "${filePath}"`;
+        // Cobalt API එකට Request එක යවනවා
+        const res = await axios.post('https://api.cobalt.tools/api/json', {
+            url: url,
+            downloadMode: 'audio',
+            audioFormat: 'mp3',
+            filenamePattern: 'basic'
+        }, {
+            headers: {
+                'accept': 'application/json',
+                'content-type': 'application/json'
+            }
+        });
 
-        await execPromise(cmd);
+        if (res.data && res.data.url) {
+            console.log("📥 API Success! Downloading file to VPS...");
+            
+            const response = await axios({
+                url: res.data.url,
+                method: 'GET',
+                responseType: 'stream'
+            });
 
-        if (fs.existsSync(filePath) && fs.statSync(filePath).size > 1000) {
-            console.log("✅ Success: Audio file generated!");
-            return { status: true, filePath: filePath };
+            const writer = fs.createWriteStream(filePath);
+            response.data.pipe(writer);
+
+            return new Promise((resolve, reject) => {
+                writer.on('finish', () => {
+                    if (fs.existsSync(filePath) && fs.statSync(filePath).size > 100) {
+                        console.log("✅ Audio Downloaded Successfully!");
+                        resolve({ status: true, filePath: filePath });
+                    } else {
+                        resolve({ status: false, error: "Empty file from API" });
+                    }
+                });
+                writer.on('error', reject);
+            });
         } else {
-            throw new Error("Download completed but file is invalid or empty.");
+            throw new Error("API did not return a download URL");
         }
 
     } catch (e) {
-        console.error("❌ YT-DLP Error:", e.message);
-        return { status: false, error: "Download failed." };
+        console.error("❌ Cobalt API Error:", e.message);
+        // මෙතනදී Fallback එකක් විදිහට තව එක API එකක් බලනවා
+        try {
+            console.log("🔄 Trying Backup API...");
+            const res2 = await axios.get(`https://api.vreden.my.id/api/ytdl?url=${encodeURIComponent(url)}`);
+            const dlUrl = res2.data?.result?.mp3 || res2.data?.result?.downloadUrl;
+            
+            if (dlUrl) {
+                const response = await axios({ url: dlUrl, method: 'GET', responseType: 'stream' });
+                const writer = fs.createWriteStream(filePath);
+                response.data.pipe(writer);
+                return new Promise((resolve) => {
+                    writer.on('finish', () => resolve({ status: true, filePath: filePath }));
+                    writer.on('error', () => resolve({ status: false }));
+                });
+            }
+        } catch (err) {
+            return { status: false, error: "All APIs failed." };
+        }
+        return { status: false, error: e.message };
     }
 }
 
@@ -41,12 +80,26 @@ async function getVideoFile(url) {
     const tempDir = path.join(__dirname, '..', 'temp');
     if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
     const filePath = path.join(tempDir, fileName);
-    const cookiePath = path.join(__dirname, '..', 'cookies.txt');
 
     try {
-        const cmd = `yt-dlp --cookies "${cookiePath}" -f "bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/best[height<=480]/best" --recode-video mp4 --no-warnings "${url}" -o "${filePath}"`;
-        await execPromise(cmd);
-        return { status: true, filePath: filePath };
+        const res = await axios.post('https://api.cobalt.tools/api/json', {
+            url: url,
+            downloadMode: 'video',
+            videoQuality: '720',
+            filenamePattern: 'basic'
+        }, {
+            headers: { 'accept': 'application/json', 'content-type': 'application/json' }
+        });
+
+        if (res.data && res.data.url) {
+            const response = await axios({ url: res.data.url, method: 'GET', responseType: 'stream' });
+            const writer = fs.createWriteStream(filePath);
+            response.data.pipe(writer);
+            return new Promise((resolve) => {
+                writer.on('finish', () => resolve({ status: true, filePath: filePath }));
+                writer.on('error', () => resolve({ status: false }));
+            });
+        }
     } catch (e) {
         return { status: false };
     }
