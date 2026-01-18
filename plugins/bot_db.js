@@ -17,7 +17,8 @@ const SettingsSchema = new mongoose.Schema({
     readCmd: { type: String, default: "false" },
     autoVoice: { type: String, default: "false" },
     autoReply: { type: String, default: "false" },
-    connectionMsg: { type: String, default: "true" }, // ✅ අලුත් Setting එක (Default: ON)
+    connectionMsg: { type: String, default: "true" },
+    workType: { type: String, default: "public" }, 
 });
 
 const AutoReplySchema = new mongoose.Schema({
