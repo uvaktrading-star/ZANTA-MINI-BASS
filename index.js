@@ -97,7 +97,7 @@ async function startSystem() {
     const allSessions = await Session.find({});
     console.log(`📂 Total sessions: ${allSessions.length}. Connecting...`);
     
-    // 🆕 Batch size එක 2 කරලා Delay එක තත්පර 12ක් කළා (RAM Spike එක පාලනයට)
+    // 🆕 Batch size එක 4 කරලා Delay එක තත්පර 8ක් කළා
     const BATCH_SIZE = 4; 
     const DELAY_BETWEEN_BATCHES = 8000; 
 
@@ -125,7 +125,7 @@ async function connectToWA(sessionData) {
     const { version } = await fetchLatestBaileysVersion();
 
     const zanta = makeWASocket({
-        logger: logger, // 🆕 Shared Logger එක පාවිච්චි කළා
+        logger: logger, 
         printQRInTerminal: false,
         browser: Browsers.macOS("Firefox"),
         auth: state,
@@ -143,7 +143,6 @@ async function connectToWA(sessionData) {
         if (connection === "close") {
             activeSockets.delete(zanta);
             
-            // 🆕 Memory Cleanup: Listeners සහ Intervals සම්පූර්ණයෙන්ම අයින් කිරීම
             zanta.ev.removeAllListeners();
             if (zanta.onlineInterval) clearInterval(zanta.onlineInterval);
 
@@ -199,7 +198,6 @@ async function connectToWA(sessionData) {
         const from = mek.key.remoteJid;
         const isGroup = from.endsWith("@g.us");
 
-        // --- 🆕 BUTTON HANDLER ---
         let body = (type === "conversation") ? mek.message.conversation : (mek.message[type]?.text || mek.message[type]?.caption || "");
 
         let isButton = false;
@@ -264,7 +262,6 @@ async function connectToWA(sessionData) {
         if (isGroup && !isCmd && !isQuotedReply) return;
         const m = sms(zanta, mek);
 
-        // --- 🆕 CMD NAME LOGIC ---
         let commandName = "";
         if (isButton) {
             let cleanId = body.startsWith(prefix) ? body.slice(prefix.length).trim() : body.trim();
@@ -354,23 +351,6 @@ async function connectToWA(sessionData) {
         const isMenuReply = (m.quoted && lastMenuMessage && lastMenuMessage.get(from) === m.quoted.id);
         const isHelpReply = (m.quoted && lastHelpMessage && lastHelpMessage.get(from) === m.quoted.id);
 
-        const { pendingSearch, pendingQuality } = require("./plugins/movie");
-        const isMovieReply = (body && !isNaN(body.trim())) && ((pendingSearch && pendingSearch[sender]) || (pendingQuality && pendingQuality[sender]));
-
-        if (isMovieReply && !isCmd) {
-            const movieCmd = commands.find(c => c.pattern === 'movie' || (c.alias && c.alias.includes('movie')));
-            if (movieCmd) {
-                try {
-                    await movieCmd.function(zanta, mek, m, {
-                        from, body, isCmd: false, command: 'movie', args: [body.trim()], q: body.trim(),
-                        isGroup, sender, senderNumber, isOwner, reply, prefix, userSettings,
-                        groupMetadata, participants, groupAdmins, isAdmins, isBotAdmins 
-                    });
-                    return;
-                } catch (e) { console.error("Movie Reply Error:", e); }
-            }
-        }
-
         if (isCmd || isMenuReply || isHelpReply || isButton) {
             const execName = isHelpReply ? 'help' : (isMenuReply || (isButton && commandName === "menu") ? 'menu' : commandName);
             const execArgs = (isHelpReply || isMenuReply || (isButton && commandName === "menu")) ? [body.trim().toLowerCase()] : args;
@@ -398,7 +378,6 @@ setTimeout(async () => {
     console.log("♻️ [RESTART] Cleaning up active connections...");
     for (const socket of activeSockets) {
         try { 
-            // 🆕 Restart වෙද්දීත් listeners clean කිරීම
             socket.ev.removeAllListeners();
             await socket.end(); 
         } catch (e) {}
