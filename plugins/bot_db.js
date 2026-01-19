@@ -1,6 +1,8 @@
 const mongoose = require("mongoose");
 const config = require("../config");
 
+// --- ⚙️ MONGODB URI SETTINGS ---
+// Password එකේ විශේෂ ලකුණු (@, :) තිබුනොත් ඒක encode කරලා ගැනීම ආරක්ෂිතයි.
 const MONGO_URI = "mongodb+srv://zanta-md:Akashkavindu12345@cluster0.iw4vklq.mongodb.net/?appName=Cluster0";
 
 const SettingsSchema = new mongoose.Schema({
@@ -19,6 +21,8 @@ const SettingsSchema = new mongoose.Schema({
     autoReply: { type: String, default: "false" },
     connectionMsg: { type: String, default: "true" },
     workType: { type: String, default: "public" }, 
+    // --- 🆕 ADDED: BUTTONS SETTING ---
+    buttons: { type: String, default: "true" }, 
 });
 
 const AutoReplySchema = new mongoose.Schema({
@@ -45,7 +49,7 @@ async function connectDB() {
             connectTimeoutMS: 30000,
             serverSelectionTimeoutMS: 30000,
         });
-        console.log("✅ MongoDB Connected max pool!");
+        console.log("✅ MongoDB Connected Successfully with Buttons Support!");
     } catch (error) {
         console.error("❌ MongoDB Connection Error:", error);
     }
