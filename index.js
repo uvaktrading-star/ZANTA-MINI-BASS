@@ -27,7 +27,6 @@ const { connectDB, getBotSettings, updateSetting } = require("./plugins/bot_db")
 
 const badMacTracker = new Map();
 const activeSockets = new Set();
-// --- 🆕 ADDED: WORK TYPE TRACKER ---
 const lastWorkTypeMessage = new Map(); 
 
 global.BOT_SESSIONS_CONFIG = {};
@@ -190,9 +189,25 @@ async function connectToWA(sessionData) {
         const type = getContentType(mek.message);
         const from = mek.key.remoteJid;
         const isGroup = from.endsWith("@g.us");
-        const body = (type === "conversation") ? mek.message.conversation : (mek.message[type]?.text || mek.message[type]?.caption || "");
+
+        // --- 🆕 BUTTON HANDLER ---
+        let body = (type === "conversation") ? mek.message.conversation : (mek.message[type]?.text || mek.message[type]?.caption || "");
+
+        let isButton = false;
+        if (mek.message?.buttonsResponseMessage) {
+            body = mek.message.buttonsResponseMessage.selectedButtonId;
+            isButton = true;
+        } else if (mek.message?.templateButtonReplyMessage) {
+            body = mek.message.templateButtonReplyMessage.selectedId;
+            isButton = true;
+        } else if (mek.message?.listResponseMessage) {
+            body = mek.message.listResponseMessage.singleSelectReply.selectedRowId;
+            isButton = true;
+        }
+
         const prefix = userSettings.prefix;
-        const isCmd = body.startsWith(prefix);
+        // බටන් එකක් නම් Prefix එක චෙක් කරන්නේ නැතිව Command එකක් ලෙස සලකනවා
+        const isCmd = body.startsWith(prefix) || isButton; 
         const isQuotedReply = mek.message[type]?.contextInfo?.quotedMessage;
         const sender = mek.key.fromMe ? zanta.user.id : (mek.key.participant || mek.key.remoteJid);
 
@@ -240,8 +255,25 @@ async function connectToWA(sessionData) {
 
         if (isGroup && !isCmd && !isQuotedReply) return;
         const m = sms(zanta, mek);
-        const commandName = isCmd ? body.slice(prefix.length).trim().split(" ")[0].toLowerCase() : "";
-        const args = body.trim().split(/ +/).slice(1);
+
+        // --- 🆕 CMD NAME LOGIC ---
+        let commandName = "";
+        if (isButton) {
+            // බටන් එකේ ID එකේ ප්‍රිෆික්ස් එක තිබුණත් නැතත් නම නිවැරදිව වෙන් කරගන්නවා
+            let cleanId = body.startsWith(prefix) ? body.slice(prefix.length).trim() : body.trim();
+            let foundCmd = commands.find(c => c.pattern === cleanId.split(" ")[0].toLowerCase() || (c.alias && c.alias.includes(cleanId.split(" ")[0].toLowerCase())));
+
+            if (foundCmd) {
+                commandName = cleanId.split(" ")[0].toLowerCase();
+            } else {
+                // කමාන්ඩ් එකක් නොවන ඕනෑම බටන් එකක් (cat_main වැනි) මෙනු එකට යවනවා
+                commandName = "menu";
+            }
+        } else if (isCmd) {
+            commandName = body.slice(prefix.length).trim().split(" ")[0].toLowerCase();
+        }
+
+        const args = isButton ? [body] : body.trim().split(/ +/).slice(1);
 
         if (userSettings.autoRead === 'true') await zanta.readMessages([mek.key]);
         if (userSettings.autoTyping === 'true') await zanta.sendPresenceUpdate('composing', from);
@@ -249,11 +281,9 @@ async function connectToWA(sessionData) {
 
         const reply = (text) => zanta.sendMessage(from, { text }, { quoted: mek });
 
-        // --- ⚙️ MODIFIED: ADVANCED SETTINGS & WORKTYPE REPLY HANDLER ---
         const isSettingsReply = (m.quoted && lastSettingsMessage && lastSettingsMessage.get(from) === m.quoted.id);
         const isWorkTypeChoice = (m.quoted && lastWorkTypeMessage && lastWorkTypeMessage.get(from) === m.quoted.id);
 
-        // Logic for handling the 1 or 2 choice after selecting Work Type (Index 4)
         if (isWorkTypeChoice && body && !isCmd && isOwner) {
             let choice = body.trim();
             let finalValue = (choice === '1') ? 'public' : (choice === '2') ? 'private' : null;
@@ -273,11 +303,10 @@ async function connectToWA(sessionData) {
             const input = body.trim().split(" ");
             let index = parseInt(input[0]);
 
-            let dbKeys = ["", "botName", "ownerName", "prefix", "workType", "password", "alwaysOnline", "autoRead", "autoTyping", "autoStatusSeen", "autoStatusReact", "readCmd", "autoVoice", "autoReply", "connectionMsg"];
+            let dbKeys = ["", "botName", "ownerName", "prefix", "workType", "password", "alwaysOnline", "autoRead", "autoTyping", "autoStatusSeen", "autoStatusReact", "readCmd", "autoVoice", "autoReply", "connectionMsg", "buttons"];
             let dbKey = dbKeys[index];
 
             if (dbKey) {
-                // Modified: 4 index එක ඉස්සරහ මොනවා තිබුණත්/නැතත් Select mode මැසේජ් එක යැවීම
                 if (index === 4) {
                     const workMsg = await reply("🛠️ *SELECT WORK MODE*\n\nකරුණාකර අංකය පමණක් රිප්ලයි කරන්න:\n1️⃣ *Public*\n2️⃣ *Private*\n\n> *ZANTA-MD Settings Control*");
                     lastWorkTypeMessage.set(from, workMsg.key.id); 
@@ -289,7 +318,6 @@ async function connectToWA(sessionData) {
                     return reply(siteMsg);
                 }
 
-                // Validation for other settings
                 if (input.length < 2) return reply(`⚠️ කරුණාකර අගයක් ලබා දෙන්න.\n*E.g:* \`${index} on\` හෝ \`${index} value\``);
 
                 let finalValue = "";
@@ -337,13 +365,13 @@ async function connectToWA(sessionData) {
             }
         }
 
-        if (isCmd || isMenuReply || isHelpReply) {
-            const execName = isHelpReply ? 'help' : (isMenuReply ? 'menu' : commandName);
-            const execArgs = (isHelpReply || isMenuReply) ? [body.trim().toLowerCase()] : args;
+        if (isCmd || isMenuReply || isHelpReply || isButton) {
+            const execName = isHelpReply ? 'help' : (isMenuReply || (isButton && commandName === "menu") ? 'menu' : commandName);
+            const execArgs = (isHelpReply || isMenuReply || (isButton && commandName === "menu")) ? [body.trim().toLowerCase()] : args;
             const cmd = commands.find(c => c.pattern === execName || (c.alias && c.alias.includes(execName)));
             if (cmd) {
                 if (userSettings.readCmd === 'true') await zanta.readMessages([mek.key]);
-                if (cmd.react) zanta.sendMessage(from, { react: { text: cmd.react, key: mek.key } });
+                if (cmd.react && !isButton) zanta.sendMessage(from, { react: { text: cmd.react, key: mek.key } });
                 try {
                     await cmd.function(zanta, mek, m, {
                         from, body, isCmd, command: execName, args: execArgs, q: execArgs.join(" "),
