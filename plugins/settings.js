@@ -23,8 +23,8 @@ cmd({
     const ownerName = settings.ownerName || config.DEFAULT_OWNER_NAME || "Owner";
     const botPrefix = settings.prefix || prefix || ".";
     const webPass = settings.password === 'not_set' ? "Not Set ❌" : "Set ✅";
-    
-    // Work Type අගය ලබා ගැනීම (Default: Public)
+
+    // Work Type අගය ලබා ගැනීම
     const workType = (settings.workType || "public").toUpperCase();
 
     // --- 📊 Status Indicators ---
@@ -35,7 +35,7 @@ cmd({
     statusText += `┃ ❶ *Name:* ${botName}\n`;
     statusText += `┃ ❷ *Owner:* ${ownerName}\n`;
     statusText += `┃ ❸ *Prefix:* [ ${botPrefix} ]\n`;
-    statusText += `┃ ❹ *Work Type:* ${workType} 🔒\n`; // ✅ මෙතනට ඇතුළත් කළා
+    statusText += `┃ ❹ *Work Type:* ${workType} 🔒\n`; 
     statusText += `┃ ❺ *Web Password:* ${webPass}\n`;
     statusText += `┃ ❻ *Always Online:* ${getStatus(settings.alwaysOnline)}\n`;
     statusText += `┃ ❼ *Auto Read Mg:* ${getStatus(settings.autoRead)}\n`;
@@ -46,12 +46,13 @@ cmd({
     statusText += `┃ ⓬ *Auto Voice:* ${getStatus(settings.autoVoice)}\n`;
     statusText += `┃ ⓭ *Auto Reply:* ${getStatus(settings.autoReply)}\n`;
     statusText += `┃ ⓮ *Connect Msg:* ${getStatus(settings.connectionMsg)}\n`;
+    statusText += `┃ ⓯ *Buttons Mod:* ${getStatus(settings.buttons)}\n`; // ✅ අලුතින් එක් කළා
     statusText += `┃\n`;
     statusText += `╰━━━━━━━━━━━━━━━┈⊷\n\n`;
     statusText += `*💡 අගය වෙනස් කිරීමට Reply කරන්න:*\n`;
-    statusText += `*E.g:* \`4 private\` (Private කිරීමට)\n`; // Example එක Update කළා
-    statusText += `*E.g:* \`4 public\` (Public කිරීමට)\n`;
-    statusText += `*E.g:* \`6 on\` (Always Online ON කිරීමට)`;
+    statusText += `*E.g:* \`4 private\` (Private කිරීමට)\n`; 
+    statusText += `*E.g:* \`15 on\` (Buttons ON කිරීමට)\n`; // Example එකක් එක් කළා
+    statusText += `*E.g:* \`6 off\` (Always Online OFF කිරීමට)`;
 
     const sentMsg = await zanta.sendMessage(from, {
         image: { url: SETTINGS_IMG },
