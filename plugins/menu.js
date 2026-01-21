@@ -1,11 +1,28 @@
 const { cmd, commands } = require("../command");
 const os = require('os');
 const config = require("../config");
-const { sendButtons } = require("gifted-btns");
+const axios = require('axios'); // පින්තූරය කලින් Download කර ගැනීමට
 
 const MENU_IMAGE_URL = "https://github.com/Akashkavindu/ZANTA_MD/blob/main/images/Gemini_Generated_Image_4xcl2e4xcl2e4xcl.png?raw=true";
 const CHANNEL_JID = "120363406265537739@newsletter"; 
 const lastMenuMessage = new Map();
+
+// --- 🖼️ IMAGE PRE-LOAD LOGIC ---
+let cachedMenuImage = null;
+
+async function preLoadMenuImage() {
+    try {
+        const response = await axios.get(MENU_IMAGE_URL, { responseType: 'arraybuffer' });
+        cachedMenuImage = Buffer.from(response.data);
+        console.log("✅ [CACHE] Menu image pre-loaded successfully.");
+    } catch (e) {
+        console.error("❌ [CACHE] Failed to pre-load menu image:", e.message);
+        cachedMenuImage = { url: MENU_IMAGE_URL }; // වැරදුනොත් URL එකම පාවිච්චි කරයි
+    }
+}
+
+// බොට් පණ ගැන්වෙන විටම පින්තූරය ගන්න
+preLoadMenuImage();
 
 cmd({
     pattern: "menu",
@@ -24,32 +41,21 @@ async (zanta, mek, m, { from, reply, args, userSettings }) => {
         const isButtonsOn = settings.buttons === 'true';
 
         let inputBody = m.body ? m.body.trim().toLowerCase() : "";
-
-        // --- 🛡️ IMPROVED SELECTION GUARD ---
         const isNumber = /^\d+$/.test(inputBody); 
         const isCategorySelection = inputBody.startsWith('cat_');
         const isMainCmd = (inputBody === `${finalPrefix}menu` || inputBody === "menu");
 
-        // 1. මේ තුනෙන් එකක්වත් නෙවෙයි නම් මේ ප්ලගින් එකෙන් කිසිම දෙයක් කරන්නේ නැහැ
-        if (!isNumber && !isCategorySelection && !isMainCmd) {
-            return;
-        }
+        if (!isNumber && !isCategorySelection && !isMainCmd) return;
 
-        // 2. අංකයක් එව්වොත්, ඒක අනිවාර්යයෙන්ම මෙනු මැසේජ් එකකට රිප්ලයි එකක් වෙන්න ඕනේ
         if (isNumber && !isMainCmd) {
-            if (!m.quoted || lastMenuMessage.get(from) !== m.quoted.id) {
-                return; // වෙන මැසේජ් එකකට අංකයක් රිප්ලයි කළොත් මෙනු එක ඕපන් වෙන්නේ නැහැ
-            }
+            if (!m.quoted || lastMenuMessage.get(from) !== m.quoted.id) return;
         }
-        // ------------------------------------
 
-        const totalCommands = commands.filter(c => c.pattern).length;
         const groupedCommands = {};
         const customOrder = ["main", "download", "tools", "logo"];
 
         commands.filter(c => c.pattern && c.pattern !== "menu").forEach(cmdData => {
             let cat = cmdData.category?.toLowerCase() || "other";
-            if (cat === "genaral") cat = "other"; 
             if (!groupedCommands[cat]) groupedCommands[cat] = [];
             groupedCommands[cat].push(cmdData);
         });
@@ -57,84 +63,85 @@ async (zanta, mek, m, { from, reply, args, userSettings }) => {
         const categoryKeys = Object.keys(groupedCommands).sort((a, b) => {
             let indexA = customOrder.indexOf(a);
             let indexB = customOrder.indexOf(b);
-            if (indexA === -1) indexA = 99;
-            if (indexB === -1) indexB = 99;
-            return indexA - indexB;
+            return (indexA === -1 ? 99 : indexA) - (indexB === -1 ? 99 : indexB);
         });
 
         const categoryMap = {}; 
         categoryKeys.forEach((cat, index) => { categoryMap[index + 1] = cat; });
 
         let selectedCategory;
-
         if (isCategorySelection) {
             selectedCategory = inputBody.replace('cat_', '');
         } else if (isNumber) {
             selectedCategory = categoryMap[parseInt(inputBody)];
         }
 
+        // --- Context Info (Newsletter Info) ---
+        const contextInfo = {
+            forwardingScore: 999,
+            isForwarded: true,
+            forwardedNewsletterMessageInfo: {
+                newsletterJid: CHANNEL_JID,
+                serverMessageId: 100,
+                newsletterName: "𝒁𝑨𝑵𝑻𝑨-𝑴𝑫 𝑶𝑭𝑭𝑰𝑪𝑰𝑨𝑳 </>"
+            }
+        };
+
         // --- 📄 SUB MENU DISPLAY ---
         if (selectedCategory && groupedCommands[selectedCategory]) {
-            let displayTitle = selectedCategory.toUpperCase() === 'OTHER' ? 'GENERAL' : selectedCategory.toUpperCase();
-            let emoji = { main: '🏠', download: '📥', tools: '🛠', owner: '👑', logo: '🎨' }[selectedCategory.toLowerCase()] || '📌';
+            let displayTitle = selectedCategory.toUpperCase();
+            let emoji = { main: '🏠', download: '📥', tools: '🛠', logo: '🎨' }[selectedCategory.toLowerCase()] || '📌';
 
             let commandList = `╭━━〔 ${emoji} ${displayTitle} 〕━━┈⊷\n`;
-            commandList += `┃★╭──────────────·๏\n┃★│ 📝 Category : ${displayTitle}\n┃★│ 📊 Available : ${groupedCommands[selectedCategory].length}\n┃★╰──────────────·๏\n╰━━━━━━━━━━━━━━┈⊷\n\n`;
-            commandList += `╭━━〔 💻 COMMANDS 〕━━┈⊷\n`;
+            commandList += `┃ 📝 Category : ${displayTitle}\n┃ 📊 Available : ${groupedCommands[selectedCategory].length}\n╰━━━━━━━━━━━━━━┈⊷\n\n`;
+
             groupedCommands[selectedCategory].forEach((c) => {
                 commandList += `┃ ◈ ⚡ ${finalPrefix}${c.pattern}\n`;
             });
-            commandList += `╰━━━━━━━━━━━━━━┈⊷\n\n> *©POWERED BY ${botName}*`;
+            commandList += `╰━━━━━━━━━━━━━━┈⊷\n\n> *© ${botName}*`;
 
-            return await zanta.sendMessage(from, { 
-                text: commandList,
-                contextInfo: {
-                    forwardingScore: 999,
-                    isForwarded: true,
-                    forwardedNewsletterMessageInfo: {
-                        newsletterJid: CHANNEL_JID,
-                        serverMessageId: 100,
-                        newsletterName: "𝒁𝑨𝑵𝑻𝑨-𝑴𝑫 𝑶𝑭𝑭𝑰𝑪𝑰𝑨𝑳 </>"
-                    }
-                }
-            }, { quoted: mek }); 
+            return await zanta.sendMessage(from, { text: commandList, contextInfo }, { quoted: mek }); 
         }
 
         // --- 🏠 MAIN MENU DISPLAY ---
         let headerText = `╭━〔 ${botName} WA BOT 〕━··๏\n`;
-        headerText += `┃★╭──────────────\n┃★│ 👑 Owner : ${ownerName}\n┃★│ ⚙ Mode : [${mode}]\n┃★│ 🔣 Prefix : [${finalPrefix}]\n┃★│ 📚 Commands : ${totalCommands}\n┃★╰──────────────\n╰━━━━━━━━━━━━━━┈⊷\n\n`;
+        headerText += `┃ 👑 Owner : ${ownerName}\n┃ ⚙ Mode : ${mode}\n┃ 🔣 Prefix : ${finalPrefix}\n┃ 📚 Commands : ${commands.length}\n╰━━━━━━━━━━━━━━┈⊷\n\n`;
+
+        // මෙතනදී image එකට cachedMenuImage එක පාවිච්චි කරයි
+        const imageToDisplay = cachedMenuImage || { url: MENU_IMAGE_URL };
 
         if (isButtonsOn) {
-            await zanta.sendMessage(from, { image: { url: MENU_IMAGE_URL } }, { quoted: mek });
-            const buttons = [
-                { id: "cat_main", text: "🏠 Main" },
-                { id: "cat_download", text: "📥 Download" },
-                { id: "cat_tools", text: "🛠 Tools" },
-                { id: "cat_logo", text: "🎨 Logo" }
-            ];
-            await sendButtons(zanta, from, {
-                text: headerText + "> ꜱᴇʟᴇᴄᴛ ᴀ ᴄᴀᴛᴇɢۆʀʏ ʙᴇʟۆᴡ 👇",
-                footer: `© ${botName} • Buttons Mode`,
-                buttons: buttons
-            });
+            return await zanta.sendMessage(from, {
+                image: imageToDisplay,
+                caption: headerText + "ꜱᴇʟᴇᴄᴛ ᴀ ᴄᴀᴛᴇɢۆʀʏ ʙᴇʟۆᴡ 👇",
+                footer: `© ${botName} • Cyber System`,
+                buttons: [
+                    { buttonId: "cat_main", buttonText: { displayText: "🏠 MAIN" }, type: 1 },
+                    { buttonId: "cat_download", buttonText: { displayText: "📥 DOWNLOAD" }, type: 1 },
+                    { buttonId: "cat_tools", buttonText: { displayText: "🛠 TOOLS" }, type: 1 },
+                    { buttonId: "cat_logo", buttonText: { displayText: "🎨 LOGO" }, type: 1 }
+                ],
+                headerType: 4,
+                contextInfo
+            }, { quoted: mek });
         } else {
-            let menuText = headerText;
-            menuText += `╭━━〔 📜 MENU LIST 〕━━┈⊷\n`;
+            // --- 🟢 TEXT MODE ---
+            let menuText = headerText + `╭━━〔 📜 MENU LIST 〕━━┈⊷\n`;
             categoryKeys.forEach((catKey, index) => {
-                const count = groupedCommands[catKey].length;
-                let title = catKey.toUpperCase() === 'OTHER' ? 'GENERAL' : catKey.toUpperCase();
+                let title = catKey.toUpperCase();
                 let emoji = { main: '🏠', download: '📥', tools: '🛠', logo: '🎨' }[catKey] || '📌';
-                menuText += `┃◈╭─────────────·๏\n┃◈│ ${index + 1}. ${emoji} ${title} (${count})\n┃◈╰───────────┈⊷\n`;
+                menuText += `┃ ${index + 1}. ${emoji} ${title} (${groupedCommands[catKey].length})\n`;
             });
-            menuText += `╰──────────────┈⊷\n\n_💡 Reply කර අංකය යවන්න._`;
+            menuText += `╰━━━━━━━━━━━━━━┈⊷\n\n_💡 Reply with number to select._`;
 
-            const sentMessage = await zanta.sendMessage(from, {
-                image: { url: MENU_IMAGE_URL },
-                caption: menuText.trim()
+            const sent = await zanta.sendMessage(from, {
+                image: imageToDisplay,
+                caption: menuText,
+                contextInfo
             }, { quoted: mek });
 
-            // වැදගත්: මෙතන තමයි අයිඩි එක සේව් කරන්නේ රිප්ලයි චෙක් කරන්න
-            lastMenuMessage.set(from, sentMessage.key.id);
+            lastMenuMessage.set(from, sent.key.id);
+            setTimeout(() => lastMenuMessage.delete(from), 10 * 60 * 1000);
         }
 
     } catch (err) {
@@ -144,4 +151,3 @@ async (zanta, mek, m, { from, reply, args, userSettings }) => {
 });
 
 module.exports = { lastMenuMessage };
-
