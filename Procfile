@@ -1,1 +1,1 @@
-worker: node --max-old-space-size=750 index.js
+worker: node --max-old-space-size=750 --expose-gc index.js
