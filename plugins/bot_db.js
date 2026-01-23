@@ -3,7 +3,7 @@ const config = require("../config");
 
 // --- ⚙️ MONGODB URI SETTINGS ---
 // Password එකේ විශේෂ ලකුණු (@, :) තිබුනොත් ඒක encode කරලා ගැනීම ආරක්ෂිතයි.
-const MONGO_URI = "mongodb+srv://zanta-md:Akashkavindu12345@cluster0.iw4vklq.mongodb.net/?appName=Cluster0";
+const MONGO_URI = "mongodb+srv:";
 
 const SettingsSchema = new mongoose.Schema({
     id: { type: String, required: true, unique: true },
