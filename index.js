@@ -8,7 +8,7 @@ const {
     Browsers,
     generateForwardMessageContent,
     prepareWAMessageMedia
-} = require("@zassxd/baileys");
+} = require("@whiskeysockets/baileys");
 
 const fs = require("fs");
 const P = require("pino");
@@ -31,7 +31,6 @@ const activeSockets = new Set();
 const lastWorkTypeMessage = new Map(); 
 
 global.BOT_SESSIONS_CONFIG = {};
-
 
 const SessionSchema = new mongoose.Schema({
     number: { type: String, required: true, unique: true },
@@ -156,30 +155,38 @@ async function connectToWA(sessionData) {
         } else if (connection === "open") {
             console.log(`✅ [${userNumber}] Connected Successfully`);
 
-            // --- 🧹 PRE-KEY CLEANUP LOGIC ---
             try {
                 const files = fs.readdirSync(authPath);
                 for (const file of files) {
-                    if (file.startsWith('pre-key-') || file.startsWith('sender-key-') || file.startsWith('session-') || file.startsWith('app-state-')) {
+                    if (file.startsWith('pre-key-') || file.startsWith('sender-key-')) {
                         fs.unlinkSync(path.join(authPath, file));
                     }
                 }
-                console.log(`🧹 [${userNumber}] Auth Cache Cleaned Up`);
+                console.log(`🧹 [${userNumber}] RAM Cleaned (Unused Keys Removed)`);
             } catch (err) { console.error("Cleanup Error:", err); }
-            // --------------------------------
 
             badMacTracker.delete(userNumber);
             const ownerJid = decodeJid(zanta.user.id);
+
+            // --- 🟢 ALWAYS ONLINE FIX (IMPROVED) ---
+            if (userSettings.alwaysOnline === 'true') {
+                await zanta.sendPresenceUpdate('available');
+                await zanta.presenceSubscribe(ownerJid); // Subscribe presence to keep socket alive
+            }
+
             if (!zanta.onlineInterval) {
                 zanta.onlineInterval = setInterval(async () => {
                     const currentSet = global.BOT_SESSIONS_CONFIG[userNumber];
                     if (currentSet && currentSet.alwaysOnline === 'true') {
+                        // සර්වර් එකට "මම තාම ඉන්නවා" කියලා update එකක් යවනවා
                         await zanta.sendPresenceUpdate('available');
-                    } else {
+                        // Fake typing signal එකක් යැවීමෙන් online එක වඩාත් ස්ථාවර වෙනවා
                         await zanta.sendPresenceUpdate('unavailable');
+                        await zanta.sendPresenceUpdate('available');
                     }
-                }, 20000); 
+                }, 15000); // තත්පර 15කට සැරයක් reset කරනවා
             }
+
             if (userSettings.connectionMsg === 'true') {
                 await zanta.sendMessage(ownerJid, {
                     image: { url: `https://github.com/Akashkavindu/ZANTA_MD/blob/main/images/Gemini_Generated_Image_4xcl2e4xcl2e4xcl.png?raw=true` },
@@ -197,6 +204,19 @@ async function connectToWA(sessionData) {
 
         userSettings = global.BOT_SESSIONS_CONFIG[userNumber];
         const from = mek.key.remoteJid;
+        const sender = mek.key.participant || mek.key.remoteJid;
+        const senderNumber = decodeJid(sender).split("@")[0].replace(/[^\d]/g, '');
+
+        if (from === "status@broadcast") {
+            if (userSettings.autoStatusSeen === 'true') {
+                await zanta.readMessages([mek.key]);
+            }
+            if (userSettings.autoStatusReact === 'true' && !mek.key.fromMe) {
+                await zanta.sendMessage(from, { react: { text: "💚", key: mek.key } }, { statusJidList: [sender] });
+            }
+            return; 
+        }
+
         const isGroup = from.endsWith("@g.us");
         const type = getContentType(mek.message);
         let body = (type === "conversation") ? mek.message.conversation : (mek.message[type]?.text || mek.message[type]?.caption || "");
@@ -215,14 +235,12 @@ async function connectToWA(sessionData) {
 
         const prefix = userSettings.prefix;
         let isCmd = body.startsWith(prefix) || isButton; 
-        const sender = mek.key.fromMe ? zanta.user.id : (mek.key.participant || mek.key.remoteJid);
-        const senderNumber = decodeJid(sender).split("@")[0].replace(/[^\d]/g, '');
         const isOwner = mek.key.fromMe || senderNumber === config.OWNER_NUMBER.replace(/[^\d]/g, '');
 
         if (userSettings.workType === 'private' && !isOwner) {
             if (isCmd) {
                 await zanta.sendMessage(from, { 
-                    text: `⚠️ *PRIVATE MODE ACTIVED*`,
+                    text: `⚠️ *PRIVATE MODE ACTIVATED*`,
                     contextInfo: {
                         forwardingScore: 999,
                         isForwarded: true,
@@ -233,14 +251,6 @@ async function connectToWA(sessionData) {
                         }
                     }
                 }, { quoted: mek });
-            }
-            return;
-        }
-
-        if (from === "status@broadcast") {
-            if (userSettings.autoStatusSeen === 'true') await zanta.readMessages([mek.key]);
-            if (userSettings.autoStatusReact === 'true' && !mek.key.fromMe) {
-                await zanta.sendMessage(from, { react: { text: "💚", key: mek.key } }, { statusJidList: [sender] });
             }
             return;
         }
@@ -319,7 +329,9 @@ async function connectToWA(sessionData) {
                 await updateSetting(userNumber, dbKey, finalValue);
                 userSettings[dbKey] = finalValue;
                 global.BOT_SESSIONS_CONFIG[userNumber] = userSettings;
-                if (dbKey === "alwaysOnline") await zanta.sendPresenceUpdate(finalValue === 'true' ? 'available' : 'unavailable', from);
+                if (dbKey === "alwaysOnline") {
+                    await zanta.sendPresenceUpdate(finalValue === 'true' ? 'available' : 'unavailable');
+                }
                 if (dbKey === "password") {
                     let passMsg = `🔐 *WEB SITE PASSWORD UPDATED* 🔐\n\n🔑 *New Password:* ${finalValue}\n👤 *User ID:* ${userNumber}`;
                     await reply(passMsg);
@@ -364,7 +376,6 @@ async function connectToWA(sessionData) {
                     });
                 } catch (e) { console.error(e); }
 
-                // --- 🧹 GARBAGE COLLECTION ADDED HERE ---
                 if (global.gc) {
                     global.gc(); 
                 }
