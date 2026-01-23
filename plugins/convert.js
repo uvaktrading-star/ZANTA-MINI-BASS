@@ -4,7 +4,7 @@ const path = require('path');
 const figlet = require('figlet');
 const ffmpegPath = require('ffmpeg-static');
 const ffmpeg = require('fluent-ffmpeg');
-const { downloadContentFromMessage } = require('@zassxd/baileys');
+const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
 const axios = require('axios');
 const FormData = require('form-data');
 
