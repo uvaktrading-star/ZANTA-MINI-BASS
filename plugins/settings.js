@@ -28,31 +28,41 @@ cmd({
     const workType = (settings.workType || "public").toUpperCase();
 
     // --- 📊 Status Indicators ---
-    const getStatus = (val) => val === 'true' ? '✅' : '❌';
+    const getStatus = (val) => val === 'true' ? '🟢 ON' : '🔴 OFF';
 
-    let statusText = `╭━━━〔 ${botName.toUpperCase()} 〕━━━┈⊷\n`;
-    statusText += `┃\n`;
-    statusText += `┃ ❶ *Name:* ${botName}\n`;
-    statusText += `┃ ❷ *Owner:* ${ownerName}\n`;
-    statusText += `┃ ❸ *Prefix:* [ ${botPrefix} ]\n`;
-    statusText += `┃ ❹ *Work Type:* ${workType} 🔒\n`; 
-    statusText += `┃ ❺ *Web Password:* ${webPass}\n`;
-    statusText += `┃ ❻ *Always Online:* ${getStatus(settings.alwaysOnline)}\n`;
-    statusText += `┃ ❼ *Auto Read Mg:* ${getStatus(settings.autoRead)}\n`;
-    statusText += `┃ ❽ *Auto Typing:* ${getStatus(settings.autoTyping)}\n`;
-    statusText += `┃ ❾ *Status Seen:* ${getStatus(settings.autoStatusSeen)}\n`;
-    statusText += `┃ ❿ *Status React:* ${getStatus(settings.autoStatusReact)}\n`;
-    statusText += `┃ ⓫ *Read Command:* ${getStatus(settings.readCmd)}\n`;
-    statusText += `┃ ⓬ *Auto Voice:* ${getStatus(settings.autoVoice)}\n`;
-    statusText += `┃ ⓭ *Auto Reply:* ${getStatus(settings.autoReply)}\n`;
-    statusText += `┃ ⓮ *Connect Msg:* ${getStatus(settings.connectionMsg)}\n`;
-    statusText += `┃ ⓯ *Buttons Mod:* ${getStatus(settings.buttons)}\n`; // ✅ අලුතින් එක් කළා
-    statusText += `┃\n`;
-    statusText += `╰━━━━━━━━━━━━━━━┈⊷\n\n`;
-    statusText += `*💡 අගය වෙනස් කිරීමට Reply කරන්න:*\n`;
-    statusText += `*E.g:* \`4 private\` (Private කිරීමට)\n`; 
-    statusText += `*E.g:* \`15 on\` (Buttons ON කිරීමට)\n`; // Example එකක් එක් කළා
-    statusText += `*E.g:* \`6 off\` (Always Online OFF කිරීමට)`;
+    let statusText = `✨ *${botName.toUpperCase()} DASHBOARD* ✨\n\n`;
+    
+    statusText += `👤 *Owner:* ${ownerName}\n`;
+    statusText += `⚙️ *Prefix:* [ ${botPrefix} ]\n`;
+    statusText += `🔓 *Work Type:* ${workType}\n`;
+    statusText += `🔐 *Web Pass:* ${webPass}\n\n`;
+
+    statusText += `╔════════════════════╗\n`;
+    statusText += `┋ 0️⃣1️⃣ *Bot Name:* ${botName}\n`;
+    statusText += `┋ 0️⃣2️⃣ *Owner Name:* ${ownerName}\n`;
+    statusText += `┋ 0️⃣3️⃣ *Prefix:* ${botPrefix}\n`;
+    statusText += `┋ 0️⃣4️⃣ *Work Type:* ${workType}\n`;
+    statusText += `┋ 0️⃣5️⃣ *Web Pass:* ${webPass}\n`;
+    statusText += `┋ 0️⃣6️⃣ *Always Online:* ${getStatus(settings.alwaysOnline)}\n`;
+    statusText += `┋ 0️⃣7️⃣ *Auto Read:* ${getStatus(settings.autoRead)}\n`;
+    statusText += `┋ 0️⃣8️⃣ *Auto Typing:* ${getStatus(settings.autoTyping)}\n`;
+    statusText += `┋ 0️⃣9️⃣ *Status Seen:* ${getStatus(settings.autoStatusSeen)}\n`;
+    statusText += `┋ 1️⃣0️⃣ *Status React:* ${getStatus(settings.autoStatusReact)}\n`;
+    statusText += `┋ 1️⃣1️⃣ *Read Cmd:* ${getStatus(settings.readCmd)}\n`;
+    statusText += `┋ 1️⃣2️⃣ *Auto Voice:* ${getStatus(settings.autoVoice)}\n`;
+    statusText += `┋ 1️⃣3️⃣ *Auto Reply:* ${getStatus(settings.autoReply)}\n`;
+    statusText += `┋ 1️⃣4️⃣ *Connect Msg:* ${getStatus(settings.connectionMsg)}\n`;
+    statusText += `┋ 1️⃣5️⃣ *Buttons:* ${getStatus(settings.buttons)}\n`;
+    // --- 🆕 [ADDED] ANTIDELETE SETTING ---
+    statusText += `┋ 1️⃣6️⃣ *Anti Delete:* ${getStatus(settings.antidelete)}\n`;
+    statusText += `╚════════════════════╝\n\n`;
+
+    statusText += `*📝 භාවිතා කරන ආකාරය:* \n`;
+    statusText += `අගය වෙනස් කිරීමට අංකය සහ අදාළ අගය Reply කරන්න.\n\n`;
+    statusText += `*E.g:* \`16 on\` (Anti-Delete සක්‍රිය කිරීමට)\n`;
+    statusText += `*E.g:* \`4 \` (Private Mode කිරීමට)\n`;
+    statusText += `*E.g:* \`6 off\` (Always Online අක්‍රිය කිරීමට)\n\n`;
+    statusText += `> *Powered by ZANTA-MD*`;
 
     const sentMsg = await zanta.sendMessage(from, {
         image: { url: SETTINGS_IMG },
