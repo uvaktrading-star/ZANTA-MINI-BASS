@@ -2,8 +2,7 @@ const mongoose = require("mongoose");
 const config = require("../config");
 
 // --- ⚙️ MONGODB URI SETTINGS ---
-// Password එකේ විශේෂ ලකුණු (@, :) තිබුනොත් ඒක encode කරලා ගැනීම ආරක්ෂිතයි.
-const MONGO_URI = "mongodb+srv:";
+const MONGO_URI = "mongodb+srv://zanta-md:Akashkavindu12345@cluster0.iw4vklq.mongodb.net/?appName=Cluster0";
 
 const SettingsSchema = new mongoose.Schema({
     id: { type: String, required: true, unique: true },
@@ -21,8 +20,9 @@ const SettingsSchema = new mongoose.Schema({
     autoReply: { type: String, default: "false" },
     connectionMsg: { type: String, default: "true" },
     workType: { type: String, default: "public" }, 
-    // --- 🆕 ADDED: BUTTONS SETTING ---
     buttons: { type: String, default: "true" }, 
+    // --- 🆕 [ADDED] ANTIDELETE SETTING ---
+    antidelete: { type: String, default: "true" }, 
 });
 
 const AutoReplySchema = new mongoose.Schema({
