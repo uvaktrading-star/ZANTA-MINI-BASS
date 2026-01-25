@@ -3,7 +3,7 @@ const os = require('os');
 const config = require("../config");
 const axios = require('axios'); // පින්තූරය කලින් Download කර ගැනීමට
 
-const MENU_IMAGE_URL = "https://github.com/Akashkavindu/ZANTA_MD/blob/main/images/Gemini_Generated_Image_4xcl2e4xcl2e4xcl.png?raw=true";
+const MENU_IMAGE_URL = "https://github.com/Akashkavindu/ZANTA_MD/blob/main/images/zanta-md.png?raw=true";
 const CHANNEL_JID = "120363406265537739@newsletter"; 
 const lastMenuMessage = new Map();
 
@@ -151,3 +151,4 @@ async (zanta, mek, m, { from, reply, args, userSettings }) => {
 });
 
 module.exports = { lastMenuMessage };
+
