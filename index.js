@@ -178,15 +178,14 @@ async function connectToWA(sessionData) {
             }
 
             if (!zanta.onlineInterval) {
-                zanta.onlineInterval = setInterval(async () => {
-                    const currentSet = global.BOT_SESSIONS_CONFIG[userNumber];
-                    if (currentSet && currentSet.alwaysOnline === 'true') {
-                        await zanta.sendPresenceUpdate('available');
-                        await zanta.sendPresenceUpdate('unavailable');
-                        await zanta.sendPresenceUpdate('available');
-                    }
-                }, 15000); 
-            }
+    zanta.onlineInterval = setInterval(async () => {
+        const currentSet = global.BOT_SESSIONS_CONFIG[userNumber];
+        if (currentSet && currentSet.alwaysOnline === 'true') {
+            // මෙතන unavailable අයින් කරලා available විතරක් තියන්න
+            await zanta.sendPresenceUpdate('available');
+        }
+    }, 30000); // තත්පර 30කට සැරයක් යැවීම RAM එකටත් සහනයක්.
+}
 
             if (userSettings.connectionMsg === 'true') {
                 await zanta.sendMessage(ownerJid, {
