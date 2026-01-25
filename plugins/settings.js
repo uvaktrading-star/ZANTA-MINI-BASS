@@ -28,7 +28,7 @@ cmd({
     const workType = (settings.workType || "public").toUpperCase();
 
     // --- 📊 Status Indicators ---
-    const getStatus = (val) => val === 'true' ? '🟢 ON' : '🔴 OFF';
+    const getStatus = (val) => val === 'true' ? '✅ ON' : '❌ OFF';
 
     let statusText = `✨ *${botName.toUpperCase()} DASHBOARD* ✨\n\n`;
     
