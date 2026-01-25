@@ -18,6 +18,7 @@ async function getYoutube(query) {
 cmd({
     pattern: "song",
     alias: ["yta", "mp3"],
+    react: "🎵",
     desc: "Download YouTube MP3",
     category: "download",
     filename: __filename,
