@@ -160,7 +160,19 @@ cmd({ pattern: "vdl_vid", dontAddCommandList: true }, async (bot, mek, m, { from
 
         const downloadData = await ytmp4(url, quality);
         const finalUrl = downloadData.url || downloadData.dl_url || downloadData.result;
+        
         if (!finalUrl) return reply("❌ Video error.");
-        await bot.sendMessage(from, { video: { url: finalUrl }, mimetype: 'video/mp4', caption: `✅ Quality: ${quality}p\n*ZANTA-MD*` }, { quoted: mek });
-    } catch (e) { reply("❌ Video service error."); }
+
+        // Android වලටත් වැඩ කරන විදිහට Document එකක් ලෙස යැවීම (වඩාත් සාර්ථකයි)
+        await bot.sendMessage(from, { 
+            document: { url: finalUrl }, 
+            mimetype: 'video/mp4', 
+            fileName: `ZANTA-MD-VIDEO.mp4`,
+            caption: `✅ Quality: ${quality}p\n*> ZANTA-MD*` 
+        }, { quoted: mek });
+
+    } catch (e) { 
+        console.log(e);
+        reply("❌ Video service error."); 
+    }
 });
