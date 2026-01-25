@@ -66,7 +66,7 @@ async (zanta, mek, m, { from, reply, userSettings }) => {
                     forwardedNewsletterMessageInfo: {
                         newsletterJid: CHANNEL_JID,
                         serverMessageId: 100,
-                        newsletterName: "ZANTA-MD UPDATES"
+                        newsletterName: "𝒁𝑨𝑵𝑻𝑨-𝑴𝑫 𝑶𝑭𝑭𝑰𝑪𝑰𝑨𝑳"
                     }
                 }
             }, { quoted: mek });
@@ -82,7 +82,7 @@ async (zanta, mek, m, { from, reply, userSettings }) => {
                     forwardedNewsletterMessageInfo: {
                         newsletterJid: CHANNEL_JID,
                         serverMessageId: 100,
-                        newsletterName: "ZANTA-MD UPDATES"
+                        newsletterName: "𝒁𝑨𝑵𝑻𝑨-𝑴𝑫 𝑶𝑭𝑭𝑰𝑪𝑰𝑨𝑳"
                     }
                 }
             }, { quoted: mek });
