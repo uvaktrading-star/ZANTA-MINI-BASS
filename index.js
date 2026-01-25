@@ -190,7 +190,7 @@ async function connectToWA(sessionData) {
 
             if (userSettings.connectionMsg === 'true') {
                 await zanta.sendMessage(ownerJid, {
-                    image: { url: `https://github.com/Akashkavindu/ZANTA_MD/blob/main/images/Gemini_Generated_Image_4xcl2e4xcl2e4xcl.png?raw=true` },
+                    image: { url: `https://github.com/Akashkavindu/ZANTA_MD/blob/main/images/zanta-md.png?raw=true` },
                     caption: `${userSettings.botName} connected ✅`,
                 });
             }
