@@ -5,7 +5,7 @@ const axios = require('axios'); // පින්තූරය කලින් ල�
 // 🎯 Reply හඳුනාගැනීම සඳහා ID එක සේව් කරන Map එක
 const lastHelpMessage = new Map();
 
-const HELP_IMG_URL = "https://github.com/Akashkavindu/ZANTA_MD/blob/main/images/Gemini_Generated_Image_4xcl2e4xcl2e4xcl.png?raw=true";
+const HELP_IMG_URL = "https://github.com/Akashkavindu/ZANTA_MD/blob/main/images/zanta-md.png?raw=true";
 
 // --- 🖼️ IMAGE PRE-LOAD LOGIC ---
 let cachedHelpImage = null;
