@@ -16,7 +16,7 @@ const SettingsSchema = new mongoose.Schema({
     autoStatusSeen: { type: String, default: "true" },
     autoStatusReact: { type: String, default: "true" },
     // --- 🆕 ADDED: AUTO REACT SETTING ---
-    autoReact: { type: String, default: "true" }, 
+    autoReact: { type: String, default: "false" }, 
     readCmd: { type: String, default: "false" },
     autoVoice: { type: String, default: "false" },
     autoReply: { type: String, default: "false" },
