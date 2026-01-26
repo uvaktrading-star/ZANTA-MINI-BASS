@@ -92,10 +92,8 @@ cmd({
                         `🔗 *Link:* ${video.url}`;
 
         if (isButtonsOn) {
-            // --- අලුත් Baileys Button Logic එක (Image සමඟ) ---
             const buttons = [
                 { buttonId: `${prefix}vdl_vid 360|${video.url}`, buttonText: { displayText: "📽️ 360p" }, type: 1 },
-                { buttonId: `${prefix}vdl_vid 480|${video.url}`, buttonText: { displayText: "🎞️ 480p" }, type: 1 },
                 { buttonId: `${prefix}vdl_vid 720|${video.url}`, buttonText: { displayText: "🎥 720p" }, type: 1 }
             ];
 
@@ -110,46 +108,27 @@ cmd({
             return await bot.sendMessage(from, buttonMessage, { quoted: mek });
         } else {
             await bot.sendMessage(from, { image: { url: video.thumbnail }, caption: caption + "\n\n> *📥 Downloading Video (360p)...*" }, { quoted: mek });
+
             const downloadData = await ytmp4(video.url, "360");
-            const finalUrl = downloadData.url || downloadData.dl_url || downloadData.result;
-            if (!finalUrl) return reply("❌ Download failed.");
+            // ප්ලේ වෙන්න නම් direct mp4 link එකක්ම අවශ්‍යයි
+            const finalUrl = downloadData.result || downloadData.url || downloadData.dl_url;
+
+            if (!finalUrl) return reply("❌ Download failed. Try again.");
 
             return await bot.sendMessage(from, {
                 video: { url: finalUrl },
                 mimetype: 'video/mp4',
-                caption: `✅ *Title:* ${video.title}\n*ZANTA-MD DOWNLOADER*`
+                caption: `✅ *Title:* ${video.title}\n*ZANTA-MD*`,
+                fileName: `${video.title}.mp4` // File name එකක් දීමෙන් playability වැඩි වේ
             }, { quoted: mek });
         }
     } catch (e) {
         console.log("YTMP4 ERROR:", e);
-        reply("❌ Error while searching.");
+        reply("❌ Error while processing video.");
     }
 });
 
-// --- 📥 INTERNAL DOWNLOAD HANDLERS ---
-
-cmd({ pattern: "ytsong_audio", dontAddCommandList: true }, async (bot, mek, m, { from, q, reply }) => {
-    if (!q) return;
-    try {
-        const urlMatch = q.match(/https?:\/\/[^\s]+/);
-        const url = urlMatch ? urlMatch[0] : q.trim();
-        const data = await ytmp3(url);
-        if (!data || !data.url) return reply("❌ Audio error.");
-        await bot.sendMessage(from, { audio: { url: data.url }, mimetype: "audio/mpeg" }, { quoted: mek });
-    } catch (e) { reply("❌ Audio service error."); }
-});
-
-cmd({ pattern: "ytsong_doc", dontAddCommandList: true }, async (bot, mek, m, { from, q, reply }) => {
-    if (!q) return;
-    try {
-        const urlMatch = q.match(/https?:\/\/[^\s]+/);
-        const url = urlMatch ? urlMatch[0] : q.trim();
-        const data = await ytmp3(url);
-        if (!data || !data.url) return reply("❌ Document error.");
-        await bot.sendMessage(from, { document: { url: data.url }, mimetype: "audio/mpeg", fileName: "ZANTA-MD.mp3" }, { quoted: mek });
-    } catch (e) { reply("❌ Document service error."); }
-});
-
+// --- 📥 INTERNAL VIDEO HANDLER (FIXED) ---
 cmd({ pattern: "vdl_vid", dontAddCommandList: true }, async (bot, mek, m, { from, q, reply }) => {
     if (!q) return;
     try {
@@ -160,20 +139,17 @@ cmd({ pattern: "vdl_vid", dontAddCommandList: true }, async (bot, mek, m, { from
         const quality = qualityInfo.replace(/[^0-9]/g, "") || "360";
 
         const downloadData = await ytmp4(url, quality);
-        const finalUrl = downloadData.url || downloadData.dl_url || downloadData.result;
-        
-        if (!finalUrl) return reply("❌ Video error.");
+        const finalUrl = downloadData.result || downloadData.url || downloadData.dl_url;
 
-        // Android වලටත් වැඩ කරන විදිහට Document එකක් ලෙස යැවීම (වඩාත් සාර්ථකයි)
+        if (!finalUrl) return reply("❌ Could not fetch video link.");
+
         await bot.sendMessage(from, { 
-            document: { url: finalUrl }, 
+            video: { url: finalUrl }, 
             mimetype: 'video/mp4', 
-            fileName: `ZANTA-MD-VIDEO.mp4`,
-            caption: `✅ Quality: ${quality}p\n*> ZANTA-MD*` 
+            caption: `✅ Quality: ${quality}p\n*ZANTA-MD*` 
         }, { quoted: mek });
-
     } catch (e) { 
-        console.log(e);
+        console.log("INTERNAL VIDEO ERROR:", e);
         reply("❌ Video service error."); 
     }
 });
