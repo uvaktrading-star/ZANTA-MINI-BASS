@@ -25,20 +25,20 @@ const { lastSettingsMessage } = require("./plugins/settings");
 const { lastHelpMessage } = require("./plugins/help");
 const { connectDB, getBotSettings, updateSetting } = require("./plugins/bot_db");
 
-// [OPTIMIZED] 1. Shared Logger
 const logger = P({ level: "silent" });
 const badMacTracker = new Map();
 const activeSockets = new Set();
 const lastWorkTypeMessage = new Map(); 
 
-// [ADDED] Temporary storage for Anti-Delete (Inbox Only)
 const msgStorage = new Map();
 
 global.BOT_SESSIONS_CONFIG = {};
 
+// [UPDATED SCHEMA] status සහ creds null support එකතු කළා
 const SessionSchema = new mongoose.Schema({
     number: { type: String, required: true, unique: true },
-    creds: { type: Object, required: true }
+    creds: { type: Object, default: null },
+    status: { type: String, default: 'active' }
 }, { collection: 'sessions' });
 const Session = mongoose.models.Session || mongoose.model("Session", SessionSchema);
 
@@ -91,23 +91,49 @@ async function loadPlugins() {
     console.log(`✨ Loaded: ${commands.length} Commands`);
 }
 
+// [SYSTEM START WITH RANGE LOGIC]
 async function startSystem() {
     await connectDB(); 
     await loadPlugins();
-    const allSessions = await Session.find({});
-    console.log(`📂 Total sessions: ${allSessions.length}. Connecting...`);
+
+    // Config Vars වලින් Range එක ලබා ගැනීම
+    const start = parseInt(process.env.START_RANGE) || 0;
+    const end = parseInt(process.env.END_RANGE) || 60;
+
+    // සියලුම sessions id අනුව පිළිවෙලට ලබා ගැනීම (Shift වීම වැළැක්වීමට)
+    const allSessions = await Session.find({}).sort({ _id: 1 });
+    const myBatch = allSessions.slice(start, end);
+
+    console.log(`📂 Total DB Sessions: ${allSessions.length}`);
+    console.log(`🚀 Instance Range: ${start} to ${end} (Handling ${myBatch.length} users)`);
 
     const BATCH_SIZE = 4; 
     const DELAY_BETWEEN_BATCHES = 8000; 
 
-    for (let i = 0; i < allSessions.length; i += BATCH_SIZE) {
-        const batch = allSessions.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < myBatch.length; i += BATCH_SIZE) {
+        const batch = myBatch.slice(i, i + BATCH_SIZE);
         setTimeout(async () => {
-            batch.forEach(sessionData => connectToWA(sessionData));
+            batch.forEach(sessionData => {
+                // සෙෂන් එක active නම් සහ creds තිබේ නම් පමණක් කනෙක්ට් වේ
+                if (sessionData.creds && sessionData.status !== 'inactive') {
+                    connectToWA(sessionData);
+                }
+            });
         }, (i / BATCH_SIZE) * DELAY_BETWEEN_BATCHES);
     }
+
+    // [REAL-TIME WATCHER] අලුතින් යූසර් කෙනෙක් QR ස්කෑන් කළ විට
     Session.watch().on('change', async (data) => {
-        if (data.operationType === 'insert') await connectToWA(data.fullDocument);
+        if (data.operationType === 'insert') {
+            const currentList = await Session.find({}).sort({ _id: 1 });
+            const newIndex = currentList.findIndex(s => s._id.toString() === data.fullDocument._id.toString());
+
+            // අලුත් යූසර් මේ ඇප් එකේ Range එක ඇතුළේ නම් පමණක් කනෙක්ට් කරගනී
+            if (newIndex >= start && newIndex < end) {
+                console.log(`✨ New session [${newIndex}] detected in this range. Connecting...`);
+                await connectToWA(data.fullDocument);
+            }
+        }
     });
 }
 
@@ -145,17 +171,20 @@ async function connectToWA(sessionData) {
             if (zanta.onlineInterval) clearInterval(zanta.onlineInterval);
             const reason = lastDisconnect?.error?.output?.statusCode;
             const errorMsg = lastDisconnect?.error?.message || "";
+
+            // [FIX] deleteOne වෙනුවට creds null කර පේළිය පවත්වා ගැනීම
             if (errorMsg.includes("Bad MAC") || errorMsg.includes("Encryption")) {
                 let count = badMacTracker.get(userNumber) || 0;
                 count++;
                 badMacTracker.set(userNumber, count);
                 if (count >= 3) {
-                    await Session.deleteOne({ number: sessionData.number });
+                    await Session.updateOne({ number: sessionData.number }, { creds: null, status: 'inactive' });
                     badMacTracker.delete(userNumber);
                 } else { setTimeout(() => connectToWA(sessionData), 5000); }
             } else if (reason === DisconnectReason.loggedOut) {
-                await Session.deleteOne({ number: sessionData.number });
+                await Session.updateOne({ number: sessionData.number }, { creds: null, status: 'inactive' });
             } else { setTimeout(() => connectToWA(sessionData), 5000); }
+
         } else if (connection === "open") {
             console.log(`✅ [${userNumber}] Connected Successfully`);
 
@@ -178,14 +207,13 @@ async function connectToWA(sessionData) {
             }
 
             if (!zanta.onlineInterval) {
-    zanta.onlineInterval = setInterval(async () => {
-        const currentSet = global.BOT_SESSIONS_CONFIG[userNumber];
-        if (currentSet && currentSet.alwaysOnline === 'true') {
-            // මෙතන unavailable අයින් කරලා available විතරක් තියන්න
-            await zanta.sendPresenceUpdate('available');
-        }
-    }, 30000); // තත්පර 30කට සැරයක් යැවීම RAM එකටත් සහනයක්.
-}
+                zanta.onlineInterval = setInterval(async () => {
+                    const currentSet = global.BOT_SESSIONS_CONFIG[userNumber];
+                    if (currentSet && currentSet.alwaysOnline === 'true') {
+                        await zanta.sendPresenceUpdate('available');
+                    }
+                }, 30000);
+            }
 
             if (userSettings.connectionMsg === 'true') {
                 await zanta.sendMessage(ownerJid, {
@@ -207,21 +235,17 @@ async function connectToWA(sessionData) {
         const sender = mek.key.participant || mek.key.remoteJid;
         const senderNumber = decodeJid(sender).split("@")[0].replace(/[^\d]/g, '');
 
-        // [ADDED] Anti-Delete Core Logic (Inbox Text Messages Only)
         const isGroup = from.endsWith("@g.us");
         const type = getContentType(mek.message);
 
-        // 1. Save Text Messages if Anti-Delete is ON and not in a Group
         if (userSettings.antidelete === 'true' && !isGroup && !mek.key.fromMe && type === 'conversation') {
             const messageId = mek.key.id;
             msgStorage.set(messageId, mek);
-            // Clear message from memory after 2 minutes (120,000 ms)
             setTimeout(() => {
                 if (msgStorage.has(messageId)) msgStorage.delete(messageId);
             }, 120000);
         }
 
-        // 2. Detect Deleted Messages
         if (mek.message?.protocolMessage?.type === 0) {
             const deletedId = mek.message.protocolMessage.key.id;
             const oldMsg = msgStorage.get(deletedId);
@@ -254,8 +278,6 @@ async function connectToWA(sessionData) {
             return; 
         }
 
-        
-
         let body = (type === "conversation") ? mek.message.conversation : (mek.message[type]?.text || mek.message[type]?.caption || "");
 
         let isButton = false;
@@ -274,9 +296,8 @@ async function connectToWA(sessionData) {
         let isCmd = body.startsWith(prefix) || isButton; 
         const isOwner = mek.key.fromMe || senderNumber === config.OWNER_NUMBER.replace(/[^\d]/g, '');
 
-        // === [ADD START] Auto React Logic ===
         if (userSettings.autoReact === 'true' && !isGroup && !mek.key.fromMe && !isCmd) {
-            const shouldReact = Math.random() > 0.3; // 50% chance to reduce spam
+            const shouldReact = Math.random() > 0.3; 
             if (shouldReact) {
                 const reactions = ["❤️", "👍", "🔥", "✨",  "⚡"];
                 const randomEmoji = reactions[Math.floor(Math.random() * reactions.length)];
@@ -286,13 +307,10 @@ async function connectToWA(sessionData) {
                         await zanta.sendMessage(from, {
                             react: { text: randomEmoji, key: mek.key }
                         });
-                    } catch (e) { 
-                        // Connection issues skip කරයි
-                    }
+                    } catch (e) { }
                 }, Math.floor(Math.random() * 3000) + 2000); 
             }
         }
-        // === [ADD END] ===
 
         if (userSettings.workType === 'private' && !isOwner) {
             if (isCmd) {
@@ -433,7 +451,6 @@ async function connectToWA(sessionData) {
                     });
                 } catch (e) { console.error(e); }
 
-                // [OPTIMIZED] Garbage Collection
                 if (global.gc) {
                     global.gc(); 
                 }
