@@ -122,16 +122,35 @@ async function startSystem() {
         }, (i / BATCH_SIZE) * DELAY_BETWEEN_BATCHES);
     }
 
-    // [REAL-TIME WATCHER] අලුතින් යූසර් කෙනෙක් QR ස්කෑන් කළ විට
+    // [REAL-TIME WATCHER UPDATED] - අලුතින් යූසර් කෙනෙක් එකතු වුණොත් හෝ Logout වී නැවත Login වුණොත්
     Session.watch().on('change', async (data) => {
-        if (data.operationType === 'insert') {
-            const currentList = await Session.find({}).sort({ _id: 1 });
-            const newIndex = currentList.findIndex(s => s._id.toString() === data.fullDocument._id.toString());
+        if (data.operationType === 'insert' || data.operationType === 'update') {
+            
+            let sessionData;
+            if (data.operationType === 'insert') {
+                sessionData = data.fullDocument;
+            } else {
+                // Update එකකදී document එක ලබා ගැනීම
+                sessionData = await Session.findById(data.documentKey._id);
+            }
 
-            // අලුත් යූසර් මේ ඇප් එකේ Range එක ඇතුළේ නම් පමණක් කනෙක්ට් කරගනී
-            if (newIndex >= start && newIndex < end) {
-                console.log(`✨ New session [${newIndex}] detected in this range. Connecting...`);
-                await connectToWA(data.fullDocument);
+            // Creds නැතිනම් හෝ status inactive නම් සම්බන්ධ නොවේ
+            if (!sessionData || !sessionData.creds || sessionData.status === 'inactive') return;
+
+            const currentList = await Session.find({}).sort({ _id: 1 });
+            const userIndex = currentList.findIndex(s => s._id.toString() === sessionData._id.toString());
+            
+            // අදාළ Range එකේ ඉන්නවා නම් පමණක් කනෙක්ට් කරනවා
+            if (userIndex >= start && userIndex < end) {
+                // දැනටමත් මේ යූසර් active sockets වල ඉන්නවාදැයි පරීක්ෂා කිරීම (Duplicate වළක්වයි)
+                const isAlreadyActive = Array.from(activeSockets).some(s => 
+                    s.user && decodeJid(s.user.id).includes(sessionData.number.split("@")[0])
+                );
+                
+                if (!isAlreadyActive) {
+                    console.log(`♻️ Session [${userIndex}] re-activated or new. Connecting...`);
+                    await connectToWA(sessionData);
+                }
             }
         }
     });
