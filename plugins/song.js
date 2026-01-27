@@ -86,14 +86,12 @@ cmd({
         const video = await getYoutube(q);
         if (!video) return reply("❌ No results found");
 
-        const caption = `📝 *Title:* ${video.title}\n` +
-                        `👤 *Channel:* ${video.author.name}\n` +
-                        `⏱ *Duration:* ${video.timestamp}\n\n` +
-                        `🔗 *Link:* ${video.url}`;
+        const caption = `📝 *Title:* ${video.title}\n👤 *Channel:* ${video.author.name}\n⏱ *Duration:* ${video.timestamp}\n\n🔗 *Link:* ${video.url}`;
 
         if (isButtonsOn) {
             const buttons = [
                 { buttonId: `${prefix}vdl_vid 360|${video.url}`, buttonText: { displayText: "📽️ 360p" }, type: 1 },
+                { buttonId: `${prefix}vdl_vid 480|${video.url}`, buttonText: { displayText: "🎞️ 480p" }, type: 1 },
                 { buttonId: `${prefix}vdl_vid 720|${video.url}`, buttonText: { displayText: "🎥 720p" }, type: 1 }
             ];
 
@@ -108,27 +106,50 @@ cmd({
             return await bot.sendMessage(from, buttonMessage, { quoted: mek });
         } else {
             await bot.sendMessage(from, { image: { url: video.thumbnail }, caption: caption + "\n\n> *📥 Downloading Video (360p)...*" }, { quoted: mek });
-
             const downloadData = await ytmp4(video.url, "360");
-            // ප්ලේ වෙන්න නම් direct mp4 link එකක්ම අවශ්‍යයි
-            const finalUrl = downloadData.result || downloadData.url || downloadData.dl_url;
+            const finalUrl = downloadData.url || downloadData.dl_url || downloadData.result;
+            if (!finalUrl) return reply("❌ Download failed.");
 
-            if (!finalUrl) return reply("❌ Download failed. Try again.");
-
+            // Playability එක වැඩි කිරීමට fileName එක සහ mimetype එක මෙසේ ලබා දෙන්න
             return await bot.sendMessage(from, {
                 video: { url: finalUrl },
                 mimetype: 'video/mp4',
-                caption: `✅ *Title:* ${video.title}\n*ZANTA-MD*`,
-                fileName: `${video.title}.mp4` // File name එකක් දීමෙන් playability වැඩි වේ
+                fileName: `${video.title}.mp4`,
+                caption: `✅ *Title:* ${video.title}\n*ZANTA-MD DOWNLOADER*`
             }, { quoted: mek });
         }
     } catch (e) {
         console.log("YTMP4 ERROR:", e);
-        reply("❌ Error while processing video.");
+        reply("❌ Error while searching.");
     }
 });
 
-// --- 📥 INTERNAL VIDEO HANDLER (FIXED) ---
+// --- 📥 INTERNAL DOWNLOAD HANDLERS ---
+
+cmd({ pattern: "ytsong_audio", dontAddCommandList: true }, async (bot, mek, m, { from, q, reply }) => {
+    if (!q) return;
+    try {
+        const urlMatch = q.match(/https?:\/\/[^\s]+/);
+        const url = urlMatch ? urlMatch[0] : q.trim();
+        const data = await ytmp3(url);
+        const finalUrl = data.url || data.result || data.dl_url;
+        if (!finalUrl) return reply("❌ Audio error.");
+        await bot.sendMessage(from, { audio: { url: finalUrl }, mimetype: "audio/mpeg" }, { quoted: mek });
+    } catch (e) { reply("❌ Audio service error."); }
+});
+
+cmd({ pattern: "ytsong_doc", dontAddCommandList: true }, async (bot, mek, m, { from, q, reply }) => {
+    if (!q) return;
+    try {
+        const urlMatch = q.match(/https?:\/\/[^\s]+/);
+        const url = urlMatch ? urlMatch[0] : q.trim();
+        const data = await ytmp3(url);
+        const finalUrl = data.url || data.result || data.dl_url;
+        if (!finalUrl) return reply("❌ Document error.");
+        await bot.sendMessage(from, { document: { url: finalUrl }, mimetype: "audio/mpeg", fileName: "ZANTA-MD.mp3" }, { quoted: mek });
+    } catch (e) { reply("❌ Document service error."); }
+});
+
 cmd({ pattern: "vdl_vid", dontAddCommandList: true }, async (bot, mek, m, { from, q, reply }) => {
     if (!q) return;
     try {
@@ -139,17 +160,15 @@ cmd({ pattern: "vdl_vid", dontAddCommandList: true }, async (bot, mek, m, { from
         const quality = qualityInfo.replace(/[^0-9]/g, "") || "360";
 
         const downloadData = await ytmp4(url, quality);
-        const finalUrl = downloadData.result || downloadData.url || downloadData.dl_url;
+        const finalUrl = downloadData.url || downloadData.dl_url || downloadData.result;
+        if (!finalUrl) return reply("❌ Video error.");
 
-        if (!finalUrl) return reply("❌ Could not fetch video link.");
-
+        // මෙතැනදීත් fileName එක එකතු කළා
         await bot.sendMessage(from, { 
             video: { url: finalUrl }, 
             mimetype: 'video/mp4', 
+            fileName: 'video.mp4',
             caption: `✅ Quality: ${quality}p\n*ZANTA-MD*` 
         }, { quoted: mek });
-    } catch (e) { 
-        console.log("INTERNAL VIDEO ERROR:", e);
-        reply("❌ Video service error."); 
-    }
+    } catch (e) { reply("❌ Video service error."); }
 });

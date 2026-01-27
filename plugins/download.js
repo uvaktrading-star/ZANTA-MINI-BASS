@@ -30,8 +30,8 @@ cmd(
       const appSize = (app.size / 1048576).toFixed(2); 
 
       // සයිස් එක 100MB වලට වඩා වැඩි නම් අනතුරු ඇඟවීමක් දීම
-      if (appSize > 150) {
-          return reply(`🚫 *File is too large (${appSize} MB).* Max limit is 150MB.`);
+      if (appSize > 100) {
+          return reply(`🚫 *File is too large (${appSize} MB).* Max limit is 100MB.`);
       }
 
       const caption = `📦 *APK DOWNLOADER* 📦\n\n` +

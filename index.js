@@ -125,7 +125,7 @@ async function startSystem() {
     // [REAL-TIME WATCHER UPDATED] - අලුතින් යූසර් කෙනෙක් එකතු වුණොත් හෝ Logout වී නැවත Login වුණොත්
     Session.watch().on('change', async (data) => {
         if (data.operationType === 'insert' || data.operationType === 'update') {
-            
+
             let sessionData;
             if (data.operationType === 'insert') {
                 sessionData = data.fullDocument;
@@ -134,21 +134,29 @@ async function startSystem() {
                 sessionData = await Session.findById(data.documentKey._id);
             }
 
-            // Creds නැතිනම් හෝ status inactive නම් සම්බන්ධ නොවේ
-            if (!sessionData || !sessionData.creds || sessionData.status === 'inactive') return;
+            // [MODIFIED BY GEMINI] - Creds තියෙනවා නම් status එක active කරලා කනෙක්ට් කරන ලොජික් එක එකතු කළා
+            if (!sessionData || !sessionData.creds) return;
+
+            // යූසර් ලොගින් වෙලා හැබැයි status inactive නම්, status එක active කරමු
+            if (sessionData.status === 'inactive') {
+                await Session.updateOne({ _id: sessionData._id }, { status: 'active' });
+                sessionData.status = 'active'; 
+            }
 
             const currentList = await Session.find({}).sort({ _id: 1 });
             const userIndex = currentList.findIndex(s => s._id.toString() === sessionData._id.toString());
-            
+
             // අදාළ Range එකේ ඉන්නවා නම් පමණක් කනෙක්ට් කරනවා
             if (userIndex >= start && userIndex < end) {
-                // දැනටමත් මේ යූසර් active sockets වල ඉන්නවාදැයි පරීක්ෂා කිරීම (Duplicate වළක්වයි)
+
+                // [MODIFIED BY GEMINI] - සෙෂන් එක දැනටමත් වැඩද කියා පරීක්ෂා කිරීමේ වඩාත් නිවැරදි ක්‍රමය
+                const userNumberOnly = sessionData.number.split("@")[0];
                 const isAlreadyActive = Array.from(activeSockets).some(s => 
-                    s.user && decodeJid(s.user.id).includes(sessionData.number.split("@")[0])
+                    s.user && decodeJid(s.user.id).includes(userNumberOnly)
                 );
-                
+
                 if (!isAlreadyActive) {
-                    console.log(`♻️ Session [${userIndex}] re-activated or new. Connecting...`);
+                    console.log(`♻️ Session [${userNumberOnly}] re-activated or new. Connecting...`);
                     await connectToWA(sessionData);
                 }
             }
@@ -466,7 +474,7 @@ async function connectToWA(sessionData) {
                     await cmd.function(zanta, mek, m, {
                         from, body, isCmd, command: execName, args: execArgs, q: execArgs.join(" "),
                         isGroup, sender, senderNumber, isOwner, reply, prefix, userSettings,
-                        groupMetadata, participants, groupAdmins, isAdmins, isBotAdmins 
+                        groupMetadata, participants, groupAdmins, isAdmins, isBotAdmins
                     });
                 } catch (e) { console.error(e); }
 
