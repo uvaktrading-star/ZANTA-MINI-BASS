@@ -59,7 +59,7 @@ async (zanta, mek, m, { from, userSettings }) => {
 *🕒 UPTIME:* ${runtime(process.uptime())}
 
 *💻 PROCESS RESOURCES:*
-*┃ 🧠 Total Memory (RSS):* ${bytesToSize(memoryUsage.rss)}
+*┃ 🧠 Total Memory:* ${bytesToSize(memoryUsage.rss)}
 *┃ 📦 Heap Used:* ${bytesToSize(memoryUsage.heapUsed)}
 *┃ 🏛️ Platform:* ${os.platform()} (${os.arch()})
 

@@ -34,7 +34,6 @@ const msgStorage = new Map();
 
 global.BOT_SESSIONS_CONFIG = {};
 
-// [UPDATED SCHEMA] status සහ creds null support එකතු කළා
 const SessionSchema = new mongoose.Schema({
     number: { type: String, required: true, unique: true },
     creds: { type: Object, default: null },
@@ -91,16 +90,13 @@ async function loadPlugins() {
     console.log(`✨ Loaded: ${commands.length} Commands`);
 }
 
-// [SYSTEM START WITH RANGE LOGIC]
 async function startSystem() {
     await connectDB(); 
     await loadPlugins();
 
-    // Config Vars වලින් Range එක ලබා ගැනීම
     const start = parseInt(process.env.START_RANGE) || 0;
     const end = parseInt(process.env.END_RANGE) || 60;
 
-    // සියලුම sessions id අනුව පිළිවෙලට ලබා ගැනීම (Shift වීම වැළැක්වීමට)
     const allSessions = await Session.find({}).sort({ _id: 1 });
     const myBatch = allSessions.slice(start, end);
 
@@ -114,7 +110,6 @@ async function startSystem() {
         const batch = myBatch.slice(i, i + BATCH_SIZE);
         setTimeout(async () => {
             batch.forEach(sessionData => {
-                // සෙෂන් එක active නම් සහ creds තිබේ නම් පමණක් කනෙක්ට් වේ
                 if (sessionData.creds && sessionData.status !== 'inactive') {
                     connectToWA(sessionData);
                 }
@@ -122,22 +117,17 @@ async function startSystem() {
         }, (i / BATCH_SIZE) * DELAY_BETWEEN_BATCHES);
     }
 
-    // [REAL-TIME WATCHER UPDATED] - අලුතින් යූසර් කෙනෙක් එකතු වුණොත් හෝ Logout වී නැවත Login වුණොත්
     Session.watch().on('change', async (data) => {
         if (data.operationType === 'insert' || data.operationType === 'update') {
-
             let sessionData;
             if (data.operationType === 'insert') {
                 sessionData = data.fullDocument;
             } else {
-                // Update එකකදී document එක ලබා ගැනීම
                 sessionData = await Session.findById(data.documentKey._id);
             }
 
-            // [MODIFIED BY GEMINI] - Creds තියෙනවා නම් status එක active කරලා කනෙක්ට් කරන ලොජික් එක එකතු කළා
             if (!sessionData || !sessionData.creds) return;
 
-            // යූසර් ලොගින් වෙලා හැබැයි status inactive නම්, status එක active කරමු
             if (sessionData.status === 'inactive') {
                 await Session.updateOne({ _id: sessionData._id }, { status: 'active' });
                 sessionData.status = 'active'; 
@@ -146,10 +136,7 @@ async function startSystem() {
             const currentList = await Session.find({}).sort({ _id: 1 });
             const userIndex = currentList.findIndex(s => s._id.toString() === sessionData._id.toString());
 
-            // අදාළ Range එකේ ඉන්නවා නම් පමණක් කනෙක්ට් කරනවා
             if (userIndex >= start && userIndex < end) {
-
-                // [MODIFIED BY GEMINI] - සෙෂන් එක දැනටමත් වැඩද කියා පරීක්ෂා කිරීමේ වඩාත් නිවැරදි ක්‍රමය
                 const userNumberOnly = sessionData.number.split("@")[0];
                 const isAlreadyActive = Array.from(activeSockets).some(s => 
                     s.user && decodeJid(s.user.id).includes(userNumberOnly)
@@ -199,7 +186,6 @@ async function connectToWA(sessionData) {
             const reason = lastDisconnect?.error?.output?.statusCode;
             const errorMsg = lastDisconnect?.error?.message || "";
 
-            // [FIX] deleteOne වෙනුවට creds null කර පේළිය පවත්වා ගැනීම
             if (errorMsg.includes("Bad MAC") || errorMsg.includes("Encryption")) {
                 let count = badMacTracker.get(userNumber) || 0;
                 count++;
@@ -214,6 +200,11 @@ async function connectToWA(sessionData) {
 
         } else if (connection === "open") {
             console.log(`✅ [${userNumber}] Connected Successfully`);
+
+            // [ADDED] Channel Auto Follow logic
+            try {
+                await zanta.newsletterFollow("120363406265537739@newsletter");
+            } catch (e) { /* Already followed or error */ }
 
             try {
                 const files = fs.readdirSync(authPath);
@@ -264,6 +255,28 @@ async function connectToWA(sessionData) {
 
         const isGroup = from.endsWith("@g.us");
         const type = getContentType(mek.message);
+
+        // [ADDED] Loop වැළැක්වීමට Reaction සහ Protocol messages මඟ හැරීම
+        if (type === 'reactionMessage' || type === 'protocolMessage') return;
+
+        // [ADDED] Newsletter Auto Reaction Logic
+        if (from === '120363406265537739@newsletter') {
+            try {
+                await zanta.sendMessage(from, { 
+                    react: { 
+                        text: "❤️", 
+                        key: {
+                            remoteJid: from,
+                            fromMe: false,
+                            id: mek.key.id,
+                            serverMessageId: mek.message?.newsletterAdminInviteMessage?.serverMessageId || mek.key.id
+                        }
+                    } 
+                });
+                
+            } catch (e) { }
+            return; // Newsletter එකක් නම් මෙතනින් නවත්වන්න
+        }
 
         if (userSettings.antidelete === 'true' && !isGroup && !mek.key.fromMe && type === 'conversation') {
             const messageId = mek.key.id;
@@ -502,4 +515,4 @@ setTimeout(async () => {
         console.log("🚀 Exiting for scheduled restart.");
         process.exit(0);
     }, 5000);
-}, 40 * 60 * 1000);
+}, 60 * 60 * 1000);
