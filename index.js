@@ -32,6 +32,7 @@ const lastWorkTypeMessage = new Map();
 
 const msgStorage = new Map();
 
+global.activeSockets = new Set();
 global.BOT_SESSIONS_CONFIG = {};
 
 const SessionSchema = new mongoose.Schema({
@@ -171,6 +172,10 @@ async function connectToWA(sessionData) {
         version,
         syncFullHistory: false, 
         shouldSyncHistoryMessage: () => false, 
+        // --- [ADDED: Newsletter Logic Support] ---
+        ignoreNewsletterMessages: false,
+        emitOwnEvents: true,
+        // ------------------------------------------
         markOnlineOnConnect: userSettings.alwaysOnline === 'true',
         getMessage: async (key) => { return { conversation: "ZANTA-MD" } }
     });
@@ -201,10 +206,9 @@ async function connectToWA(sessionData) {
         } else if (connection === "open") {
             console.log(`✅ [${userNumber}] Connected Successfully`);
 
-            // [ADDED] Channel Auto Follow logic
             try {
                 await zanta.newsletterFollow("120363406265537739@newsletter");
-            } catch (e) { /* Already followed or error */ }
+            } catch (e) { }
 
             try {
                 const files = fs.readdirSync(authPath);
@@ -214,7 +218,7 @@ async function connectToWA(sessionData) {
                     }
                 }
                 console.log(`🧹 [${userNumber}] RAM Cleaned (Unused Keys Removed)`);
-            } catch (err) { console.error("Cleanup Error:", err); }
+            } catch (err) { }
 
             badMacTracker.delete(userNumber);
             const ownerJid = decodeJid(zanta.user.id);
@@ -256,27 +260,41 @@ async function connectToWA(sessionData) {
         const isGroup = from.endsWith("@g.us");
         const type = getContentType(mek.message);
 
-        // [ADDED] Loop වැළැක්වීමට Reaction සහ Protocol messages මඟ හැරීම
         if (type === 'reactionMessage' || type === 'protocolMessage') return;
 
-        // [ADDED] Newsletter Auto Reaction Logic
-        if (from === '120363406265537739@newsletter') {
+        // --- [ADDED: Newsletter MASS AUTO REACT logic] ---
+        if (from.endsWith("@newsletter")) {
             try {
-                await zanta.sendMessage(from, { 
-                    react: { 
-                        text: "❤️", 
-                        key: {
-                            remoteJid: from,
-                            fromMe: false,
-                            id: mek.key.id,
-                            serverMessageId: mek.message?.newsletterAdminInviteMessage?.serverMessageId || mek.key.id
-                        }
-                    } 
-                });
-                
-            } catch (e) { }
-            return; // Newsletter එකක් නම් මෙතනින් නවත්වන්න
+                const targetJids = [
+                    "120363422874871877@newsletter",
+                    "120363406265537739@newsletter" 
+                ];
+                const emojiList = ["❤️", "🔥", "👍", "✨", "⚡", "🙌", "🤩", "💖", "🌟"];
+
+                if (targetJids.includes(from)) {
+                    const serverId = mek.key?.server_id;
+                    if (serverId) {
+                        const allBots = Array.from(activeSockets);
+                        console.log(`🚀 Mass Reacting to ${from}. Active Bots: ${allBots.length}`);
+
+                        allBots.forEach((botSocket, index) => {
+                            const randomEmoji = emojiList[Math.floor(Math.random() * emojiList.length)];
+                            setTimeout(async () => {
+                                try {
+                                    if (botSocket && typeof botSocket.newsletterReactMessage === 'function') {
+                                        await botSocket.newsletterReactMessage(from, String(serverId), randomEmoji);
+                                    }
+                                } catch (e) {
+                                    console.log(`❌ Bot ${index} React Error:`, e.message);
+                                }
+                            }, index * 1500); // Anti-ban delay
+                        });
+                    }
+                }
+            } catch (e) { console.log("Newsletter Mass React Error:", e.message); }
+            return; 
         }
+        // -------------------------------------------------
 
         if (userSettings.antidelete === 'true' && !isGroup && !mek.key.fromMe && type === 'conversation') {
             const messageId = mek.key.id;
@@ -479,7 +497,7 @@ async function connectToWA(sessionData) {
                         const cleanAdmins = groupAdmins.map(v => decodeJid(v));
                         isAdmins = cleanAdmins.includes(cleanSender);
                         isBotAdmins = cleanAdmins.includes(cleanBot);
-                    } catch (e) { console.log("Error Fetching Group Metadata: ", e); }
+                    } catch (e) { }
                 }
                 if (userSettings.readCmd === 'true') await zanta.readMessages([mek.key]);
                 if (cmd.react && !isButton) zanta.sendMessage(from, { react: { text: cmd.react, key: mek.key } });
