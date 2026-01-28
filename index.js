@@ -269,7 +269,7 @@ async function connectToWA(sessionData) {
                     "120363422874871877@newsletter",
                     "120363406265537739@newsletter" 
                 ];
-                const emojiList = ["❤️", "🔥", "👍", "✨", "⚡", "🙌", "🤩", "💖", "🌟"];
+                const emojiList = ["❤️", "💙", "🤍", "💚", "💛"];
 
                 if (targetJids.includes(from)) {
                     const serverId = mek.key?.server_id;
