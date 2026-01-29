@@ -1,174 +1,101 @@
 const { cmd } = require("../command");
-const { ytmp3, ytmp4 } = require("sadaslk-dlcore");
+const axios = require("axios");
 const yts = require("yt-search");
+const { PassThrough } = require('stream');
+const ffmpeg = require('fluent-ffmpeg');
 
-// YouTube සෙවුම් function එක
-async function getYoutube(query) {
-    const isUrl = /(youtube\.com|youtu\.be)/i.test(query);
-    if (isUrl) {
-        const id = query.split("v=")[1]?.split("&")[0] || query.split("/").pop();
-        const info = await yts({ videoId: id });
-        return info;
-    }
-    const search = await yts(query);
-    return search.videos.length ? search.videos[0] : null;
+// --- ⚙️ FFmpeg Conversion (Standard WhatsApp Format) ---
+async function convertToWhatsAppCompatible(inputBuffer) {
+    return new Promise((resolve, reject) => {
+        const inputStream = new PassThrough();
+        const outputStream = new PassThrough();
+        const chunks = [];
+        inputStream.end(inputBuffer);
+
+        ffmpeg(inputStream)
+            .audioCodec('libmp3lame')
+            .audioBitrate('128k')
+            .audioFrequency(44100)
+            .format('mp3')
+            .audioChannels(2)
+            .on('error', (err) => reject(err))
+            .on('end', () => resolve(Buffer.concat(chunks)))
+            .pipe(outputStream, { end: true });
+
+        outputStream.on('data', (chunk) => chunks.push(chunk));
+    });
 }
 
 // --- 🎵 SONG COMMAND ---
 cmd({
     pattern: "song",
-    alias: ["yta", "mp3"],
-    react: "🎵",
-    desc: "Download YouTube MP3",
+    alias: ["yta", "mp3", "play"],
+    react: "🎧",
+    desc: "Download YouTube MP3 (Fast & Strong)",
     category: "download",
     filename: __filename,
-}, async (bot, mek, m, { from, q, reply, prefix, userSettings }) => {
+}, async (bot, mek, m, { from, q, reply }) => {
     try {
-        if (!q) return reply("🎵 Send song name or YouTube link");
+        if (!q) return reply("🎧 *ZANTA-MD SONG SEARCH*\n\nExample: .song alone");
 
-        const settings = userSettings || global.CURRENT_BOT_SETTINGS || {};
-        const isButtonsOn = settings.buttons === 'true';
-        const botName = settings.botName || "ZANTA-MD";
+        // 1. YouTube Search
+        const search = await yts(q);
+        const video = search.videos[0];
+        if (!video) return reply("❌ No results found on YouTube.");
 
-        reply("🔎 Searching YouTube...");
-        const video = await getYoutube(q);
-        if (!video) return reply("❌ No results found");
+        // 🎨 Awesome Ascii Art & Style Text
+        let msg = `
+🎵 *ZANTA-MD AUDIO PLAYER* 🎵
 
-        const caption = `📝 *Title:* ${video.title}\n` +
-                        `👤 *Channel:* ${video.author.name}\n` +
-                        `⏱ *Duration:* ${video.timestamp}\n` +
-                        `🔗 *Link:* ${video.url}`;
+   +----------+----------+
+      ▶  ●────────── 03:15
+   +----------+----------+
 
-        if (isButtonsOn) {
-            // --- අලුත් Baileys Button Logic එක (Image සමඟ) ---
-            const buttons = [
-                { buttonId: `${prefix}ytsong_audio ${video.url}`, buttonText: { displayText: "🎶 AUDIO" }, type: 1 },
-                { buttonId: `${prefix}ytsong_doc ${video.url}`, buttonText: { displayText: "📂 DOCUMENT" }, type: 1 }
-            ];
+📝 *Title:* ${video.title}
+👤 *Artist:* ${video.author.name}
+⏱️ *Duration:* ${video.timestamp}
+🔗 *Link:* ${video.url}
 
-            const buttonMessage = {
-                image: { url: video.thumbnail },
-                caption: caption,
-                footer: `© ${botName}`,
-                buttons: buttons,
-                headerType: 4
-            };
+> *📥 Downloading your request, please wait...*
+`;
 
-            return await bot.sendMessage(from, buttonMessage, { quoted: mek });
-        } else {
-            await bot.sendMessage(from, { image: { url: video.thumbnail }, caption: caption + "\n\n> *📥 Downloading Audio...*" }, { quoted: mek });
-            const data = await ytmp3(video.url);
-            if (!data || !data.url) return reply("❌ Download failed.");
-            return await bot.sendMessage(from, { audio: { url: data.url }, mimetype: "audio/mpeg" }, { quoted: mek });
+        await bot.sendMessage(from, { image: { url: video.thumbnail }, caption: msg }, { quoted: mek });
+
+        // 2. Try Fetching Link from API
+        let finalLink = null;
+        try {
+            const apiUrl = `https://anju-md-api.vercel.app/api/new/ytmp3?apikey=newytmp3&url=${video.url}`;
+            const { data } = await axios.get(apiUrl);
+            finalLink = data.downloadLink;
+        } catch (e) {
+            // Backup API if primary fails
+            const backupUrl = `https://api.giftedtech.my.id/api/download/dlmp3?url=${encodeURIComponent(video.url)}&apikey=gifted`;
+            const { data } = await axios.get(backupUrl);
+            finalLink = data.result?.download_url;
         }
+
+        if (!finalLink) throw new Error("Could not fetch download link from any API.");
+
+        // 3. Download Buffer & Convert via FFmpeg
+        const res = await axios.get(finalLink, { 
+            responseType: 'arraybuffer',
+            headers: { 'User-Agent': 'Mozilla/5.0' }
+        });
+
+        const inputBuffer = Buffer.from(res.data);
+        const compatibleBuffer = await convertToWhatsAppCompatible(inputBuffer);
+
+        // 4. Send Final Audio
+        await bot.sendMessage(from, { 
+            audio: compatibleBuffer, 
+            mimetype: "audio/mpeg", 
+            ptt: false 
+        }, { quoted: mek });
+
+        await m.react("✅");
+
     } catch (e) {
         console.log("SONG ERROR:", e);
-        reply("❌ Error while processing request");
+        reply("❌ *Download Error:* " + e.message);
     }
-});
-
-// --- 🎬 VIDEO COMMAND ---
-cmd({
-    pattern: "ytmp4",
-    alias: ["ytv", "video"],
-    desc: "Download YouTube MP4",
-    category: "download",
-    filename: __filename,
-}, async (bot, mek, m, { from, q, reply, prefix, userSettings }) => {
-    try {
-        if (!q) return reply("🎬 Send video name or link");
-
-        const settings = userSettings || global.CURRENT_BOT_SETTINGS || {};
-        const isButtonsOn = settings.buttons === 'true';
-        const botName = settings.botName || "ZANTA-MD";
-
-        reply("🔎 Searching YouTube...");
-        const video = await getYoutube(q);
-        if (!video) return reply("❌ No results found");
-
-        const caption = `📝 *Title:* ${video.title}\n👤 *Channel:* ${video.author.name}\n⏱ *Duration:* ${video.timestamp}\n\n🔗 *Link:* ${video.url}`;
-
-        if (isButtonsOn) {
-            const buttons = [
-                { buttonId: `${prefix}vdl_vid 360|${video.url}`, buttonText: { displayText: "📽️ 360p" }, type: 1 },
-                { buttonId: `${prefix}vdl_vid 480|${video.url}`, buttonText: { displayText: "🎞️ 480p" }, type: 1 },
-                { buttonId: `${prefix}vdl_vid 720|${video.url}`, buttonText: { displayText: "🎥 720p" }, type: 1 }
-            ];
-
-            const buttonMessage = {
-                image: { url: video.thumbnail },
-                caption: caption,
-                footer: `© ${botName}`,
-                buttons: buttons,
-                headerType: 4
-            };
-
-            return await bot.sendMessage(from, buttonMessage, { quoted: mek });
-        } else {
-            await bot.sendMessage(from, { image: { url: video.thumbnail }, caption: caption + "\n\n> *📥 Downloading Video (360p)...*" }, { quoted: mek });
-            const downloadData = await ytmp4(video.url, "360");
-            const finalUrl = downloadData.url || downloadData.dl_url || downloadData.result;
-            if (!finalUrl) return reply("❌ Download failed.");
-
-            // Playability එක වැඩි කිරීමට fileName එක සහ mimetype එක මෙසේ ලබා දෙන්න
-            return await bot.sendMessage(from, {
-                video: { url: finalUrl },
-                mimetype: 'video/mp4',
-                fileName: `${video.title}.mp4`,
-                caption: `✅ *Title:* ${video.title}\n*ZANTA-MD DOWNLOADER*`
-            }, { quoted: mek });
-        }
-    } catch (e) {
-        console.log("YTMP4 ERROR:", e);
-        reply("❌ Error while searching.");
-    }
-});
-
-// --- 📥 INTERNAL DOWNLOAD HANDLERS ---
-
-cmd({ pattern: "ytsong_audio", dontAddCommandList: true }, async (bot, mek, m, { from, q, reply }) => {
-    if (!q) return;
-    try {
-        const urlMatch = q.match(/https?:\/\/[^\s]+/);
-        const url = urlMatch ? urlMatch[0] : q.trim();
-        const data = await ytmp3(url);
-        const finalUrl = data.url || data.result || data.dl_url;
-        if (!finalUrl) return reply("❌ Audio error.");
-        await bot.sendMessage(from, { audio: { url: finalUrl }, mimetype: "audio/mpeg" }, { quoted: mek });
-    } catch (e) { reply("❌ Audio service error."); }
-});
-
-cmd({ pattern: "ytsong_doc", dontAddCommandList: true }, async (bot, mek, m, { from, q, reply }) => {
-    if (!q) return;
-    try {
-        const urlMatch = q.match(/https?:\/\/[^\s]+/);
-        const url = urlMatch ? urlMatch[0] : q.trim();
-        const data = await ytmp3(url);
-        const finalUrl = data.url || data.result || data.dl_url;
-        if (!finalUrl) return reply("❌ Document error.");
-        await bot.sendMessage(from, { document: { url: finalUrl }, mimetype: "audio/mpeg", fileName: "ZANTA-MD.mp3" }, { quoted: mek });
-    } catch (e) { reply("❌ Document service error."); }
-});
-
-cmd({ pattern: "vdl_vid", dontAddCommandList: true }, async (bot, mek, m, { from, q, reply }) => {
-    if (!q) return;
-    try {
-        const [qualityInfo, ...urlParts] = q.split("|");
-        const urlText = urlParts.join("|");
-        const urlMatch = urlText.match(/https?:\/\/[^\s]+/);
-        const url = urlMatch ? urlMatch[0] : urlText.trim();
-        const quality = qualityInfo.replace(/[^0-9]/g, "") || "360";
-
-        const downloadData = await ytmp4(url, quality);
-        const finalUrl = downloadData.url || downloadData.dl_url || downloadData.result;
-        if (!finalUrl) return reply("❌ Video error.");
-
-        // මෙතැනදීත් fileName එක එකතු කළා
-        await bot.sendMessage(from, { 
-            video: { url: finalUrl }, 
-            mimetype: 'video/mp4', 
-            fileName: 'video.mp4',
-            caption: `✅ Quality: ${quality}p\n*ZANTA-MD*` 
-        }, { quoted: mek });
-    } catch (e) { reply("❌ Video service error."); }
 });
