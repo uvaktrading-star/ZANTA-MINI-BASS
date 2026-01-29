@@ -4,7 +4,7 @@ const { runtime } = require('../lib/functions');
 const config = require("../config");
 const axios = require('axios'); // පින්තූරය කලින් ලබා ගැනීමට
 
-const STATUS_IMAGE_URL = "https://github.com/Akashkavindu/ZANTA_MD/blob/main/images/Gemini_Generated_Image_4xcl2e4xcl2e4xcl.png?raw=true";
+const STATUS_IMAGE_URL = "https://github.com/Akashkavindu/ZANTA_MD/blob/main/images/zanta-md.png?raw=true";
 
 // --- 🖼️ IMAGE PRE-LOAD LOGIC ---
 let cachedStatusImage = null;
