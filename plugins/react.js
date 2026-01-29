@@ -60,7 +60,7 @@ async (conn, mek, m, { q, reply, sender, userSettings }) => {
             return reply("❌ සක්‍රීය සෙෂන්ස් කිසිවක් හමු නොවීය!");
         }
 
-        reply(`🚀 Boosted react\n\n> *Count* ${allBots.length}✅`);
+        reply(`🚀 Channel react boosted✅\n\n> 𝒁𝑨𝑵𝑻𝑨-𝑴𝑫 𝑶𝑭𝑭𝑰𝑪𝑰𝑨𝑳 </>`);
 
         // Loop through each bot
         allBots.forEach((botSocket, index) => {
