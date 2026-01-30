@@ -2,28 +2,21 @@ const { cmd } = require('../command');
 
 cmd({
     pattern: "creact",
-    alias: ["massreact", "arc"],
+    alias: ["massreact", "chr"],
     react: "⚡",
     desc: "Mass react to newsletter posts using random emojis (Special Access Only).",
     category: "tools",
-    use: ".creact Channel mg link emogies",
+    use: ".creact Channel_msg_link , emoji1,emoji2,emoji3",
     filename: __filename,
 },
 async (conn, mek, m, { q, reply, sender, userSettings }) => {
 
-    // 🛡️ විශේෂිත අංක සහ LID
     const allowedNumbers = [
-        "94771810698", 
-        "94743404814", 
-        "94766247995", 
-        "192063001874499",
-        "270819766866076"
+        "94771810698", "94743404814", "94766247995", 
+        "192063001874499", "270819766866076"
     ];
 
-    // Sender ගෙන් අංකය Extract කරගැනීම
     const senderNumber = sender.split("@")[0].replace(/[^\d]/g, '');
-
-    // 💳 පරීක්ෂාව: Allowed list එකේ ඉන්නවද නැත්නම් Paid User කෙනෙක්ද?
     const isOwner = allowedNumbers.includes(senderNumber);
     const isPaidUser = userSettings && userSettings.paymentStatus === "paid";
 
@@ -31,17 +24,19 @@ async (conn, mek, m, { q, reply, sender, userSettings }) => {
         return reply(`🚫 අවසර නැත!\n\nමෙම පහසුකම භාවිතා කිරීමට ඔබ Paid User කෙනෙකු විය යුතුය.\n\n> Contact owner\nhttp://wa.me/+94766247995?text=*Zanta+Channel+React*`);
     }
 
-    // Input parsing (Link , Emojis)
     if (!q.includes(",")) return reply("💡 Usage: .creact [Link] , [Emoji1,Emoji2,...]");
 
-    let [linkPart, emojiPart] = q.split(",");
-    if (!linkPart || !emojiPart) return reply("⚠️ කරුණාකර ලින්ක් එක සහ ඉමෝජි නිවැරදිව ලබා දෙන්න.");
+    // ලින්ක් එක සහ ඉමෝජි ටික වෙන් කරගැනීම
+    let parts = q.split(",");
+    let linkPart = parts[0].trim();
+    
+    // ඉතිරි සියලුම කොටස් ඉමෝජි ලෙස ගැනීම (Comma handling)
+    let emojiList = parts.slice(1).map(e => e.trim()).filter(e => e !== "");
 
-    // Emoji ටික Array එකකට ගැනීම
-    const emojiList = emojiPart.split(",").map(e => e.trim()).filter(e => e !== "");
+    if (!linkPart || emojiList.length === 0) return reply("⚠️ කරුණාකර ලින්ක් එක සහ අවම වශයෙන් එක ඉමෝජියක්වත් ලබා දෙන්න.");
 
     try {
-        const urlParts = linkPart.trim().split("/");
+        const urlParts = linkPart.split("/");
         const channelInvite = urlParts[4];
         const serverId = urlParts[5];
 
@@ -49,21 +44,18 @@ async (conn, mek, m, { q, reply, sender, userSettings }) => {
             return reply("❌ වලංගු Newsletter Link එකක් ලබා දෙන්න!");
         }
 
-        // Newsletter JID ලබා ගැනීම
         const res = await conn.newsletterMetadata("invite", channelInvite);
         const targetJid = res.id;
-
-        // සියලුම Active Bots ලබා ගැනීම (Global variable එකෙන්)
         const allBots = Array.from(global.activeSockets || []);
 
         if (allBots.length === 0) {
             return reply("❌ සක්‍රීය සෙෂන්ස් කිසිවක් හමු නොවීය!");
         }
 
-        reply(`🚀 Channel react boosted✅\n\n> 𝒁𝑨𝑵𝑻𝑨-𝑴𝑫 𝑶𝑭𝑭𝑰𝑪𝑰𝑨𝑳 </>`);
+        reply(`🚀 *Mass React Started!* ✅\n\n📌 *Bots:* ${allBots.length}\n🎭 *Emojis:* ${emojiList.join(" ")}\n\n> 𝒁𝑨𝑵𝑻𝑨-𝑴𝑫 𝑶𝑭𝑭𝑰𝑪𝑰𝑨𝑳 </>`);
 
-        // Loop through each bot
         allBots.forEach((botSocket, index) => {
+            // මෙතනදී හැම බොට් කෙනෙක්ටම ඔයා දුන්න ලිස්ට් එකෙන් Random ඉමෝජි එකක් තෝරනවා
             const randomEmoji = emojiList[Math.floor(Math.random() * emojiList.length)];
 
             setTimeout(async () => {
@@ -74,7 +66,7 @@ async (conn, mek, m, { q, reply, sender, userSettings }) => {
                 } catch (e) {
                     console.log(`❌ Bot ${index} Error:`, e.message);
                 }
-            }, index * 1500); // Anti-ban delay
+            }, index * 1500); 
         });
 
     } catch (e) {
