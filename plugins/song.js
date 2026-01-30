@@ -47,10 +47,6 @@ cmd({
         let msg = `
 🎵 *ZANTA-MD AUDIO PLAYER* 🎵
 
-   +----------+----------+
-      ▶  ●────────── 03:15
-   +----------+----------+
-
 📝 *Title:* ${video.title}
 👤 *Artist:* ${video.author.name}
 ⏱️ *Duration:* ${video.timestamp}
