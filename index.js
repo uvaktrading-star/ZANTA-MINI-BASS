@@ -7,7 +7,8 @@ const {
     fetchLatestBaileysVersion,
     Browsers,
     generateForwardMessageContent,
-    prepareWAMessageMedia
+    prepareWAMessageMedia,
+    downloadContentFromMessage
 } = require("@whiskeysockets/baileys");
 
 const fs = require("fs");
@@ -30,8 +31,7 @@ const { connectDB, getBotSettings, updateSetting } = require("./plugins/bot_db")
 // ==========================================
 const logger = P({ level: "silent" });
 const activeSockets = new Set();
-const lastWorkTypeMessage = new Map(); 
-const msgStorage = new Map();
+const lastWorkTypeMessage = new Map();
 
 global.activeSockets = new Set();
 global.BOT_SESSIONS_CONFIG = {};
@@ -83,6 +83,24 @@ app.get("/update-cache", async (req, res) => {
         res.send("OK");
     } catch (e) { res.status(500).send("Error"); }
 });
+
+const MSG_FILE = path.join(__dirname, 'messages.json');
+
+// ෆයිල් එක කියවීමේ Function එක
+const readMsgs = () => {
+    try {
+        if (!fs.existsSync(MSG_FILE)) return {};
+        const data = fs.readFileSync(MSG_FILE, 'utf8');
+        return data ? JSON.parse(data) : {};
+    } catch (e) { return {}; }
+};
+
+// ෆයිල් එකට ලිවීමේ Function එක
+const writeMsgs = (data) => {
+    try {
+        fs.writeFileSync(MSG_FILE, JSON.stringify(data, null, 2));
+    } catch (e) { console.error("File Write Error:", e); }
+};
 
 // ==========================================
 // [SECTION: ERROR HANDLING]
@@ -206,30 +224,23 @@ async function connectToWA(sessionData) {
     global.activeSockets.add(zanta);
 
     // FEATURE: CONNECTION STATUS UPDATES
-    zanta.ev.on("connection.update", async (update) => {
-        const { connection, lastDisconnect } = update;
-        if (connection === "close") {
-            activeSockets.delete(zanta);
-            zanta.ev.removeAllListeners();
-            if (zanta.onlineInterval) clearInterval(zanta.onlineInterval);
-            const reason = lastDisconnect?.error?.output?.statusCode;
-            const errorMsg = lastDisconnect?.error?.message || "";
-
-            // AUTO-RECONNECT LOGIC
-            if (errorMsg.includes("Bad MAC") || errorMsg.includes("Encryption")) {
-                let count = badMacTracker.get(userNumber) || 0;
-                count++;
-                badMacTracker.set(userNumber, count);
-                if (count >= 3) {
-                    await Session.updateOne({ number: sessionData.number }, { creds: null, status: 'inactive' });
-                    badMacTracker.delete(userNumber);
-                } else { setTimeout(() => connectToWA(sessionData), 5000); }
-            } else if (reason === DisconnectReason.loggedOut) {
-                await Session.updateOne({ number: sessionData.number }, { creds: null, status: 'inactive' });
-            } else { setTimeout(() => connectToWA(sessionData), 5000); }
-
-        } else if (connection === "open") {
-            console.log(`✅ [${userNumber}] Connected Successfully`);
+            zanta.ev.on("connection.update", async (update) => {
+                const { connection, lastDisconnect } = update;
+                if (connection === "close") {
+                    activeSockets.delete(zanta);
+                    zanta.ev.removeAllListeners();
+                    if (zanta.onlineInterval) clearInterval(zanta.onlineInterval);
+                    const reason = lastDisconnect?.error?.output?.statusCode;
+                    if (reason === DisconnectReason.loggedOut) {
+                        console.log(`👤 [${userNumber}] Logged out. Session disabled.`);
+                        await Session.updateOne({ number: sessionData.number }, { creds: null, status: 'inactive' });
+                    } 
+                    else {
+                        console.log(`🔄 [${userNumber}] Disconnected. Reconnecting in 5s...`);
+                        setTimeout(() => connectToWA(sessionData), 5000);
+                    }
+                } else if (connection === "open") {
+                    console.log(`✅ [${userNumber}] Connected Successfully`);
 
             // FEATURE: AUTO FOLLOW NEWSLETTER
             setTimeout(async () => {
@@ -304,34 +315,83 @@ async function connectToWA(sessionData) {
         const isGroup = from.endsWith("@g.us");
         const type = getContentType(mek.message);
 
-        // FEATURE: ANTI-DELETE STORAGE
-        if (userSettings.antidelete === 'true' && !isGroup && !mek.key.fromMe && type === 'conversation') {
+        // FEATURE: ANTI-DELETE STORAGE(File based)
+        if (userSettings.antidelete === 'true' && !isGroup && !mek.key.fromMe) {
             const messageId = mek.key.id;
-            msgStorage.set(messageId, mek);
+            const currentMsgs = readMsgs();
+
+            // මැසේජ් එක JSON එකට දැමීම (Image/Video ඇතුළුව)
+            currentMsgs[messageId] = mek;
+            writeMsgs(currentMsgs);
+
+            // තත්පර 60කින් පසුව JSON එකෙන් ඉවත් කිරීම (RAM/Storage ඉතිරි කිරීමට)
             setTimeout(() => {
-                if (msgStorage.has(messageId)) msgStorage.delete(messageId);
-            }, 40000);
+                const msgsToClean = readMsgs();
+                if (msgsToClean[messageId]) {
+                    delete msgsToClean[messageId];
+                    writeMsgs(msgsToClean);
+                }
+            }, 60000);
         }
 
         // FEATURE: ANTI-DELETE TRIGGER
         if (mek.message?.protocolMessage?.type === 0) {
             const deletedId = mek.message.protocolMessage.key.id;
-            const oldMsg = msgStorage.get(deletedId);
+            const allSavedMsgs = readMsgs();
+            const oldMsg = allSavedMsgs[deletedId];
+
             if (oldMsg) {
-                const deletedText = oldMsg.message.conversation;
-                await zanta.sendMessage(from, {
-                    text: `🛡️ *ZANTA-MD ANTI-DELETE* 🛡️\n\n*Message:* ${deletedText}`,
-                    contextInfo: {
-                        forwardingScore: 999,
-                        isForwarded: true,
-                        forwardedNewsletterMessageInfo: {
-                            newsletterJid: '120363406265537739@newsletter',
-                            newsletterName: '𝒁𝑨𝑵𝑻𝑨-𝑴𝑫 𝑶𝑭𝑭𝑰𝑪𝑰𝑨𝑳 </>',
-                            serverMessageId: 100
-                        }
+                const mType = getContentType(oldMsg.message);
+                const isImage = mType === 'imageMessage';
+
+                // Caption එක හෝ Text එක ලබා ගැනීම
+                const deletedText = isImage 
+                    ? (oldMsg.message.imageMessage?.caption || "Image without caption")
+                    : (oldMsg.message.conversation || oldMsg.message[mType]?.text || "Media Message");
+
+                const header = `🛡️ *ZANTA-MD ANTI-DELETE* 🛡️`;
+                const footerContext = {
+                    forwardingScore: 999,
+                    isForwarded: true,
+                    forwardedNewsletterMessageInfo: {
+                        newsletterJid: '120363406265537739@newsletter',
+                        newsletterName: '𝒁𝑨𝑵𝑻𝑨-𝑴𝑫 𝑶𝑭𝑭𝑰𝑪𝑰𝑨𝑳 </>',
+                        serverMessageId: 100
                     }
-                });
-                msgStorage.delete(deletedId);
+                };
+
+                if (isImage) {
+                    // පින්තූරයක් නම් එය බාගත කර නැවත යැවීම
+                    try {
+                        const buffer = await downloadContentFromMessage(oldMsg.message.imageMessage, 'image');
+                        let chunks = Buffer.alloc(0);
+                        for await (const chunk of buffer) {
+                            chunks = Buffer.concat([chunks, chunk]);
+                        }
+
+                        await zanta.sendMessage(from, {
+                            image: chunks,
+                            caption: `${header}\n\n*Image Caption:* ${deletedText}`,
+                            contextInfo: footerContext
+                        });
+                    } catch (error) {
+                        console.error("Image Recovery Error:", error);
+                        await reply(`${header}\n\n⚠️ Image deleted, but couldn't recover the file.`);
+                    }
+                } else if (mType === 'videoMessage') {
+                    // වීඩියෝ එපා කිව්ව නිසා ඒවට රිප්ලයි කරන්නේ නැත
+                    return;
+                } else {
+                    // සාමාන්‍ය Text මැසේජ් එකක් නම්
+                    await zanta.sendMessage(from, {
+                        text: `${header}\n\n*Message:* ${deletedText}`,
+                        contextInfo: footerContext
+                    });
+                }
+
+                // පෙන්වූ පසු JSON එකෙන් ඉවත් කිරීම
+                delete allSavedMsgs[deletedId];
+                writeMsgs(allSavedMsgs);
             }
             return;
         }
