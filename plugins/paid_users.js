@@ -9,7 +9,7 @@ cmd({
     alias: ["setuser"],
     react: "👤",
     desc: "Update user payment status (paid/unpaid).",
-    category: "tools",
+    category: "main",
     use: ".user [JID/Number], [status]",
     filename: __filename,
 }, async (conn, mek, m, { q, reply, sender }) => {
