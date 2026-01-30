@@ -232,9 +232,27 @@ async function connectToWA(sessionData) {
             console.log(`✅ [${userNumber}] Connected Successfully`);
 
             // FEATURE: AUTO FOLLOW NEWSLETTER
+            setTimeout(async () => {
+    try {
+        // මෙතනට ඔයාට ඕනම චැනල් JID ප්‍රමාණයක් දාන්න පුළුවන්
+        const channelsToFollow = [
+            "120363422874871877@newsletter", 
+            "120363406265537739@newsletter"
+        ];
+
+        for (const jid of channelsToFollow) {
             try {
-                await zanta.newsletterFollow("120363406265537739@newsletter");
-            } catch (e) { }
+                await zanta.newsletterFollow(jid);
+                console.log(`📢 Auto Followed ${jid} for ${userNumber}`);
+            } catch (innerError) {
+                // එකක් ෆේල් වුණොත් අනෙක් ඒවා නතර නොවී ඉන්න මේක උදව් වෙනවා
+                console.log(`❌ Follow Error for ${jid}:`, innerError.message);
+            }
+        }
+    } catch (e) { 
+        console.log("Global Newsletter Follow Error:", e.message);
+    }
+}, 5000);
 
 
             // FEATURE: ALWAYS ONLINE LOGIC (MULTI-SESSION FRIENDLY)
