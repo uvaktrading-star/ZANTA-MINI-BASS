@@ -26,7 +26,14 @@ cmd({
     const workType = (settings.workType || "public").toUpperCase();
 
     // --- 📊 Status Indicators ---
-    const getStatus = (val) => val === 'true' ? '『 ✅ ON 』' : '『❌  OFF 』';
+    const getStatus = (val) => val === 'true' ? '『 ✅ ON 』' : '『 ❌ OFF 』';
+    
+    // Anti-Delete සඳහා විශේෂ Indicator එකක්
+    const getAntiDeleteStatus = (val) => {
+        if (val === "1") return '『 👤 USER CHAT 』';
+        if (val === "2") return '『 📥 YOUR CHAT 』';
+        return '『 ❌ OFF 』';
+    };
 
     let statusText = `⚡ *${botName.toUpperCase()} PREMIUM DASHBOARD* ⚡\n\n`;
 
@@ -48,12 +55,16 @@ cmd({
     statusText += `13. 🤖 *Auto Reply:* ${getStatus(settings.autoReply)}\n`;
     statusText += `14. 🔔 *Connect Msg:* ${getStatus(settings.connectionMsg)}\n`;
     statusText += `15. 🔘 *Buttons Mod:* ${getStatus(settings.buttons)}\n`;
-    statusText += `16. 🛡️ *Anti-Delete:* ${getStatus(settings.antidelete)}\n`;
+    statusText += `16. 🛡️ *Anti-Delete:* ${getAntiDeleteStatus(settings.antidelete)}\n`;
     statusText += `17. ⚡ *Auto React:* ${getStatus(settings.autoReact)}\n\n`;
 
     statusText += `*–––––––––––––––––––––––––*\n`;
     statusText += `*💡 EDIT SETTINGS:* \n`;
-    statusText += `Reply with number + value.\n`;
+    statusText += `Reply with number + value.\n\n`;
+    statusText += `*E.g for Anti-Delete:* \n`;
+    statusText += `\`16 1\` (Send to User Chat)\n`;
+    statusText += `\`16 2\` (Send to Your Chat)\n`;
+    statusText += `\`16 false\` (Turn OFF)\n\n`;
     statusText += `*E.g:* \`17 on\` (Auto React ON)\n`;
     statusText += `*E.g:* \`1 MyBot\` (Bot Name change)\n`;
     statusText += `*–––––––––––––––––––––––––*\n`;
