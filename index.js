@@ -473,24 +473,46 @@ async function connectToWA(sessionData) {
         const isHelpReply = (m.quoted && lastHelpMessage && lastHelpMessage.get(from) === m.quoted.id);
 
         if (isWorkTypeChoice && body && !isCmd && isOwner) {
-            let choice = body.trim();
-            let finalValue = (choice === '1') ? 'public' : (choice === '2') ? 'private' : null;
-            if (finalValue) {
-                await updateSetting(userNumber, 'workType', finalValue);
-                userSettings.workType = finalValue;
-                global.BOT_SESSIONS_CONFIG[userNumber] = userSettings;
-                lastWorkTypeMessage.delete(from); 
-                return reply(`✅ *WORK_TYPE* updated to: *${finalValue.toUpperCase()}*`);
-            } else {
-                return reply("⚠️ වැරදි අංකයක්. කරුණාකර 1 (Public) හෝ 2 (Private) ලෙස රිප්ලයි කරන්න.");
-            }
+    let choice = body.trim();
+    let currentSettings = global.BOT_SESSIONS_CONFIG[userNumber];
+    const lastMsg = m.quoted.text || m.quoted.caption || "";
+    if (lastMsg.includes("SELECT ANTI-DELETE MODE")) {
+        let finalVal = (choice === '1') ? 'false' : (choice === '2') ? '1' : (choice === '3') ? '2' : null;
+        if (finalVal) {
+            await updateSetting(userNumber, 'antidelete', finalVal);
+            userSettings.antidelete = finalVal;
+            lastWorkTypeMessage.delete(from);
+            return reply(`✅ *ANTI-DELETE* updated to: *${finalVal === 'false' ? 'OFF' : finalVal === '1' ? 'USER CHAT' : 'YOUR CHAT'}*`);
         }
+    } 
+    else if (lastMsg.includes("SELECT WORK MODE")) {
+        let finalVal = (choice === '1') ? 'public' : (choice === '2') ? 'private' : null;
+        if (finalVal) {
+            await updateSetting(userNumber, 'workType', finalVal);
+            userSettings.workType = finalVal;
+            lastWorkTypeMessage.delete(from);
+            return reply(`✅ *WORK_TYPE* updated to: *${finalVal.toUpperCase()}*`);
+        }
+    } 
+    return reply("⚠️ වැරදි අංකයක්. කරුණාකර ලබාදී ඇති විකල්ප අංකයක් පමණක් රිප්ලයි කරන්න.");
+}
 
         if (isSettingsReply && body && !isCmd && isOwner) {
             const input = body.trim().split(" ");
             let index = parseInt(input[0]);
             let dbKeys = ["", "botName", "ownerName", "prefix", "workType", "password", "alwaysOnline", "autoRead", "autoTyping", "autoStatusSeen", "autoStatusReact", "readCmd", "autoVoice", "autoReply", "connectionMsg", "buttons", "antidelete", "autoReact"];
             let dbKey = dbKeys[index];
+
+            if (dbKey) {
+            // --- 🛡️ ANTI-DELETE SPECIAL HANDLING (16) ---
+            if (index === "16") {
+            const antiDeleteMsg = await reply("🛡️ *SELECT ANTI-DELETE MODE*\n\nකරුණාකර අංකය පමණක් රිප්ලයි කරන්න:\n\n1️⃣ *Off*\n2️⃣ *Sent To User Chat*\n3️⃣ *Sent To Your Chat*\n\n> *ᴘᴏᴡᴇʀᴇᴅ ʙʏ ᴢᴀɴᴛᴀ-ᴍᴅ*");
+            
+            // මෙය WorkType මෙන්ම තාවකාලිකව Map එකක සුරැකිය යුතුයි මීළඟ Reply එක හඳුනා ගැනීමට
+            lastWorkTypeMessage.set(from, antiDeleteMsg.key.id); 
+            return;
+        }
+            
             if (dbKey) {
                 if (index === 4) {
                     const workMsg = await reply("🛠️ *SELECT WORK MODE*\n\nකරුණාකර අංකය පමණක් රිප්ලයි කරන්න:\n1️⃣ *Public*\n2️⃣ *Private*\n\n> *ZANTA-MD Settings Control*");
