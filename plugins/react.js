@@ -30,7 +30,7 @@ async (conn, mek, m, { q, reply, sender, userSettings }) => {
     let parts = q.split(",");
     let linkPart = parts[0].trim();
     
-    // ඉතිරි සියලුම කොටස් ඉමෝජි ලෙස ගැනීම (Comma handling)
+    // ඉතිරි සියලුම කොටස් ඉමෝජි ලෙස ගැනීම
     let emojiList = parts.slice(1).map(e => e.trim()).filter(e => e !== "");
 
     if (!linkPart || emojiList.length === 0) return reply("⚠️ කරුණාකර ලින්ක් එක සහ අවම වශයෙන් එක ඉමෝජියක්වත් ලබා දෙන්න.");
@@ -54,19 +54,18 @@ async (conn, mek, m, { q, reply, sender, userSettings }) => {
 
         reply(`🚀 *Mass React Started!* ✅\n\n📌 > 𝒁𝑨𝑵𝑻𝑨-𝑴𝑫 𝑶𝑭𝑭𝑰𝑪𝑰𝑨𝑳 </>`);
 
-        allBots.forEach((botSocket, index) => {
-            // මෙතනදී හැම බොට් කෙනෙක්ටම ඔයා දුන්න ලිස්ට් එකෙන් Random ඉමෝජි එකක් තෝරනවා
+        // --- ⚡ Delay එක අයින් කර සියලුම බොට්ලාට එකවර යැවීම ---
+        allBots.forEach(async (botSocket, index) => {
             const randomEmoji = emojiList[Math.floor(Math.random() * emojiList.length)];
 
-            setTimeout(async () => {
-                try {
-                    if (botSocket && typeof botSocket.newsletterReactMessage === 'function') {
-                        await botSocket.newsletterReactMessage(targetJid, String(serverId), randomEmoji);
-                    }
-                } catch (e) {
-                    console.log(`❌ Bot ${index} Error:`, e.message);
+            try {
+                if (botSocket && typeof botSocket.newsletterReactMessage === 'function') {
+                    // setTimeout ඉවත් කර සෘජුවම (Directly) reaction එක යවයි
+                    await botSocket.newsletterReactMessage(targetJid, String(serverId), randomEmoji);
                 }
-            }, index * 1500); 
+            } catch (e) {
+                console.log(`❌ Bot ${index} Error:`, e.message);
+            }
         });
 
     } catch (e) {
