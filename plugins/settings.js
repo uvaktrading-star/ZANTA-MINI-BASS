@@ -3,7 +3,7 @@ const { updateSetting } = require("./bot_db");
 const config = require("../config");
 
 // Default Image Link (බොට්ගේ Default රූපය)
-const DEFAULT_IMG = "https://github.com/Akashkavindu/ZANTA_MD/blob/main/images/Gemini_Generated_Image_4xcl2e4xcl2e4xcl.png?raw=true";
+const DEFAULT_IMG = "https://github.com/Akashkavindu/ZANTA_MD/blob/main/images/zanta-md.png?raw=true";
 
 const lastSettingsMessage = new Map();
 
