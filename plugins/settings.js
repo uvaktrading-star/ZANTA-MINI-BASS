@@ -2,7 +2,7 @@ const { cmd } = require("../command");
 const { updateSetting } = require("./bot_db");
 const config = require("../config");
 
-// Default Image Link
+// Default Image Link (බොට්ගේ Default රූපය)
 const DEFAULT_IMG = "https://github.com/Akashkavindu/ZANTA_MD/blob/main/images/Gemini_Generated_Image_4xcl2e4xcl2e4xcl.png?raw=true";
 
 const lastSettingsMessage = new Map();
@@ -17,12 +17,8 @@ cmd({
 }, async (zanta, mek, m, { from, reply, sender, isOwner, prefix, userSettings }) => {
 
     // --- 🛡️ Access Control ---
-    const allowedNumbers = ["94771810698", "94743404814", "94766247995", "192063001874499", "270819766866076"];
-    const senderNumber = sender.split("@")[0].replace(/[^\d]/g, '');
-    const isSpecialOwner = allowedNumbers.includes(senderNumber) || isOwner;
-    const isPaidUser = userSettings && userSettings.paymentStatus === "paid";
-
-    if (!isSpecialOwner && !isPaidUser) return reply("⚠️ *මෙම Dashboard එක භාවිතා කළ හැක්කේ බොට් අයිතිකරුට හෝ Paid Users ලාට පමණි!*");
+    // index.js එකේ logic එකට අනුකූලව මෙහිදී සරලව isOwner ද යන්න පමණක් පරීක්ෂා කරයි
+    if (!isOwner) return reply("⚠️ *මෙම Dashboard එක භාවිතා කළ හැක්කේ බොට් අයිතිකරුට පමණි!*");
 
     const settings = userSettings || global.CURRENT_BOT_SETTINGS || {};
     const botName = settings.botName || config.DEFAULT_BOT_NAME || "ZANTA-MD";
@@ -31,7 +27,8 @@ cmd({
     const webPass = settings.password === 'not_set' ? "Not Set ❌" : "Set ✅";
     const workType = (settings.workType || "public").toUpperCase();
     
-    // Bot Image Status
+    // --- 🖼️ Image Logic ---
+    // DB එකේ පින්තූරයක් ඇත්නම් එය පෙන්වයි, නැතිනම් Default එක පෙන්වයි.
     const botImageStatus = (settings.botImage && settings.botImage !== "null") ? "Updated ✅" : "Default 🖼️";
     const displayImg = (settings.botImage && settings.botImage !== "null") ? settings.botImage : DEFAULT_IMG;
 
@@ -52,7 +49,7 @@ cmd({
     statusText += `03. 🎮 *Bot Prefix:* [ ${botPrefix} ]\n`;
     statusText += `04. 🔐 *Work Mode:* ${workType}\n`;
     statusText += `05. 🔑 *Web Password:* ${webPass}\n`;
-    statusText += `06. 🖼️ *Bot Image:* ${botImageStatus}\n\n`; // අලුතින් එක් කළ 6 වෙනි අයිතමය
+    statusText += `06. 🖼️ *Bot Image:* ${botImageStatus}\n\n`;
 
     statusText += `*—「 BOT SETTINGS 」—*\n\n`;
     statusText += `07. 🚀 *Always Online:* ${getStatus(settings.alwaysOnline)}\n`;
@@ -72,7 +69,7 @@ cmd({
     statusText += `*💡 EDIT SETTINGS:* \n`;
     statusText += `Reply with number + value.\n\n`;
     statusText += `*E.g for Bot Image:* \n`;
-    statusText += `\`06 https://image-url.jpg\`\n\n`;
+    statusText += `\`06 https://catbox.moe/example.jpg\`\n\n`;
     statusText += `*–––––––––––––––––––––––––*\n`;
     statusText += `> *ᴘᴏᴡᴇʀᴇᴅ ʙʏ ᴢᴀɴᴛᴀ-ᴍᴅ*`;
 
