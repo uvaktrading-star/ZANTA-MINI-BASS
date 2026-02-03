@@ -16,9 +16,11 @@ async (zanta, mek, m, { q, reply }) => {
 
         // 🔑 ඔයාගේ API Keys ටික මෙතනට දාන්න
         const keys = [
-            "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", 
-            "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",
-            "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"
+            "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", 
+            "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",
+            "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",
+            "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",
+            "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"
         ];
 
         let success = false;
