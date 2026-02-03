@@ -227,20 +227,24 @@ async function connectToWA(sessionData) {
             }, 5000);
 
             // Presence Management
-            const updatePresence = async () => {
-                const currentSet = global.BOT_SESSIONS_CONFIG[userNumber];
-                if (currentSet && currentSet.alwaysOnline === "true") {
-                    await zanta.sendPresenceUpdate("available");
-                } else {
-                    await zanta.sendPresenceUpdate("unavailable");
-                    if (zanta.onlineInterval) { clearInterval(zanta.onlineInterval); zanta.onlineInterval = null; }
-                }
-            };
-
-            await updatePresence();
-            if (!zanta.onlineInterval && userSettings.alwaysOnline === "true") {
-                zanta.onlineInterval = setInterval(updatePresence, 30000);
-            }
+           const updatePresence = async () => {
+           const currentSet = global.BOT_SESSIONS_CONFIG[userNumber];
+    
+    if (currentSet && currentSet.alwaysOnline === "true") {
+        await zanta.sendPresenceUpdate("available");
+    } else {
+        await zanta.sendPresenceUpdate("unavailable");
+        if (zanta.onlineInterval) {
+            clearInterval(zanta.onlineInterval);
+            zanta.onlineInterval = null;
+        }
+    }
+};
+await updatePresence();
+if (userSettings.alwaysOnline === "true") {
+    if (zanta.onlineInterval) clearInterval(zanta.onlineInterval);
+    zanta.onlineInterval = setInterval(updatePresence, 30000);
+}
 
             if (userSettings.connectionMsg === "true") {
                 await zanta.sendMessage(decodeJid(zanta.user.id), {
@@ -447,44 +451,69 @@ async function connectToWA(sessionData) {
         }
 
         // Main Settings Handler
-        if (isSettingsReply && body && !isCmd && isOwner) {
-            const input = body.trim().split(" ");
-            let index = parseInt(input[0]);
-            let dbKeys = ["","botName","ownerName","prefix","workType","password","alwaysOnline","autoRead","autoTyping","autoStatusSeen","autoStatusReact","readCmd","autoVoice","autoReply","connectionMsg","buttons","antidelete","autoReact"];
-            let dbKey = dbKeys[index];
+       if (isSettingsReply && body && !isCmd && isOwner) {
+    const input = body.trim().split(" ");
+    let index = parseInt(input[0]);
+    let dbKeys = ["", "botName", "ownerName", "prefix", "workType", "password", "alwaysOnline", "autoRead", "autoTyping", "autoStatusSeen", "autoStatusReact", "readCmd", "autoVoice", "autoReply", "connectionMsg", "buttons", "antidelete", "autoReact"];
+    let dbKey = dbKeys[index];
 
-            if (index === 16) {
-                const antiMsg = await reply(`🛡️ *SELECT ANTI-DELETE MODE*\n\n1️⃣ Off\n2️⃣ Send to User Chat\n3️⃣ Send to Your Chat\n\n*Reply only the number*`);
-                lastAntiDeleteMessage.set(from, antiMsg.key.id); return;
-            }
+    // Anti-Delete විශේෂ තේරීම
+    if (index === 16) {
+        const antiMsg = await reply(`🛡️ *SELECT ANTI-DELETE MODE*\n\n1️⃣ Off\n2️⃣ Send to User Chat\n3️⃣ Send to Your Chat\n\n*Reply only the number*`);
+        lastAntiDeleteMessage.set(from, antiMsg.key.id); 
+        return;
+    }
 
-            if (dbKey) {
-                if (index === 4) {
-                    const workMsg = await reply("🛠️ *SELECT WORK MODE*\n\n1️⃣ *Public*\n2️⃣ *Private*");
-                    lastWorkTypeMessage.set(from, workMsg.key.id); return;
+    if (dbKey) {
+        // Work Type විශේෂ තේරීම
+        if (index === 4) {
+            const workMsg = await reply("🛠️ *SELECT WORK MODE*\n\n1️⃣ *Public*\n2️⃣ *Private*");
+            lastWorkTypeMessage.set(from, workMsg.key.id); 
+            return;
+        }
+
+        // Auto Reply Link එක පෙන්වීම
+        if (index === 13 && input.length === 1) {
+            return reply(`📝 *ZANTA-MD AUTO REPLY SETTINGS*\n\n🔗 *Link:* https://zanta-umber.vercel.app/zanta-login\n\n*Status:* ${userSettings.autoReply === "true" ? "✅ ON" : "❌ OFF"}`);
+        }
+
+        // අගය ලබාගෙන ඇත්දැයි පරීක්ෂාව
+        if (index >= 6 && !input[1]) return reply(`⚠️ කරුණාකර අගය ලෙස 'on' හෝ 'off' ලබා දෙන්න. (උදා: ${index} on)`);
+        if (index < 6 && input.length < 2) return reply(`⚠️ කරුණාකර අගයක් ලබා දෙන්න.`);
+
+        // අගය සකස් කිරීම
+        let finalValue = index >= 6 ? (input[1].toLowerCase() === "on" ? "true" : "false") : input.slice(1).join(" ");
+
+        // DB සහ Global Memory Update කිරීම
+        await updateSetting(userNumber, dbKey, finalValue);
+        userSettings[dbKey] = finalValue;
+        global.BOT_SESSIONS_CONFIG[userNumber] = userSettings;
+
+        // Presence (Always Online) Logic - එකිනෙකාට බලපෑමක් නොවන සේ
+        if (dbKey === "alwaysOnline") {
+            if (finalValue === "true") {
+                await zanta.sendPresenceUpdate("available");
+                if (zanta.onlineInterval) clearInterval(zanta.onlineInterval);
+                zanta.onlineInterval = setInterval(async () => {
+                    try { await zanta.sendPresenceUpdate("available"); } catch (e) {}
+                }, 30000);
+            } else {
+                if (zanta.onlineInterval) {
+                    clearInterval(zanta.onlineInterval);
+                    zanta.onlineInterval = null;
                 }
-                if (index === 13 && input.length === 1) return reply(`📝 *ZANTA-MD AUTO REPLY SETTINGS*\n\n🔗 *Link:* https://chic-puppy-62f8d1.netlify.app/\n\n*Status:* ${userSettings.autoReply === "true" ? "✅ ON" : "❌ OFF"}`);
-                
-                if (input.length < 2) return reply(`⚠️ කරුණාකර අගයක් ලබා දෙන්න.`);
-                let finalValue = index >= 6 ? (input[1].toLowerCase() === "on" ? "true" : "false") : input.slice(1).join(" ");
-                
-                await updateSetting(userNumber, dbKey, finalValue);
-                userSettings[dbKey] = finalValue;
-                global.BOT_SESSIONS_CONFIG[userNumber] = userSettings;
-
-                if (dbKey === "alwaysOnline") {
-                    if (finalValue === "true") {
-                        await zanta.sendPresenceUpdate("available");
-                        if (!zanta.onlineInterval) zanta.onlineInterval = setInterval(async () => await zanta.sendPresenceUpdate("available"), 30000);
-                    } else {
-                        await zanta.sendPresenceUpdate("unavailable");
-                        if (zanta.onlineInterval) { clearInterval(zanta.onlineInterval); zanta.onlineInterval = null; }
-                    }
-                }
-                await reply(dbKey === "password" ? `🔐 *WEB SITE PASSWORD UPDATED*\n\n🔑 *New Password:* ${finalValue}\n👤 *User ID:* ${userNumber}` : `✅ *${dbKey}* updated to: *${finalValue.toUpperCase()}*`);
-                return;
+                await zanta.sendPresenceUpdate("unavailable");
             }
         }
+
+        // අවසන් දැනුම්දීම
+        const successMsg = dbKey === "password" 
+            ? `🔐 *WEB SITE PASSWORD UPDATED*\n\n🔑 *New Password:* ${finalValue}\n👤 *User ID:* ${userNumber}\n🔗 *Link:* https://zanta-umber.vercel.app/zanta-login` 
+            : `✅ *${dbKey}* updated to: *${finalValue.toUpperCase()}*`;
+        
+        return reply(successMsg);
+    }
+}
 
         // Command Execution
         if (isCmd || isMenuReply || isHelpReply || isButton) {
