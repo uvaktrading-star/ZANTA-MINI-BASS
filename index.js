@@ -454,42 +454,65 @@ if (userSettings.alwaysOnline === "true") {
        if (isSettingsReply && body && !isCmd && isOwner) {
     const input = body.trim().split(" ");
     let index = parseInt(input[0]);
-    let dbKeys = ["", "botName", "ownerName", "prefix", "workType", "password", "alwaysOnline", "autoRead", "autoTyping", "autoStatusSeen", "autoStatusReact", "readCmd", "autoVoice", "autoReply", "connectionMsg", "buttons", "antidelete", "autoReact"];
+
+    // Dashboard එකේ අංක පිළිවෙළට (01 - 18)
+    let dbKeys = [
+        "", "botName", "ownerName", "prefix", "workType", "password", 
+        "botImage", // 06
+        "alwaysOnline", "autoRead", "autoTyping", "autoStatusSeen", "autoStatusReact", 
+        "readCmd", "autoVoice", "autoReply", "connectionMsg", "buttons", 
+        "antidelete", "autoReact"
+    ];
     let dbKey = dbKeys[index];
 
-    // Anti-Delete විශේෂ තේරීම
-    if (index === 16) {
-        const antiMsg = await reply(`🛡️ *SELECT ANTI-DELETE MODE*\n\n1️⃣ Off\n2️⃣ Send to User Chat\n3️⃣ Send to Your Chat\n\n*Reply only the number*`);
-        lastAntiDeleteMessage.set(from, antiMsg.key.id); 
-        return;
+    // --- [Index 06: Bot Image විශේෂ Check එක] ---
+    if (index === 6) {
+        const superOwners = ["94771810698", "94743404814", "94766247995", "192063001874499", "270819766866076"];
+        const isSuperOwner = superOwners.includes(senderNumber);
+        const isPaidUser = userSettings && userSettings.paymentStatus === "paid";
+
+        if (!isSuperOwner && !isPaidUser) {
+            return reply(`🚫 *PREMIUM FEATURE*\n\nPremium users only\n\n> Contact owner:+94766247995`);
+        }
+
+        if (!input[1] || !input[1].includes("files.catbox.moe")) {
+            return reply(`⚠️ *CATBOX LINK ONLY*\n\nකරුණාකර https://catbox.moe/ වෙත upload කර ලැබෙන 'files.catbox.moe' ලින්ක් එක ලබා දෙන්න.`);
+        }
     }
 
     if (dbKey) {
-        // Work Type විශේෂ තේරීම
-        if (index === 4) {
+        // Anti-Delete විශේෂ තේරීම (දැන් අංක 17)
+        if (index === 17 && !input[1]) {
+            const antiMsg = await reply(`🛡️ *SELECT ANTI-DELETE MODE*\n\n1️⃣ Off\n2️⃣ Send to User Chat\n3️⃣ Send to Your Chat\n\n*Reply only the number*`);
+            lastAntiDeleteMessage.set(from, antiMsg.key.id); 
+            return;
+        }
+
+        // Work Type විශේෂ තේරීම (අංක 04)
+        if (index === 4 && !input[1]) {
             const workMsg = await reply("🛠️ *SELECT WORK MODE*\n\n1️⃣ *Public*\n2️⃣ *Private*");
             lastWorkTypeMessage.set(from, workMsg.key.id); 
             return;
         }
 
-        // Auto Reply Link එක පෙන්වීම
-        if (index === 13 && input.length === 1) {
+        // Auto Reply Link (දැන් අංක 14)
+        if (index === 14 && input.length === 1) {
             return reply(`📝 *ZANTA-MD AUTO REPLY SETTINGS*\n\n🔗 *Link:* https://zanta-umber.vercel.app/zanta-login\n\n*Status:* ${userSettings.autoReply === "true" ? "✅ ON" : "❌ OFF"}`);
         }
 
-        // අගය ලබාගෙන ඇත්දැයි පරීක්ෂාව
-        if (index >= 6 && !input[1]) return reply(`⚠️ කරුණාකර අගය ලෙස 'on' හෝ 'off' ලබා දෙන්න. (උදා: ${index} on)`);
-        if (index < 6 && input.length < 2) return reply(`⚠️ කරුණාකර අගයක් ලබා දෙන්න.`);
+        // අගය ලබාගෙන ඇත්දැයි පරීක්ෂාව (Index 7 සිට 18 දක්වා Boolean)
+        if (index >= 7 && !input[1]) return reply(`⚠️ කරුණාකර අගය ලෙස 'on' හෝ 'off' ලබා දෙන්න.`);
+        if (index < 7 && input.length < 2) return reply(`⚠️ කරුණාකර අගයක් ලබා දෙන්න.`);
 
         // අගය සකස් කිරීම
-        let finalValue = index >= 6 ? (input[1].toLowerCase() === "on" ? "true" : "false") : input.slice(1).join(" ");
+        let finalValue = index >= 7 ? (input[1].toLowerCase() === "on" ? "true" : "false") : input.slice(1).join(" ");
 
-        // DB සහ Global Memory Update කිරීම
+        // DB සහ Global Memory Update
         await updateSetting(userNumber, dbKey, finalValue);
         userSettings[dbKey] = finalValue;
         global.BOT_SESSIONS_CONFIG[userNumber] = userSettings;
 
-        // Presence (Always Online) Logic - එකිනෙකාට බලපෑමක් නොවන සේ
+        // Presence Logic
         if (dbKey === "alwaysOnline") {
             if (finalValue === "true") {
                 await zanta.sendPresenceUpdate("available");
@@ -498,10 +521,7 @@ if (userSettings.alwaysOnline === "true") {
                     try { await zanta.sendPresenceUpdate("available"); } catch (e) {}
                 }, 30000);
             } else {
-                if (zanta.onlineInterval) {
-                    clearInterval(zanta.onlineInterval);
-                    zanta.onlineInterval = null;
-                }
+                if (zanta.onlineInterval) { clearInterval(zanta.onlineInterval); zanta.onlineInterval = null; }
                 await zanta.sendPresenceUpdate("unavailable");
             }
         }
