@@ -1,8 +1,7 @@
 const { cmd } = require("../command");
 const config = require("../config");
-const axios = require('axios'); // පින්තූරය කලින් ලබා ගැනීමට
+const axios = require('axios'); 
 
-// 🎯 Reply හඳුනාගැනීම සඳහා ID එක සේව් කරන Map එක
 const lastHelpMessage = new Map();
 
 const HELP_IMG_URL = "https://github.com/Akashkavindu/ZANTA_MD/blob/main/images/zanta-md.png?raw=true";
@@ -17,11 +16,10 @@ async function preLoadHelpImage() {
         console.log("✅ [CACHE] Help image pre-loaded successfully.");
     } catch (e) {
         console.error("❌ [CACHE] Failed to pre-load help image:", e.message);
-        cachedHelpImage = { url: HELP_IMG_URL };
+        cachedHelpImage = null;
     }
 }
 
-// බොට් පණ ගැන්වෙන විටම පින්තූරය ගන්න
 preLoadHelpImage();
 
 cmd({
@@ -60,7 +58,7 @@ cmd({
 🎨 *AI:* AI Image Gen (Genimg), Remove image Bg
 🛠️ *Tools:* ToURL, ToQR, Ping, Alive, To sticker
 🎮 *Fun:* Guess Game, Tod Game, Funtext
-⚙️ *Admin:* Group Settings, Bot DB, Settings
+⚙ *Admin:* Group Settings, Bot DB, Settings
 
 _සවිස්තරාත්මක ලැයිස්තුවට .menu ටයිප් කරන්න._`;
             return reply(featMsg);
@@ -90,8 +88,13 @@ _ස්තුතියි!_`;
 
 > *${botName} Support System*`;
 
-        // Cache කරපු පින්තූරය භාවිතා කිරීම
-        const imageToDisplay = cachedHelpImage || { url: HELP_IMG_URL };
+        // --- 🖼️ IMAGE LOGIC: DB Image එක ඇත්නම් එය පෙන්වයි, නැතිනම් Default Cache Image එක පෙන්වයි ---
+        let imageToDisplay;
+        if (settings.botImage && settings.botImage !== "null" && settings.botImage.startsWith("http")) {
+            imageToDisplay = { url: settings.botImage };
+        } else {
+            imageToDisplay = cachedHelpImage || { url: HELP_IMG_URL };
+        }
 
         const sentHelp = await zanta.sendMessage(from, { 
             image: imageToDisplay, 
