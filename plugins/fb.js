@@ -1,5 +1,6 @@
 const { cmd } = require("../command");
 const getFbVideoInfo = require("@xaviabot/fb-downloader");
+const config = require("../config");
 
 cmd({
     pattern: "fb",
@@ -8,19 +9,26 @@ cmd({
     desc: "Download Facebook Videos.",
     category: "download",
     filename: __filename,
-}, async (zanta, mek, m, { from, reply, q }) => {
+}, async (zanta, mek, m, { from, reply, q, userSettings }) => {
     try {
         if (!q) return reply("❤️ *කරුණාකර Facebook වීඩියෝ ලින්ක් එකක් ලබා දෙන්න.*");
 
         const fbRegex = /(https?:\/\/)?(www\.)?(facebook|fb)\.com\/.+/;
         if (!fbRegex.test(q)) return reply("☹️ *ලින්ක් එක වැරදියි.*");
 
-        const currentBotName = global.CURRENT_BOT_SETTINGS.botName;
+        const settings = userSettings || global.CURRENT_BOT_SETTINGS || {};
+        const currentBotName = settings.botName || config.DEFAULT_BOT_NAME || "ZANTA-MD";
+
+        // --- 🖼️ IMAGE LOGIC: DB එකේ පින්තූරයක් ඇත්නම් එය පෙන්වයි ---
+        const displayImg = (settings.botImage && settings.botImage !== "null") 
+            ? { url: settings.botImage } 
+            : { url: "https://github.com/Akashkavindu/ZANTA_MD/blob/main/images/zanta-md.png?raw=true" };
+
         const loadingDesc = `╭━─━─━─━─━─━──━╮\n┃ *${currentBotName} FB Downloader*\n╰━─━─━─━─━─━──━╯\n\n⏳ *Waiting for download...*`;
 
-        // 1. මුලින්ම Logo එක සහ "Downloading" Caption එක සහිත පණිවිඩය යවයි
+        // 1. මුලින්ම පින්තූරය සහ "Downloading" Caption එක සහිත පණිවිඩය යවයි
         const sentMsg = await zanta.sendMessage(from, {
-            image: { url: "https://github.com/Akashkavindu/ZANTA_MD/blob/main/images/Gemini_Generated_Image_4xcl2e4xcl2e4xcl.png?raw=true" },
+            image: displayImg,
             caption: loadingDesc,
         }, { quoted: mek });
 
@@ -37,7 +45,7 @@ cmd({
         const bestUrl = result.hd || result.sd;
         const quality = result.hd ? "HD" : "SD";
 
-        // 2. බාගත කිරීම අවසන් වූ පසු එම Image එකේම Caption එක Edit කිරීම
+        // 2. බාගත කිරීම අවසන් වූ පසු Caption එක Edit කිරීම
         const successDesc = `╭━─━─━─━─━─━──━╮\n┃ *${currentBotName} FB Downloader*\n╰━─━─━─━─━─━──━╯\n\n✅ *Status:* Download Completed!\n👻 *Quality:* ${quality}`;
 
         await zanta.sendMessage(from, { 
