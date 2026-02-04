@@ -1,40 +1,17 @@
 const { cmd } = require("../command");
 const axios = require("axios");
 const yts = require("yt-search");
-const { PassThrough } = require('stream');
-const ffmpeg = require('fluent-ffmpeg');
+const config = require("../config");
 
-// --- ⚙️ FFmpeg Conversion (Standard WhatsApp Format) ---
-async function convertToWhatsAppCompatible(inputBuffer) {
-    return new Promise((resolve, reject) => {
-        const inputStream = new PassThrough();
-        const outputStream = new PassThrough();
-        const chunks = [];
-        inputStream.end(inputBuffer);
-
-        ffmpeg(inputStream)
-            .audioCodec('libmp3lame')
-            .audioBitrate('128k')
-            .audioFrequency(44100)
-            .format('mp3')
-            .audioChannels(2)
-            .on('error', (err) => reject(err))
-            .on('end', () => resolve(Buffer.concat(chunks)))
-            .pipe(outputStream, { end: true });
-
-        outputStream.on('data', (chunk) => chunks.push(chunk));
-    });
-}
-
-// --- 🎵 SONG COMMAND ---
+// --- 🎵 SONG COMMAND (MANUL-OFFICIAL VERCEL API) ---
 cmd({
     pattern: "song",
     alias: ["yta", "mp3", "play"],
     react: "🎧",
-    desc: "Download YouTube MP3 (Fast & Strong)",
+    desc: "Download YouTube MP3 via Custom Vercel API",
     category: "download",
     filename: __filename,
-}, async (bot, mek, m, { from, q, reply }) => {
+}, async (bot, mek, m, { from, q, reply, userSettings }) => {
     try {
         if (!q) return reply("🎧 *ZANTA-MD SONG SEARCH*\n\nExample: .song alone");
 
@@ -43,47 +20,50 @@ cmd({
         const video = search.videos[0];
         if (!video) return reply("❌ No results found on YouTube.");
 
-        // 🎨 Awesome Ascii Art & Style Text
+        const settings = userSettings || global.CURRENT_BOT_SETTINGS || {};
+        const botName = settings.botName || config.DEFAULT_BOT_NAME || "ZANTA-MD";
+
         let msg = `
-🎵 *ZANTA-MD AUDIO PLAYER* 🎵
+🎵 *${botName} AUDIO PLAYER* 🎵
 
 📝 *Title:* ${video.title}
 👤 *Artist:* ${video.author.name}
 ⏱️ *Duration:* ${video.timestamp}
 🔗 *Link:* ${video.url}
 
-> *📥 Downloading your request, please wait...*
+> *📥 Downloading your song via Manul API..*
 `;
 
+        // Video Thumbnail එක සමඟ විස්තර යැවීම
         await bot.sendMessage(from, { image: { url: video.thumbnail }, caption: msg }, { quoted: mek });
 
-        // 2. Try Fetching Link from API
+        // 2. Fetch Link from Your Vercel API
         let finalLink = null;
         try {
-            const apiUrl = `https://anju-md-api.vercel.app/api/new/ytmp3?apikey=newytmp3&url=${video.url}`;
-            const { data } = await axios.get(apiUrl);
-            finalLink = data.downloadLink;
+            // ඔයාගේ අලුත් API එක මෙතනට දැම්මා
+            const apiUrl = `https://api-site-x-by-manul.vercel.app/convert?mp3=${encodeURIComponent(video.url)}&apikey=Manul-Official`;
+            const response = await axios.get(apiUrl);
+
+            // API Response එකේ structure එක අනුව ලින්ක් එක ලබා ගැනීම
+            // සටහන: ඔයාගේ API එකේ JSON එකේ 'download_url' හෝ 'result' තිබේ නම් එය මෙතන වෙනස් කරන්න
+            if (response.data && response.data.status) {
+                finalLink = response.data.result.download_url;
+            } else if (response.data.download_url) {
+                finalLink = response.data.download_url;
+            }
         } catch (e) {
-            // Backup API if primary fails
+            console.log("Manul API Failed, trying Backup...");
+            // Backup API (වැඩේ නතර නොවී ඉන්න backup එකකුත් තියමු)
             const backupUrl = `https://api.giftedtech.my.id/api/download/dlmp3?url=${encodeURIComponent(video.url)}&apikey=gifted`;
             const { data } = await axios.get(backupUrl);
             finalLink = data.result?.download_url;
         }
 
-        if (!finalLink) throw new Error("Could not fetch download link from any API.");
+        if (!finalLink) throw new Error("Could not fetch download link.");
 
-        // 3. Download Buffer & Convert via FFmpeg
-        const res = await axios.get(finalLink, { 
-            responseType: 'arraybuffer',
-            headers: { 'User-Agent': 'Mozilla/5.0' }
-        });
-
-        const inputBuffer = Buffer.from(res.data);
-        const compatibleBuffer = await convertToWhatsAppCompatible(inputBuffer);
-
-        // 4. Send Final Audio
+        // 3. Send Final Audio
         await bot.sendMessage(from, { 
-            audio: compatibleBuffer, 
+            audio: { url: finalLink }, 
             mimetype: "audio/mpeg", 
             ptt: false 
         }, { quoted: mek });
