@@ -34,7 +34,6 @@ cmd({
             caption: msg 
         }, { quoted: mek });
 
-        // --- Reply Listener එක ආරම්භය ---
         const listener = async (update) => {
             const msgUpdate = update.messages[0];
             if (!msgUpdate.message) return;
@@ -42,7 +41,6 @@ cmd({
             const body = msgUpdate.message.conversation || 
                          msgUpdate.message.extendedTextMessage?.text;
 
-            // පරීක්ෂා කිරීම: රිප්ලයි එක කළේ කලින් යැවූ මැසේජ් එකටද සහ අංකය 1, 2 හෝ 3 ද කියා
             const isReplyToBot = msgUpdate.message.extendedTextMessage?.contextInfo?.stanzaId === sentMsg.key.id;
 
             if (isReplyToBot && ['1', '2', '3'].includes(body)) {
@@ -57,11 +55,12 @@ cmd({
                     const apiUrl = `https://sai-green.vercel.app/manump4?url=${encodeURIComponent(video.url)}&quality=${quality}`;
                     const response = await axios.get(apiUrl);
                     
-                    // API එකෙන් එන ඩවුන්ලෝඩ් ලින්ක් එක ලබා ගැනීම
-                    const downloadUrl = response.data.url || response.data.dl_link || response.data.result;
+                    // --- නිවැරදි කළ ලින්ක් එක ලබා ගන්නා පේළිය ---
+                    // API එකේ JSON structure එකට අනුව: download -> url
+                    const downloadUrl = response.data.download?.url;
 
                     if (!downloadUrl) {
-                        return reply(`❌ Error: ${quality}p quality link not found!`);
+                        return reply(`❌ Error: ${quality}p quality link not found in API response!`);
                     }
 
                     await bot.sendMessage(from, { 
@@ -77,14 +76,12 @@ cmd({
                     reply("❌ වීඩියෝව ලබා ගැනීමේදී දෝෂයක් සිදු විය.");
                 }
 
-                // වැඩේ ඉවර වුණාම Listener එක ඉවත් කරන්න
                 bot.ev.off('messages.upsert', listener);
             }
         };
 
         bot.ev.on('messages.upsert', listener);
 
-        // විනාඩි 5කට පසු රිප්ලයි එකක් නැත්නම් ඉබේම Listener එක නතර කරන්න
         setTimeout(() => {
             bot.ev.off('messages.upsert', listener);
         }, 300000);
