@@ -6,35 +6,37 @@ const BASE_API = "https://apis.sandarux.sbs/api/movie";
 
 cmd({
     pattern: "movie",
-    alias: ["sinhalasub", "film", "cinema"],
+    alias: ["film", "sinhalasub"],
     react: "🎬",
-    desc: "Search and download movies from Sinhalasub.lk",
+    desc: "Search movies from Sinhalasub",
     category: "download",
     filename: __filename
-}, async (bot, mek, m, { from, q, reply, sender }) => {
+}, async (bot, mek, m, { from, q, reply }) => {
     try {
         if (!q) return reply("🎬 *ZANTA MOVIE SEARCH*\n\nExample: .movie Avengers");
 
-        // 1. Search API call
+        // 1. Search API - චිත්‍රපට සෙවීම
         const searchRes = await axios.get(`${BASE_API}/sinhalasub-search?apikey=${API_KEY}&q=${encodeURIComponent(q)}`);
         
-        if (!searchRes.data || !searchRes.data.results || searchRes.data.results.length === 0) {
-            return reply("❌ No results found for your search.");
+        if (!searchRes.data.status || !searchRes.data.results.length) {
+            return reply("❌ කිසිදු ප්‍රතිඵලයක් හමු නොවීය.");
         }
 
         const results = searchRes.data.results.slice(0, 10);
         let msg = `🎬 *ZANTA MOVIE SEARCH* 🎬\n\n`;
+        
         results.forEach((res, index) => {
-            msg += `${index + 1}️⃣ *${res.title}*\n`;
+            // API එකෙන් එන්නේ image කියන key එකෙන්
+            msg += `${index + 1}️⃣ *${res.title.split('|')[0].trim()}*\n`;
         });
-        msg += `\n*Reply with the number to see details.* \n\n> *© ZANTA-MD MOVIE SERVICE*`;
+        msg += `\n*Reply with the number to see quality list.* \n\n> *© ZANTA-MD MOVIE SERVICE*`;
 
         const sentMsg = await bot.sendMessage(from, { 
-            image: { url: results[0].thumbnail || "https://i.ibb.co/vz609p0/movie.jpg" }, 
+            image: { url: results[0].image || "https://i.ibb.co/vz609p0/movie.jpg" }, 
             caption: msg 
         }, { quoted: mek });
 
-        // --- Reply Listener ---
+        // --- Selection Listener (චිත්‍රපටය තේරීමට) ---
         const movieListener = async (update) => {
             const msgUpdate = update.messages[0];
             if (!msgUpdate.message) return;
@@ -44,32 +46,36 @@ cmd({
 
             if (isReplyToBot && !isNaN(body)) {
                 const index = parseInt(body) - 1;
-                const selected = results[index];
+                const selectedMovie = results[index];
 
-                if (selected) {
-                    // වැඩේ පටන් ගත්ත නිසා Listener එක අයින් කරනවා (අලුත් එකක් ඊළඟට දාන නිසා)
-                    bot.ev.off('messages.upsert', movieListener);
+                if (selectedMovie) {
+                    bot.ev.off('messages.upsert', movieListener); // කලින් listener එක අයින් කරනවා
                     await bot.sendMessage(from, { react: { text: '⏳', key: msgUpdate.key } });
 
                     try {
-                        // 2. Info API call
-                        const infoRes = await axios.get(`${BASE_API}/sinhalasub-info?apikey=${API_KEY}&url=${selected.link}`);
-                        const data = infoRes.data.result;
+                        // 2. Info API - චිත්‍රපටයේ Quality ලින්ක්ස් ලබා ගැනීම
+                        const infoRes = await axios.get(`${BASE_API}/sinhalasub-info?apikey=${API_KEY}&url=${selectedMovie.link}`);
+                        const infoData = infoRes.data;
+                        
+                        // අපි පාවිච්චි කරන්නේ Pixeldrain ලින්ක්ස් විතරයි (Stable නිසා)
+                        const pixeldrainLinks = infoData.links.Pixeldrain || infoData.links["DLServer 02"]; 
 
-                        let infoMsg = `🎬 *${data.title}* 🎬\n\n` +
-                                     `📅 *Release:* ${data.release_date}\n` +
-                                     `⭐ *IMDb:* ${data.imdb_rating}\n` +
-                                     `🎭 *Genres:* ${data.genres}\n\n` +
-                                     `*Select Download Quality:* \n\n`;
+                        if (!pixeldrainLinks) return reply("❌ No download links found for this movie.");
 
-                        data.dl_links.forEach((dl, i) => {
+                        let infoMsg = `🎬 *${selectedMovie.title.split('|')[0].trim()}* 🎬\n\n` +
+                                     `*Available Qualities:* \n\n`;
+
+                        pixeldrainLinks.forEach((dl, i) => {
                             infoMsg += `${i + 1}️⃣ ${dl.quality} (${dl.size})\n`;
                         });
-                        infoMsg += `\n> *Reply with the number to get the file.*`;
+                        infoMsg += `\n> *Reply with the number to download the file.*`;
 
-                        const infoSent = await bot.sendMessage(from, { image: { url: data.image }, caption: infoMsg }, { quoted: msgUpdate });
+                        const infoSent = await bot.sendMessage(from, { 
+                            image: { url: selectedMovie.image }, 
+                            caption: infoMsg 
+                        }, { quoted: msgUpdate });
 
-                        // --- Quality Listener ---
+                        // --- Quality Listener (Quality එක තේරීමට) ---
                         const qualityListener = async (qUpdate) => {
                             const qMsg = qUpdate.messages[0];
                             const qBody = qMsg.message?.conversation || qMsg.message?.extendedTextMessage?.text;
@@ -77,29 +83,30 @@ cmd({
 
                             if (isReplyToInfo && !isNaN(qBody)) {
                                 const qIndex = parseInt(qBody) - 1;
-                                const selectedDl = data.dl_links[qIndex];
+                                const selectedDl = pixeldrainLinks[qIndex];
 
                                 if (selectedDl) {
                                     bot.ev.off('messages.upsert', qualityListener);
                                     await bot.sendMessage(from, { react: { text: '⬇️', key: qMsg.key } });
 
                                     try {
-                                        // 3. Download API call
+                                        // 3. Download API - Direct Link එක ලබා ගැනීම
                                         const dlRes = await axios.get(`${BASE_API}/sinhalasub-download?apikey=${API_KEY}&url=${selectedDl.link}`);
-                                        const pixeldrainUrl = dlRes.data.result.pixeldrain_url;
-                                        const fileId = pixeldrainUrl.split('/').pop();
-                                        const directUrl = `https://pixeldrain.com/api/file/${fileId}?download`;
+                                        
+                                        // Pixeldrain direct API එකට redirect කරනවා
+                                        // සටහන: API එකෙන් එන්නේ සයිට් එකේ redirect ලින්ක් එකක් නම්, අපි ඒක පාවිච්චි කරනවා.
+                                        const finalUrl = dlRes.data.url;
 
                                         await bot.sendMessage(from, { 
-                                            document: { url: directUrl }, 
+                                            document: { url: finalUrl }, 
                                             mimetype: 'video/mp4', 
-                                            fileName: `[ZANTA-MD] ${data.title}.mp4`,
-                                            caption: `🎬 *${data.title}*\n📊 *Quality:* ${selectedDl.quality}\n\n> *© ZANTA-MD*`
+                                            fileName: `[ZANTA-MD] ${selectedMovie.title.split('|')[0].trim()}.mp4`,
+                                            caption: `🎬 *${selectedMovie.title.split('|')[0].trim()}*\n📊 *Quality:* ${selectedDl.quality}\n\n> *© ZANTA-MD*`
                                         }, { quoted: qMsg });
                                         
                                         await bot.sendMessage(from, { react: { text: '✅', key: qMsg.key } });
                                     } catch (err) {
-                                        reply("❌ Download link error.");
+                                        reply("❌ ලින්ක් එක සැකසීමේ දෝෂයකි.");
                                     }
                                 }
                             }
@@ -108,7 +115,7 @@ cmd({
                         setTimeout(() => bot.ev.off('messages.upsert', qualityListener), 300000);
 
                     } catch (err) {
-                        reply("❌ Error fetching info.");
+                        reply("❌ විස්තර ලබා ගැනීමේ දෝෂයකි.");
                     }
                 }
             }
@@ -118,7 +125,6 @@ cmd({
         setTimeout(() => bot.ev.off('messages.upsert', movieListener), 300000);
 
     } catch (e) {
-        console.error("MOVIE ERROR:", e);
-        reply("❌ *Error:* " + e.message);
+        reply("❌ දෝෂයක් සිදු විය: " + e.message);
     }
 });
