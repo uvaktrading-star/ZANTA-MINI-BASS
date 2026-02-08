@@ -48,6 +48,7 @@ const SessionSchema = new mongoose.Schema({
 }, { collection: "sessions" });
 
 const Session = mongoose.models.Session || mongoose.model("Session", SessionSchema);
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 // --------------------------------------------------------------------------
 // [SECTION: UTILITY FUNCTIONS]
@@ -419,7 +420,10 @@ if (userSettings.alwaysOnline === "true") {
         if (userSettings.autoTyping === "true") await zanta.sendPresenceUpdate("composing", from);
         if (userSettings.autoVoice === "true" && !mek.key.fromMe) await zanta.sendPresenceUpdate("recording", from);
 
-        const reply = (text) => zanta.sendMessage(from, { text }, { quoted: mek });
+        const reply = async (text) => {
+            await sleep(800);
+            return await zanta.sendMessage(from, { text }, { quoted: mek });
+        };
 
         // Logic for Interactive Menu/Settings Replies
         const isSettingsReply = m.quoted && lastSettingsMessage?.get(from) === m.quoted.id;
