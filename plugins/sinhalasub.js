@@ -1,121 +1,139 @@
 const { cmd } = require("../command");
 const axios = require("axios");
 
-// තාවකාලිකව දත්ත ගබඩා කිරීමට
-const pendingMovie = {};
-const pendingQuality = {};
+// තාවකාලිකව දත්ත මතක තබා ගැනීමට (Memory Store)
+const movieSession = {}; 
 
 const API_KEY = "darknero";
 const BASE_API = "https://apis.sandarux.sbs/api/movie";
 
+// 1. ප්‍රධාන Movie Search Command එක
 cmd({
     pattern: "movie",
-    alias: ["sinhalasub", "film"],
+    alias: ["sinhalasub", "film", "cinema"],
     react: "🎬",
-    desc: "Search and download movies from Sinhalasub.",
+    desc: "Search and download movies from Sinhalasub.lk",
     category: "download",
     filename: __filename
-}, async (conn, mek, m, { from, q, sender, reply }) => {
+}, async (bot, mek, m, { from, q, reply, sender }) => {
     try {
-        if (!q) return reply("❗ කරුණාකර චිත්‍රපටයේ නම ලබා දෙන්න. (උදා: .movie Avengers)");
+        if (!q) return reply("🎬 *ZANTA MOVIE SEARCH*\n\nExample: .movie Avengers");
 
-        reply("🔎 Searching for movie...");
-
-        // 1. Search API
         const searchRes = await axios.get(`${BASE_API}/sinhalasub-search?apikey=${API_KEY}&q=${encodeURIComponent(q)}`);
         
         if (!searchRes.data.status || !searchRes.data.results.length) {
-            return reply("❌ කිසිදු චිත්‍රපටයක් හමු නොවීය.");
+            return reply("❌ No results found for your search.");
         }
 
         const results = searchRes.data.results.slice(0, 10);
-        pendingMovie[sender] = { results, timestamp: Date.now() };
+        
+        // Session එකක් Create කරනවා (මේක විනාඩි 10කින් මැකෙනවා)
+        movieSession[sender] = { 
+            step: 'selection', 
+            results: results, 
+            time: Date.now() 
+        };
 
-        let msg = "*🎬 SINHALASUB MOVIE SEARCH*\n\n";
+        let msg = `🎬 *ZANTA MOVIE SEARCH* 🎬\n\n`;
         results.forEach((res, index) => {
-            msg += `*${index + 1}.* ${res.title}\n`;
+            msg += `${index + 1}️⃣ *${res.title}*\n`;
         });
-        msg += "\n*Reply පණිවිඩයක් ලෙස අදාළ අංකය ලබා දෙන්න.*";
+        msg += `\n*Reply with a number to see details.* \n\n> *© ZANTA-MD MOVIE SERVICE*`;
 
-        await conn.sendMessage(from, { text: msg }, { quoted: mek });
+        await bot.sendMessage(from, { 
+            image: { url: results[0].thumbnail || "https://i.ibb.co/vz609p0/movie.jpg" }, 
+            caption: msg 
+        }, { quoted: mek });
 
     } catch (e) {
-        console.log(e);
-        reply("❌ දෝෂයක් සිදු විය: " + e.message);
+        console.error(e);
+        reply("❌ Search error: " + e.message);
     }
 });
 
-// Reply Logic - චිත්‍රපටය තේරීම සහ Info ලබා ගැනීම
+// 2. Reply අල්ලාගන්නා කොටස (On Text Listener)
 cmd({
     on: "text"
-}, async (conn, mek, m, { body, from, sender, reply }) => {
-    const prefix = "."; // ඔයාගේ බොට්ගේ prefix එක මෙතනට දාන්න
-    if (body.startsWith(prefix)) return; 
-
-    // 1. චිත්‍රපට අංකය තේරීම
-    if (pendingMovie[sender] && !isNaN(body)) {
+}, async (bot, mek, m, { body, from, sender, reply }) => {
+    
+    // 1 වන පියවර: චිත්‍රපටය තේරීම
+    if (movieSession[sender] && movieSession[sender].step === 'selection' && !isNaN(body)) {
         const index = parseInt(body) - 1;
-        const selected = pendingMovie[sender].results[index];
+        const selected = movieSession[sender].results[index];
 
-        if (selected) {
-            delete pendingMovie[sender];
-            reply("📥 Fetching movie details...");
+        if (!selected) return; // වැරදි අංකයක් නම් කිසිවක් නොකරයි
 
-            try {
-                // 2. Info API
-                const infoRes = await axios.get(`${BASE_API}/sinhalasub-info?apikey=${API_KEY}&url=${selected.link}`);
-                const data = infoRes.data.result;
+        await bot.sendMessage(from, { react: { text: '⏳', key: m.key } });
 
-                let msg = `*🎬 ${data.title}*\n\n`;
-                msg += `📅 Release: ${data.release_date}\n`;
-                msg += `⭐ Rating: ${data.imdb_rating}\n`;
-                msg += `🎭 Genres: ${data.genres}\n\n`;
-                msg += `*📥 Available Qualities:*\n`;
+        try {
+            const infoRes = await axios.get(`${BASE_API}/sinhalasub-info?apikey=${API_KEY}&url=${selected.link}`);
+            const data = infoRes.data.result;
 
-                data.dl_links.forEach((dl, i) => {
-                    msg += `*${i + 1}.* ${dl.quality} (${dl.size})\n`;
-                });
+            movieSession[sender].step = 'quality';
+            movieSession[sender].selectedMovie = data;
+            movieSession[sender].dl_links = data.dl_links;
 
-                msg += "\n*බාගත කිරීමට අවශ්‍ය Quality අංකය Reply කරන්න.*";
+            let msg = `🎬 *${data.title}* 🎬\n\n` +
+                      `📅 *Release:* ${data.release_date}\n` +
+                      `⭐ *IMDb:* ${data.imdb_rating}\n` +
+                      `🎭 *Genres:* ${data.genres}\n\n` +
+                      `*Select Download Quality:* \n\n`;
 
-                pendingQuality[sender] = { links: data.dl_links, title: data.title, timestamp: Date.now() };
-                
-                await conn.sendMessage(from, { image: { url: data.image }, caption: msg }, { quoted: mek });
+            data.dl_links.forEach((dl, i) => {
+                msg += `${i + 1}️⃣ ${dl.quality} (${dl.size})\n`;
+            });
 
-            } catch (e) {
-                reply("❌ විස්තර ලබා ගැනීමට නොහැකි විය.");
-            }
+            msg += `\n> *Reply with the number to get the file.*`;
+
+            await bot.sendMessage(from, { image: { url: data.image }, caption: msg }, { quoted: mek });
+
+        } catch (e) {
+            reply("❌ Error fetching movie info.");
         }
     }
 
-    // 2. Quality එක තේරීම සහ Direct Link ලබා ගැනීම
-    else if (pendingQuality[sender] && !isNaN(body)) {
+    // 2 වන පියවර: Quality එක තේරීම සහ Document එක යැවීම
+    else if (movieSession[sender] && movieSession[sender].step === 'quality' && !isNaN(body)) {
         const index = parseInt(body) - 1;
-        const selectedLink = pendingQuality[sender].links[index];
+        const selectedDl = movieSession[sender].dl_links[index];
+        const movieTitle = movieSession[sender].selectedMovie.title;
 
-        if (selectedLink) {
-            const movieTitle = pendingQuality[sender].title;
-            delete pendingQuality[sender];
-            reply("🔗 Generating download link...");
+        if (!selectedDl) return;
 
-            try {
-                // 3. Download API
-                const dlRes = await axios.get(`${BASE_API}/sinhalasub-download?apikey=${API_KEY}&url=${selectedLink.link}`);
-                
-                if (dlRes.data.status) {
-                    const directUrl = dlRes.data.result.pixeldrain_url; // මෙතන pixeldrain api එකෙන් direct link එක ගන්නවා
-                    const finalDl = `https://pixeldrain.com/api/file/${directUrl.split('/').pop()}?download`;
+        await bot.sendMessage(from, { react: { text: '⬇️', key: m.key } });
+        
+        // Session එක පිරිසිදු කරනවා වැඩේ ඉවර නිසා
+        delete movieSession[sender];
 
-                    await conn.sendMessage(from, { 
-                        document: { url: finalDl }, 
-                        mimetype: 'video/mp4', 
-                        fileName: `${movieTitle}.mp4`,
-                        caption: `*🎬 ${movieTitle}*\n✅ Downloaded successfully!`
-                    }, { quoted: mek });
-                }
-            } catch (e) {
-                reply("❌ බාගත කිරීමේ ලින්ක් එක සැකසීමට නොහැකි විය.");
+        try {
+            const dlRes = await axios.get(`${BASE_API}/sinhalasub-download?apikey=${API_KEY}&url=${selectedDl.link}`);
+            
+            if (dlRes.data.status) {
+                const pixeldrainUrl = dlRes.data.result.pixeldrain_url;
+                const fileId = pixeldrainUrl.split('/').pop();
+                const directUrl = `https://pixeldrain.com/api/file/${fileId}?download`;
+
+                await bot.sendMessage(from, { 
+                    document: { url: directUrl }, 
+                    mimetype: 'video/mp4', 
+                    fileName: `[ZANTA-MD] ${movieTitle}.mp4`,
+                    caption: `🎬 *${movieTitle}*\n📊 *Quality:* ${selectedDl.quality}\n\n> *© ZANTA-MD MOVIE SERVICE*`
+                }, { quoted: mek });
+
+                await bot.sendMessage(from, { react: { text: '✅', key: m.key } });
             }
+        } catch (e) {
+            reply("❌ Failed to generate download link.");
         }
     }
 });
+
+// විනාඩි 10කට පසු Session දත්ත ඉබේම මකා දැමීම (Server එක Slow නොවීමට)
+setInterval(() => {
+    const now = Date.now();
+    for (const user in movieSession) {
+        if (now - movieSession[user].time > 600000) {
+            delete movieSession[user];
+        }
+    }
+}, 60000);
