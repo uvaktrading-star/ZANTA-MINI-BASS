@@ -81,40 +81,48 @@ cmd({
                                 const selectedDl = pixeldrainLinks[qIndex];
 
                                 if (selectedDl) {
-                                    bot.ev.off('messages.upsert', qualityListener);
-                                    await bot.sendMessage(from, { react: { text: '⬇️', key: qMsg.key } });
+    bot.ev.off('messages.upsert', qualityListener);
+    await bot.sendMessage(from, { react: { text: '⬇️', key: qMsg.key } });
 
-                                    try {
-                                        // 3. Download API call
-                                        const dlRes = await axios.get(`${BASE_API}/sinhalasub-download?apikey=${API_KEY}&url=${selectedDl.link}`);
-                                        let finalUrl = dlRes.data.url;
+    try {
+        const dlRes = await axios.get(`${BASE_API}/sinhalasub-download?apikey=${API_KEY}&url=${selectedDl.link}`);
+        let finalUrl = dlRes.data.url;
 
-                                        // Direct link conversion (Pixeldrain)
-                                        if (finalUrl.includes('pixeldrain.com/u/')) {
-                                            finalUrl = finalUrl.replace('/u/', '/api/file/') + "?download";
-                                        } 
-                                        else if (finalUrl.includes('ddl.sinhalasub.net')) {
-                                            // Redirect check - Redirect වෙන URL එක කෙලින්ම ගන්නවා
-                                            const head = await axios.head(finalUrl, { maxRedirects: 0, validateStatus: null });
-                                            finalUrl = head.headers.location || finalUrl;
-                                        }
+        if (finalUrl.includes('pixeldrain.com/u/')) {
+            finalUrl = finalUrl.replace('/u/', '/api/file/') + "?download";
+        }
 
-                                        // --- මෙන්න මෙතනයි විසඳුම ---
-                                        // Baileys වලට URL එක දුන්නම ඒක internally stream කරනවා
-                                        await bot.sendMessage(from, { 
-                                            document: { url: finalUrl }, // මෙතනට direct URL එක දෙනවා
-                                            mimetype: 'video/mp4', 
-                                            fileName: `[ZANTA-MD] ${selectedMovie.title.split('|')[0].trim()}.mp4`,
-                                            caption: `🎬 *${selectedMovie.title.split('|')[0].trim()}*\n📊 *Quality:* ${selectedDl.quality}\n\n> *© ZANTA-MD*`
-                                        }, { quoted: qMsg });
-                                        
-                                        await bot.sendMessage(from, { react: { text: '✅', key: qMsg.key } });
+        // 1. Axios stream එක ගන්නවා
+        const response = await axios({
+            method: 'get',
+            url: finalUrl,
+            responseType: 'stream',
+            // ලොකු ෆයිල් වලදී timeout නොවී ඉන්න
+            timeout: 0 
+        });
 
-                                    } catch (err) {
-                                        console.error(err);
-                                        reply("❌ ලින්ක් එක ලබා ගැනීමේදී දෝෂයක් ආවා.");
-                                    }
-                                }
+        // 2. මෙන්න මෙතනයි වැදගත්ම කොටස
+        // Stream එක කෙලින්ම යවනවා, හැබැයි මුළු ෆයිල් එකම RAM එකට ගන්න දෙන්නේ නැහැ
+        await bot.sendMessage(from, { 
+            document: response.data, 
+            mimetype: 'video/mp4', 
+            fileName: `[ZANTA-MD] ${selectedMovie.title.split('|')[0].trim()}.mp4`,
+            caption: `🎬 *${selectedMovie.title.split('|')[0].trim()}*\n📊 *Quality:* ${selectedDl.quality}\n\n> *© ZANTA-MD*`
+        }, { quoted: qMsg });
+
+        // 3. යවා ඉවර වුණ ගමන් stream එක close කරලා memory එක නිදහස් කරනවා
+        response.data.destroy(); 
+        
+        await bot.sendMessage(from, { react: { text: '✅', key: qMsg.key } });
+
+        // බලෙන්ම Garbage Collection එකට hint එකක් දෙනවා (Optional)
+        if (global.gc) { global.gc(); }
+
+    } catch (err) {
+        console.error(err);
+        reply("❌ Stream Error: " + err.message);
+    }
+}
                             }
                         };
                         bot.ev.on('messages.upsert', qualityListener);
