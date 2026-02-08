@@ -392,7 +392,7 @@ async function connectToWA(sessionData) {
         const m = sms(zanta, mek);
 
         // Song Downloader Reply Helper
-        const isSongReply = m.quoted?.caption?.includes("🎵 *SONG DOWNLOADER*");
+        const isSongReply = m.quoted?.caption?.includes("🎵 *ZANTA AUDIO PLAYER* 🎵");
         if (isSongReply && body && !isCmd) {
             const songUrlMatch = m.quoted.caption.match(/🔗 \*Link:\* (https?:\/\/[^\s]+)/);
             if (songUrlMatch) {
