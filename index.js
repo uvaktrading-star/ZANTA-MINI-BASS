@@ -595,5 +595,3 @@ setTimeout(async () => {
     setTimeout(() => process.exit(0), 5000);
 }, 60 * 60 * 1000);
 
-
-dan harida?always online off karoth hama velema online pennannenadda?
