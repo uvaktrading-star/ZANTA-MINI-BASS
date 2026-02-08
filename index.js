@@ -34,6 +34,7 @@ const activeSockets = new Set();
 const lastWorkTypeMessage = new Map();
 const lastAntiDeleteMessage = new Map();
 
+global.lastSongMessage = new Map();
 global.activeSockets = new Set();
 global.BOT_SESSIONS_CONFIG = {};
 const MY_APP_ID = String(process.env.APP_ID || "1");
@@ -392,15 +393,25 @@ async function connectToWA(sessionData) {
         const m = sms(zanta, mek);
 
         // Song Downloader Reply Helper
-        const isSongReply = m.quoted?.caption?.includes("🎵 *ZANTA AUDIO PLAYER* 🎵");
-        if (isSongReply && body && !isCmd) {
-            const songUrlMatch = m.quoted.caption.match(/🔗 \*Link:\* (https?:\/\/[^\s]+)/);
-            if (songUrlMatch) {
-                const songUrl = songUrlMatch[1];
-                if (body === "1") { body = `${prefix}ytsong_audio ${songUrl}`; isCmd = true; }
-                else if (body === "2") { body = `${prefix}ytsong_doc ${songUrl}`; isCmd = true; }
-            }
-        }
+        const isSongReply = m.quoted && lastSongMessage.get(from) === m.quoted.id;
+if (isSongReply && body && !isCmd) {
+    // Caption එකෙන් හෝ context එකෙන් Link එක සොයා ගැනීම
+    const textContext = m.quoted.caption || m.quoted.text || "";
+    const songUrlMatch = textContext.match(/🔗 \*Link:\* (https?:\/\/[^\s]+)/) || textContext.match(/(https?:\/\/youtu\.be\/[^\s]+|https?:\/\/(www\.)?youtube\.com\/watch\?v=[^\s&]+)/);
+    
+    if (songUrlMatch) {
+        const songUrl = songUrlMatch[1];
+        if (body === "1") { 
+            body = `${prefix}ytsong_audio ${songUrl}`; 
+            isCmd = true; 
+        } else if (body === "2") { 
+            body = `${prefix}ytsong_doc ${songUrl}`; 
+            isCmd = true; 
+        }
+        // Selection එකෙන් පසු Map එකෙන් අයින් කරන්න (optional)
+        lastSongMessage.delete(from);
+    }
+}
 
         // Custom Auto Replies
         if (userSettings.autoReply === "true" && userSettings.autoReplies && !isCmd && !mek.key.fromMe) {
