@@ -87,31 +87,35 @@ cmd({
                                     try {
                                         // 3. Download API call
                                         const dlRes = await axios.get(`${BASE_API}/sinhalasub-download?apikey=${API_KEY}&url=${selectedDl.link}`);
-                                        
                                         let finalUrl = dlRes.data.url;
 
-                                        // --- මෙන්න මෙතනයි වැදගත්ම කොටස (Direct Link Fix) ---
-                                        // Pixeldrain ලින්ක් එකක් නම් ඒක direct download link එකකට හරවනවා
+                                        // Direct link fix (Pixeldrain)
                                         if (finalUrl.includes('pixeldrain.com/u/')) {
                                             finalUrl = finalUrl.replace('/u/', '/api/file/') + "?download";
                                         } 
-                                        // සින්හලසබ් ddl ලින්ක් එකක් නම් (redirect ලින්ක් එකක් නම්)
                                         else if (finalUrl.includes('ddl.sinhalasub.net')) {
-                                            // සමහර වෙලාවට මේ ලින්ක් එක axios වලින් ආයෙත් fetch කරලා real link එක ගන්න වෙනවා
                                             const head = await axios.head(finalUrl);
                                             finalUrl = head.request.res.responseUrl || finalUrl;
                                         }
 
+                                        // --- STREAMING Logic එක මෙතනින් ආරම්භ වේ ---
+                                        const streamRes = await axios({
+                                            method: 'get',
+                                            url: finalUrl,
+                                            responseType: 'stream'
+                                        });
+
                                         await bot.sendMessage(from, { 
-                                            document: { url: finalUrl }, 
+                                            document: streamRes.data, // Stream එක කෙලින්ම document එකට දෙනවා
                                             mimetype: 'video/mp4', 
                                             fileName: `[ZANTA-MD] ${selectedMovie.title.split('|')[0].trim()}.mp4`,
                                             caption: `🎬 *${selectedMovie.title.split('|')[0].trim()}*\n📊 *Quality:* ${selectedDl.quality}\n\n> *© ZANTA-MD*`
                                         }, { quoted: qMsg });
                                         
                                         await bot.sendMessage(from, { react: { text: '✅', key: qMsg.key } });
+
                                     } catch (err) {
-                                        reply("❌ ලින්ක් එක ලබා ගැනීමේදී දෝෂයක් ආවා. කරුණාකර වෙනත් quality එකක් උත්සාහ කරන්න.");
+                                        reply("❌ ලින්ක් එක ලබා ගැනීමේදී හෝ Stream කිරීමේදී දෝෂයක් ආවා.");
                                     }
                                 }
                             }
