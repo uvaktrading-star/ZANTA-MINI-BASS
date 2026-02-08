@@ -30,8 +30,8 @@ cmd(
       const appSize = (app.size / 1048576).toFixed(2);
 
       // සයිස් එක 400MB වලට වඩා වැඩි නම් පණිවිඩයක් දීම
-      if (parseFloat(appSize) > 400) {
-        return reply(`🚫 *File is too large (${appSize} MB).* Max limit is 400MB.`);
+      if (parseFloat(appSize) > 600) {
+        return reply(`🚫 *File is too large (${appSize} MB).* Max limit is 600MB.`);
       }
 
       const caption = `📦 *ZANTA-MD APK DOWNLOADER* 📦\n\n` +
