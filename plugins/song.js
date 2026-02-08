@@ -27,7 +27,7 @@ cmd({
                   `👤 *Artist:* ${video.author.name}\n` +
                   `⏱️ *Duration:* ${video.timestamp}\n` +
                   `🔗 *Link:* ${video.url}\n\n` +
-                  (isButtonsOn ? `ꜱᴇʟᴇᴄᴛ ᴀ ꜰۆʀᴍᴀᴛ ʙᴇʟۆව 👇` : `*Reply with a number:* \n\n1️⃣ *Audio File* (MPEG)\n2️⃣ *Document File* (MP3)\n\n> *© ZANTA-MD SONG SERVICE*`);
+                  (isButtonsOn ? `ꜱᴇʟᴇᴄᴛ 👇` : `*Reply with a number:* \n\n1️⃣ *Audio File* (MPEG)\n2️⃣ *Document File* (MP3)\n\n> *© ZANTA-MD SONG SERVICE*`);
 
         const contextInfo = {
             forwardingScore: 999,
