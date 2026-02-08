@@ -52,15 +52,11 @@ cmd({
                     try {
                         const infoRes = await axios.get(`${BASE_API}/sinhalasub-info?apikey=${API_KEY}&url=${selectedMovie.link}`);
                         const infoData = infoRes.data;
-                        
-                        // Pixeldrain ලින්ක්ස් තියෙන තැන හරියටම ගන්නවා
                         const pixeldrainLinks = infoData.links.Pixeldrain || infoData.links["DLServer 02"] || infoData.links["UsersDrive"]; 
 
                         if (!pixeldrainLinks) return reply("❌ No download links found.");
 
-                        let infoMsg = `🎬 *${selectedMovie.title.split('|')[0].trim()}* 🎬\n\n` +
-                                     `*Available Qualities:* \n\n`;
-
+                        let infoMsg = `🎬 *${selectedMovie.title.split('|')[0].trim()}* 🎬\n\n` + `*Available Qualities:* \n\n`;
                         pixeldrainLinks.forEach((dl, i) => {
                             infoMsg += `${i + 1}️⃣ ${dl.quality} (${dl.size})\n`;
                         });
@@ -81,63 +77,53 @@ cmd({
                                 const selectedDl = pixeldrainLinks[qIndex];
 
                                 if (selectedDl) {
-    bot.ev.off('messages.upsert', qualityListener);
-    await bot.sendMessage(from, { react: { text: '⬇️', key: qMsg.key } });
+                                    bot.ev.off('messages.upsert', qualityListener);
+                                    await bot.sendMessage(from, { react: { text: '⬇️', key: qMsg.key } });
 
-    try {
-        const dlRes = await axios.get(`${BASE_API}/sinhalasub-download?apikey=${API_KEY}&url=${selectedDl.link}`);
-        let finalUrl = dlRes.data.url;
+                                    try {
+                                        const dlRes = await axios.get(`${BASE_API}/sinhalasub-download?apikey=${API_KEY}&url=${selectedDl.link}`);
+                                        let finalUrl = dlRes.data.url;
 
-        if (finalUrl.includes('pixeldrain.com/u/')) {
-            finalUrl = finalUrl.replace('/u/', '/api/file/') + "?download";
-        }
+                                        if (finalUrl.includes('pixeldrain.com/u/')) {
+                                            finalUrl = finalUrl.replace('/u/', '/api/file/') + "?download";
+                                        }
 
-        // 1. Axios stream එක ගන්නවා
-        const response = await axios({
-            method: 'get',
-            url: finalUrl,
-            responseType: 'stream',
-            // ලොකු ෆයිල් වලදී timeout නොවී ඉන්න
-            timeout: 0 
-        });
+                                        // --- RAM-SAFE STREAMING LOGIC ---
+                                        const response = await axios({
+                                            method: 'get',
+                                            url: finalUrl,
+                                            responseType: 'stream',
+                                            timeout: 0
+                                        });
 
-        // 2. මෙන්න මෙතනයි වැදගත්ම කොටස
-        // Stream එක කෙලින්ම යවනවා, හැබැයි මුළු ෆයිල් එකම RAM එකට ගන්න දෙන්නේ නැහැ
-        await bot.sendMessage(from, { 
-            document: response.data, 
-            mimetype: 'video/mp4', 
-            fileName: `[ZANTA-MD] ${selectedMovie.title.split('|')[0].trim()}.mp4`,
-            caption: `🎬 *${selectedMovie.title.split('|')[0].trim()}*\n📊 *Quality:* ${selectedDl.quality}\n\n> *© ZANTA-MD*`
-        }, { quoted: qMsg });
+                                        await bot.sendMessage(from, { 
+                                            document: response.data, 
+                                            mimetype: 'video/mp4', 
+                                            fileName: `[ZANTA-MD] ${selectedMovie.title.split('|')[0].trim()}.mp4`,
+                                            caption: `🎬 *${selectedMovie.title.split('|')[0].trim()}*\n📊 *Quality:* ${selectedDl.quality}\n\n> *© ZANTA-MD*`
+                                        }, { quoted: qMsg });
+                                        
+                                        // වැඩේ ඉවර වුණ ගමන් stream එක විනාශ කරලා memory එක නිදහස් කරනවා
+                                        response.data.destroy(); 
+                                        
+                                        await bot.sendMessage(from, { react: { text: '✅', key: qMsg.key } });
 
-        // 3. යවා ඉවර වුණ ගමන් stream එක close කරලා memory එක නිදහස් කරනවා
-        response.data.destroy(); 
-        
-        await bot.sendMessage(from, { react: { text: '✅', key: qMsg.key } });
-
-        // බලෙන්ම Garbage Collection එකට hint එකක් දෙනවා (Optional)
-        if (global.gc) { global.gc(); }
-
-    } catch (err) {
-        console.error(err);
-        reply("❌ Stream Error: " + err.message);
-    }
-}
+                                    } catch (err) {
+                                        reply("❌ Download error. Heroku memory limit exceeded.");
+                                    }
+                                }
                             }
                         };
                         bot.ev.on('messages.upsert', qualityListener);
                         setTimeout(() => bot.ev.off('messages.upsert', qualityListener), 300000);
-
                     } catch (err) {
                         reply("❌ විස්තර ලබා ගැනීමේ දෝෂයකි.");
                     }
                 }
             }
         };
-
         bot.ev.on('messages.upsert', movieListener);
         setTimeout(() => bot.ev.off('messages.upsert', movieListener), 300000);
-
     } catch (e) {
         reply("❌ දෝෂයක් සිදු විය: " + e.message);
     }
