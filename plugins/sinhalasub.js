@@ -89,24 +89,20 @@ cmd({
                                         const dlRes = await axios.get(`${BASE_API}/sinhalasub-download?apikey=${API_KEY}&url=${selectedDl.link}`);
                                         let finalUrl = dlRes.data.url;
 
-                                        // Direct link fix (Pixeldrain)
+                                        // Direct link conversion (Pixeldrain)
                                         if (finalUrl.includes('pixeldrain.com/u/')) {
                                             finalUrl = finalUrl.replace('/u/', '/api/file/') + "?download";
                                         } 
                                         else if (finalUrl.includes('ddl.sinhalasub.net')) {
-                                            const head = await axios.head(finalUrl);
-                                            finalUrl = head.request.res.responseUrl || finalUrl;
+                                            // Redirect check - Redirect වෙන URL එක කෙලින්ම ගන්නවා
+                                            const head = await axios.head(finalUrl, { maxRedirects: 0, validateStatus: null });
+                                            finalUrl = head.headers.location || finalUrl;
                                         }
 
-                                        // --- STREAMING Logic එක මෙතනින් ආරම්භ වේ ---
-                                        const streamRes = await axios({
-                                            method: 'get',
-                                            url: finalUrl,
-                                            responseType: 'stream'
-                                        });
-
+                                        // --- මෙන්න මෙතනයි විසඳුම ---
+                                        // Baileys වලට URL එක දුන්නම ඒක internally stream කරනවා
                                         await bot.sendMessage(from, { 
-                                            document: streamRes.data, // Stream එක කෙලින්ම document එකට දෙනවා
+                                            document: { url: finalUrl }, // මෙතනට direct URL එක දෙනවා
                                             mimetype: 'video/mp4', 
                                             fileName: `[ZANTA-MD] ${selectedMovie.title.split('|')[0].trim()}.mp4`,
                                             caption: `🎬 *${selectedMovie.title.split('|')[0].trim()}*\n📊 *Quality:* ${selectedDl.quality}\n\n> *© ZANTA-MD*`
@@ -115,7 +111,8 @@ cmd({
                                         await bot.sendMessage(from, { react: { text: '✅', key: qMsg.key } });
 
                                     } catch (err) {
-                                        reply("❌ ලින්ක් එක ලබා ගැනීමේදී හෝ Stream කිරීමේදී දෝෂයක් ආවා.");
+                                        console.error(err);
+                                        reply("❌ ලින්ක් එක ලබා ගැනීමේදී දෝෂයක් ආවා.");
                                     }
                                 }
                             }
