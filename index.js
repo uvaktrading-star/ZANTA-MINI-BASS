@@ -393,23 +393,22 @@ async function connectToWA(sessionData) {
         const m = sms(zanta, mek);
 
         // Song Downloader Reply Helper
-        const isSongReply = m.quoted && lastSongMessage.get(from) === m.quoted.id;
+        const isSongReply = m.quoted && global.lastSongMessage.get(from) === m.quoted.id;
+
 if (isSongReply && body && !isCmd) {
-    // Caption එකෙන් හෝ context එකෙන් Link එක සොයා ගැනීම
     const textContext = m.quoted.caption || m.quoted.text || "";
-    const songUrlMatch = textContext.match(/🔗 \*Link:\* (https?:\/\/[^\s]+)/) || textContext.match(/(https?:\/\/youtu\.be\/[^\s]+|https?:\/\/(www\.)?youtube\.com\/watch\?v=[^\s&]+)/);
+    // Link එක extract කරගන්නා ආකාරය
+    const songUrlMatch = textContext.match(/🔗 \*Link:\* (https?:\/\/[^\s]+)/);
     
     if (songUrlMatch) {
         const songUrl = songUrlMatch[1];
-        if (body === "1") { 
-            body = `${prefix}ytsong_audio ${songUrl}`; 
-            isCmd = true; 
-        } else if (body === "2") { 
-            body = `${prefix}ytsong_doc ${songUrl}`; 
-            isCmd = true; 
+        if (body === "1") {
+            // මෙහිදී execute කරන්නේ plugins වල ඇති හසුරුවන්නන්ය
+            await commands.find(c => c.pattern === "ytsong_audio").function(zanta, mek, m, { from, q: songUrl, reply });
+        } else if (body === "2") {
+            await commands.find(c => c.pattern === "ytsong_doc").function(zanta, mek, m, { from, q: songUrl, reply });
         }
-        // Selection එකෙන් පසු Map එකෙන් අයින් කරන්න (optional)
-        lastSongMessage.delete(from);
+        global.lastSongMessage.delete(from);
     }
 }
 
