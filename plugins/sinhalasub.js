@@ -15,7 +15,6 @@ cmd({
     try {
         if (!q) return reply("🎬 *ZANTA MOVIE SEARCH*\n\nExample: .movie Avengers");
 
-        // 1. Search API - චිත්‍රපට සෙවීම
         const searchRes = await axios.get(`${BASE_API}/sinhalasub-search?apikey=${API_KEY}&q=${encodeURIComponent(q)}`);
         
         if (!searchRes.data.status || !searchRes.data.results.length) {
@@ -26,7 +25,6 @@ cmd({
         let msg = `🎬 *ZANTA MOVIE SEARCH* 🎬\n\n`;
         
         results.forEach((res, index) => {
-            // API එකෙන් එන්නේ image කියන key එකෙන්
             msg += `${index + 1}️⃣ *${res.title.split('|')[0].trim()}*\n`;
         });
         msg += `\n*Reply with the number to see quality list.* \n\n> *© ZANTA-MD MOVIE SERVICE*`;
@@ -36,7 +34,6 @@ cmd({
             caption: msg 
         }, { quoted: mek });
 
-        // --- Selection Listener (චිත්‍රපටය තේරීමට) ---
         const movieListener = async (update) => {
             const msgUpdate = update.messages[0];
             if (!msgUpdate.message) return;
@@ -49,18 +46,17 @@ cmd({
                 const selectedMovie = results[index];
 
                 if (selectedMovie) {
-                    bot.ev.off('messages.upsert', movieListener); // කලින් listener එක අයින් කරනවා
+                    bot.ev.off('messages.upsert', movieListener);
                     await bot.sendMessage(from, { react: { text: '⏳', key: msgUpdate.key } });
 
                     try {
-                        // 2. Info API - චිත්‍රපටයේ Quality ලින්ක්ස් ලබා ගැනීම
                         const infoRes = await axios.get(`${BASE_API}/sinhalasub-info?apikey=${API_KEY}&url=${selectedMovie.link}`);
                         const infoData = infoRes.data;
                         
-                        // අපි පාවිච්චි කරන්නේ Pixeldrain ලින්ක්ස් විතරයි (Stable නිසා)
-                        const pixeldrainLinks = infoData.links.Pixeldrain || infoData.links["DLServer 02"]; 
+                        // Pixeldrain ලින්ක්ස් තියෙන තැන හරියටම ගන්නවා
+                        const pixeldrainLinks = infoData.links.Pixeldrain || infoData.links["DLServer 02"] || infoData.links["UsersDrive"]; 
 
-                        if (!pixeldrainLinks) return reply("❌ No download links found for this movie.");
+                        if (!pixeldrainLinks) return reply("❌ No download links found.");
 
                         let infoMsg = `🎬 *${selectedMovie.title.split('|')[0].trim()}* 🎬\n\n` +
                                      `*Available Qualities:* \n\n`;
@@ -68,14 +64,13 @@ cmd({
                         pixeldrainLinks.forEach((dl, i) => {
                             infoMsg += `${i + 1}️⃣ ${dl.quality} (${dl.size})\n`;
                         });
-                        infoMsg += `\n> *Reply with the number to download the file.*`;
+                        infoMsg += `\n> *Reply with the number to download.*`;
 
                         const infoSent = await bot.sendMessage(from, { 
                             image: { url: selectedMovie.image }, 
                             caption: infoMsg 
                         }, { quoted: msgUpdate });
 
-                        // --- Quality Listener (Quality එක තේරීමට) ---
                         const qualityListener = async (qUpdate) => {
                             const qMsg = qUpdate.messages[0];
                             const qBody = qMsg.message?.conversation || qMsg.message?.extendedTextMessage?.text;
@@ -90,12 +85,22 @@ cmd({
                                     await bot.sendMessage(from, { react: { text: '⬇️', key: qMsg.key } });
 
                                     try {
-                                        // 3. Download API - Direct Link එක ලබා ගැනීම
+                                        // 3. Download API call
                                         const dlRes = await axios.get(`${BASE_API}/sinhalasub-download?apikey=${API_KEY}&url=${selectedDl.link}`);
                                         
-                                        // Pixeldrain direct API එකට redirect කරනවා
-                                        // සටහන: API එකෙන් එන්නේ සයිට් එකේ redirect ලින්ක් එකක් නම්, අපි ඒක පාවිච්චි කරනවා.
-                                        const finalUrl = dlRes.data.url;
+                                        let finalUrl = dlRes.data.url;
+
+                                        // --- මෙන්න මෙතනයි වැදගත්ම කොටස (Direct Link Fix) ---
+                                        // Pixeldrain ලින්ක් එකක් නම් ඒක direct download link එකකට හරවනවා
+                                        if (finalUrl.includes('pixeldrain.com/u/')) {
+                                            finalUrl = finalUrl.replace('/u/', '/api/file/') + "?download";
+                                        } 
+                                        // සින්හලසබ් ddl ලින්ක් එකක් නම් (redirect ලින්ක් එකක් නම්)
+                                        else if (finalUrl.includes('ddl.sinhalasub.net')) {
+                                            // සමහර වෙලාවට මේ ලින්ක් එක axios වලින් ආයෙත් fetch කරලා real link එක ගන්න වෙනවා
+                                            const head = await axios.head(finalUrl);
+                                            finalUrl = head.request.res.responseUrl || finalUrl;
+                                        }
 
                                         await bot.sendMessage(from, { 
                                             document: { url: finalUrl }, 
@@ -106,7 +111,7 @@ cmd({
                                         
                                         await bot.sendMessage(from, { react: { text: '✅', key: qMsg.key } });
                                     } catch (err) {
-                                        reply("❌ ලින්ක් එක සැකසීමේ දෝෂයකි.");
+                                        reply("❌ ලින්ක් එක ලබා ගැනීමේදී දෝෂයක් ආවා. කරුණාකර වෙනත් quality එකක් උත්සාහ කරන්න.");
                                     }
                                 }
                             }
