@@ -23,11 +23,10 @@ cmd({
 
         const results = searchRes.data.results.slice(0, 10);
         let msg = `🎬 *ZANTA MOVIE SEARCH* 🎬\n\n`;
-        
         results.forEach((res, index) => {
             msg += `${index + 1}️⃣ *${res.title.split('|')[0].trim()}*\n`;
         });
-        msg += `\n*Reply with the number to see quality list.* \n\n> *© ZANTA-MD MOVIE SERVICE*`;
+        msg += `\n*Reply with number to see qualities.* \n\n> *© ZANTA-MD*`;
 
         const sentMsg = await bot.sendMessage(from, { 
             image: { url: results[0].image || "https://i.ibb.co/vz609p0/movie.jpg" }, 
@@ -52,15 +51,18 @@ cmd({
                     try {
                         const infoRes = await axios.get(`${BASE_API}/sinhalasub-info?apikey=${API_KEY}&url=${selectedMovie.link}`);
                         const infoData = infoRes.data;
-                        const pixeldrainLinks = infoData.links.Pixeldrain || infoData.links["DLServer 02"] || infoData.links["UsersDrive"]; 
+                        
+                        // SD සහ HD විතරක් filter කරලා ගන්නවා
+                        const rawLinks = infoData.links.Pixeldrain || infoData.links["DLServer 02"] || infoData.links["UsersDrive"]; 
+                        if (!rawLinks) return reply("❌ No download links found.");
+                        
+                        const filteredLinks = rawLinks.filter(l => l.quality.includes('SD') || l.quality.includes('HD') || l.quality.includes('720p') || l.quality.includes('480p'));
 
-                        if (!pixeldrainLinks) return reply("❌ No download links found.");
-
-                        let infoMsg = `🎬 *${selectedMovie.title.split('|')[0].trim()}* 🎬\n\n` + `*Available Qualities:* \n\n`;
-                        pixeldrainLinks.forEach((dl, i) => {
+                        let infoMsg = `🎬 *${selectedMovie.title.split('|')[0].trim()}*\n\n`;
+                        filteredLinks.forEach((dl, i) => {
                             infoMsg += `${i + 1}️⃣ ${dl.quality} (${dl.size})\n`;
                         });
-                        infoMsg += `\n> *Reply with the number to download.*`;
+                        infoMsg += `\n> *Reply with number to download.*`;
 
                         const infoSent = await bot.sendMessage(from, { 
                             image: { url: selectedMovie.image }, 
@@ -74,11 +76,13 @@ cmd({
 
                             if (isReplyToInfo && !isNaN(qBody)) {
                                 const qIndex = parseInt(qBody) - 1;
-                                const selectedDl = pixeldrainLinks[qIndex];
+                                const selectedDl = filteredLinks[qIndex];
 
                                 if (selectedDl) {
                                     bot.ev.off('messages.upsert', qualityListener);
-                                    await bot.sendMessage(from, { react: { text: '⬇️', key: qMsg.key } });
+                                    
+                                    // Downloading Message
+                                    const { key } = await reply("📥 *Downloading your movie... Please wait.*");
 
                                     try {
                                         const dlRes = await axios.get(`${BASE_API}/sinhalasub-download?apikey=${API_KEY}&url=${selectedDl.link}`);
@@ -88,12 +92,11 @@ cmd({
                                             finalUrl = finalUrl.replace('/u/', '/api/file/') + "?download";
                                         }
 
-                                        // --- RAM-SAFE STREAMING LOGIC ---
+                                        // RAM-Safe Direct Streaming
                                         const response = await axios({
                                             method: 'get',
                                             url: finalUrl,
-                                            responseType: 'stream',
-                                            timeout: 0
+                                            responseType: 'stream'
                                         });
 
                                         await bot.sendMessage(from, { 
@@ -103,19 +106,21 @@ cmd({
                                             caption: `🎬 *${selectedMovie.title.split('|')[0].trim()}*\n📊 *Quality:* ${selectedDl.quality}\n\n> *© ZANTA-MD*`
                                         }, { quoted: qMsg });
                                         
-                                        // වැඩේ ඉවර වුණ ගමන් stream එක විනාශ කරලා memory එක නිදහස් කරනවා
+                                        // 🗑️ RAM Cleanup
                                         response.data.destroy(); 
-                                        
+                                        await bot.sendMessage(from, { delete: key }); // Downloading message එක මකනවා
                                         await bot.sendMessage(from, { react: { text: '✅', key: qMsg.key } });
 
+                                        // Force Garbage Collection hint
+                                        if (global.gc) global.gc();
+
                                     } catch (err) {
-                                        reply("❌ Download error. Heroku memory limit exceeded.");
+                                        reply("❌ සර්වර් එකේ RAM සීමාව ඉක්මවා ගියා. කරුණාකර අඩු Quality එකක් තෝරන්න.");
                                     }
                                 }
                             }
                         };
                         bot.ev.on('messages.upsert', qualityListener);
-                        setTimeout(() => bot.ev.off('messages.upsert', qualityListener), 300000);
                     } catch (err) {
                         reply("❌ විස්තර ලබා ගැනීමේ දෝෂයකි.");
                     }
@@ -123,7 +128,6 @@ cmd({
             }
         };
         bot.ev.on('messages.upsert', movieListener);
-        setTimeout(() => bot.ev.off('messages.upsert', movieListener), 300000);
     } catch (e) {
         reply("❌ දෝෂයක් සිදු විය: " + e.message);
     }
