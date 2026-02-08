@@ -61,9 +61,9 @@ cmd({
             }, { quoted: mek });
 
             // index.js එකේ logic එකට හසු වීමට ID එක Save කිරීම
+            // මෙතන Map එකේ නම index.js එකේ නමට සමාන විය යුතුයි
             if (global.lastSongMessage) {
                 global.lastSongMessage.set(from, sentMsg.key.id);
-                // විනාඩි 10 කින් Map එකෙන් ඉවත් කිරීම
                 setTimeout(() => global.lastSongMessage.delete(from), 3 * 60 * 1000);
             }
         }
@@ -117,7 +117,6 @@ cmd({
     } catch (e) { reply("❌ Document Error"); }
 });
 
-// --- API Logic ---
 async function getDownloadLink(videoUrl) {
     try {
         const apiUrl = `https://api-site-x-by-manul.vercel.app/convert?mp3=${encodeURIComponent(videoUrl)}&apikey=Manul-Official`;
@@ -127,7 +126,5 @@ async function getDownloadLink(videoUrl) {
         const backupUrl = `https://api.giftedtech.my.id/api/download/dlmp3?url=${encodeURIComponent(videoUrl)}&apikey=gifted`;
         const backup = await axios.get(backupUrl);
         return backup.data.result?.download_url;
-    } catch (e) {
-        return null;
-    }
+    } catch (e) { return null; }
 }
