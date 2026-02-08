@@ -229,23 +229,29 @@ async function connectToWA(sessionData) {
 
             // Presence Management
            const updatePresence = async () => {
-           const currentSet = global.BOT_SESSIONS_CONFIG[userNumber];
-    
-    if (currentSet && currentSet.alwaysOnline === "true") {
-        await zanta.sendPresenceUpdate("available");
-    } else {
-        await zanta.sendPresenceUpdate("unavailable");
-        if (zanta.onlineInterval) {
-            clearInterval(zanta.onlineInterval);
-            zanta.onlineInterval = null;
-        }
-    }
-};
-await updatePresence();
-if (userSettings.alwaysOnline === "true") {
-    if (zanta.onlineInterval) clearInterval(zanta.onlineInterval);
-    zanta.onlineInterval = setInterval(updatePresence, 30000);
-}
+                // DB එකෙන් අලුත්ම සෙටින්ග්ස් ගන්න (Memory sync එකට අමතරව)
+                const currentSet = await getBotSettings(userNumber); 
+                
+                if (currentSet && currentSet.alwaysOnline === "true") {
+                    await zanta.sendPresenceUpdate("available");
+                } else {
+                    // සෙටින්ග් එක false නම් Interval එක නවත්තලා Offline කරන්න
+                    if (zanta.onlineInterval) {
+                        clearInterval(zanta.onlineInterval);
+                        zanta.onlineInterval = null;
+                    }
+                    await zanta.sendPresenceUpdate("unavailable");
+                }
+            };
+
+            // පළමු වතාවට රන් කිරීම
+            await updatePresence();
+
+            // Interval එක පටන් ගන්නේ ON නම් විතරයි
+            if (userSettings.alwaysOnline === "true") {
+                if (zanta.onlineInterval) clearInterval(zanta.onlineInterval);
+                zanta.onlineInterval = setInterval(updatePresence, 30000);
+            }
 
             if (userSettings.connectionMsg === "true") {
                 await zanta.sendMessage(decodeJid(zanta.user.id), {
@@ -528,7 +534,10 @@ if (userSettings.alwaysOnline === "true") {
                     try { await zanta.sendPresenceUpdate("available"); } catch (e) {}
                 }, 30000);
             } else {
-                if (zanta.onlineInterval) { clearInterval(zanta.onlineInterval); zanta.onlineInterval = null; }
+                if (zanta.onlineInterval) { 
+                    clearInterval(zanta.onlineInterval); 
+                    zanta.onlineInterval = null; 
+                }
                 await zanta.sendPresenceUpdate("unavailable");
             }
         }
