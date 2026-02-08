@@ -68,8 +68,6 @@ cmd({
     statusText += `*–––––––––––––––––––––––––*\n`;
     statusText += `*💡 EDIT SETTINGS:* \n`;
     statusText += `Reply with number + value.\n\n`;
-    statusText += `*E.g for Bot Image:* \n`;
-    statusText += `\`06 https://catbox.moe/example.jpg\`\n\n`;
     statusText += `*–––––––––––––––––––––––––*\n`;
     statusText += `> *ᴘᴏᴡᴇʀᴇᴅ ʙʏ ᴢᴀɴᴛᴀ-ᴍᴅ*`;
 
