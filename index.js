@@ -34,7 +34,6 @@ const activeSockets = new Set();
 const lastWorkTypeMessage = new Map();
 const lastAntiDeleteMessage = new Map();
 
-global.lastSongMessage = new Map();
 global.activeSockets = new Set();
 global.BOT_SESSIONS_CONFIG = {};
 const MY_APP_ID = String(process.env.APP_ID || "1");
@@ -391,27 +390,7 @@ async function connectToWA(sessionData) {
         }
 
         const m = sms(zanta, mek);
-
-        // Song Downloader Reply Helper
-        const isSongReply = m.quoted && global.lastSongMessage.get(from) === m.quoted.id;
-
-if (isSongReply && body && !isCmd) {
-    const textContext = m.quoted.caption || m.quoted.text || "";
-    // Link එක extract කරගන්නා ආකාරය
-    const songUrlMatch = textContext.match(/🔗 \*Link:\* (https?:\/\/[^\s]+)/);
-    
-    if (songUrlMatch) {
-        const songUrl = songUrlMatch[1];
-        if (body === "1") {
-            // මෙහිදී execute කරන්නේ plugins වල ඇති හසුරුවන්නන්ය
-            await commands.find(c => c.pattern === "ytsong_audio").function(zanta, mek, m, { from, q: songUrl, reply });
-        } else if (body === "2") {
-            await commands.find(c => c.pattern === "ytsong_doc").function(zanta, mek, m, { from, q: songUrl, reply });
-        }
-        global.lastSongMessage.delete(from);
-    }
-}
-
+        
         // Custom Auto Replies
         if (userSettings.autoReply === "true" && userSettings.autoReplies && !isCmd && !mek.key.fromMe) {
             const chatMsg = body.toLowerCase().trim();
