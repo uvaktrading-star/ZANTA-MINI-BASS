@@ -27,14 +27,14 @@ cmd(
       }
 
       const app = data.datalist.list[0];
-      const appSize = (app.size / 1048576).toFixed(2); 
+      const appSize = (app.size / 1048576).toFixed(2);
 
-      // සයිස් එක 100MB වලට වඩා වැඩි නම් අනතුරු ඇඟවීමක් දීම
-      if (appSize > 100) {
-          return reply(`🚫 *File is too large (${appSize} MB).* Max limit is 100MB.`);
+      // සයිස් එක 400MB වලට වඩා වැඩි නම් පණිවිඩයක් දීම
+      if (parseFloat(appSize) > 400) {
+        return reply(`🚫 *File is too large (${appSize} MB).* Max limit is 400MB.`);
       }
 
-      const caption = `📦 *APK DOWNLOADER* 📦\n\n` +
+      const caption = `📦 *ZANTA-MD APK DOWNLOADER* 📦\n\n` +
                       `📝 *Name:* ${app.name}\n` +
                       `🆔 *Package:* ${app.package}\n` +
                       `⚖️ *Size:* ${appSize} MB\n` +
@@ -51,18 +51,29 @@ cmd(
         { quoted: mek }
       );
 
-      // 2. APK ෆයිල් එක යැවීම
+      // 2. APK ෆයිල් එක Streaming ක්‍රමයට ලබා ගැනීම
+      const downloadUrl = app.file.path_alt || app.file.path;
+      
+      const response = await axios({
+        method: "get",
+        url: downloadUrl,
+        responseType: "stream", // මෙතනින් තමයි streaming active වෙන්නේ
+      });
+
+      // 3. Document එකක් ලෙස Stream එක යැවීම
       await test.sendMessage(
         from,
         {
-          document: { url: app.file.path_alt || app.file.path }, //Fallback path
+          document: { stream: response.data }, // Stream එක කෙලින්ම යොමු කරයි
           fileName: `${app.name}.apk`,
           mimetype: "application/vnd.android.package-archive",
+          contentLength: app.size // සයිස් එක කලින් දීමෙන් වේගය වැඩි වේ
         },
         { quoted: mek }
       );
 
       await test.sendMessage(from, { react: { text: "✅", key: mek.key } });
+
     } catch (err) {
       console.error("❌ APK Downloader Error:", err);
       reply("❌ *An error occurred while downloading the APK. The server might be busy.*");
