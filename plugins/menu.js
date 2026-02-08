@@ -1,133 +1,153 @@
-const { cmd } = require("../command");
-const axios = require("axios");
-const yts = require("yt-search");
+const { cmd, commands } = require("../command");
+const os = require('os');
 const config = require("../config");
+const axios = require('axios'); 
+
+const MENU_IMAGE_URL = "https://github.com/Akashkavindu/ZANTA_MD/blob/main/images/zanta-md.png?raw=true";
+const CHANNEL_JID = "120363406265537739@newsletter"; 
+const lastMenuMessage = new Map();
+
+// --- 🖼️ IMAGE PRE-LOAD LOGIC ---
+let cachedMenuImage = null;
+
+async function preLoadMenuImage() {
+    try {
+        const response = await axios.get(MENU_IMAGE_URL, { responseType: 'arraybuffer' });
+        cachedMenuImage = Buffer.from(response.data);
+        console.log("✅ [CACHE] Menu image pre-loaded successfully.");
+    } catch (e) {
+        console.error("❌ [CACHE] Failed to pre-load menu image:", e.message);
+        cachedMenuImage = null; 
+    }
+}
+
+preLoadMenuImage();
 
 cmd({
-    pattern: "song",
-    alias: ["yta", "mp3", "play"],
-    react: "🎧",
-    desc: "Download YouTube MP3 with selection menu",
-    category: "download",
+    pattern: "menu",
+    react: "📜",
+    desc: "Displays the main menu or a category list.",
+    category: "main",
     filename: __filename,
-}, async (bot, mek, m, { from, q, reply, userSettings, prefix }) => {
+},
+async (zanta, mek, m, { from, reply, args, userSettings }) => {
     try {
-        if (!q) return reply("🎧 *ZANTA-MD SONG SEARCH*\n\nExample: .song alone");
-
-        const search = await yts(q);
-        const video = search.videos[0];
-        if (!video) return reply("❌ No results found on YouTube.");
-
         const settings = userSettings || global.CURRENT_BOT_SETTINGS || {};
-        const botName = settings.botName || config.DEFAULT_BOT_NAME || "ZANTA-MD";
+        const finalPrefix = settings.prefix || config.DEFAULT_PREFIX || '.'; 
+        const botName = settings.botName || config.DEFAULT_BOT_NAME || "ZANTA-MD"; 
+        const ownerName = settings.ownerName || config.DEFAULT_OWNER_NAME || 'Akash Kavindu';
+        const mode = (settings.workType || "Public").toUpperCase();
         const isButtonsOn = settings.buttons === 'true';
 
-        let msg = `🎵 *ZANTA AUDIO PLAYER* 🎵\n\n` +
-                  `📝 *Title:* ${video.title}\n` +
-                  `👤 *Artist:* ${video.author.name}\n` +
-                  `⏱️ *Duration:* ${video.timestamp}\n` +
-                  `🔗 *Link:* ${video.url}\n\n` +
-                  (isButtonsOn ? `ꜱᴇʟᴇᴄᴛ ᴀ ꜰۆʀᴍᴀᴛ ʙᴇʟۆව 👇` : `*Reply with a number:* \n\n1️⃣ *Audio File* (MPEG)\n2️⃣ *Document File* (MP3)\n\n> *© ZANTA-MD SONG SERVICE*`);
+        let inputBody = m.body ? m.body.trim().toLowerCase() : "";
+        const isNumber = /^\d+$/.test(inputBody); 
+        const isCategorySelection = inputBody.startsWith('cat_');
+        const isMainCmd = (inputBody === `${finalPrefix}menu` || inputBody === "menu");
+
+        if (!isNumber && !isCategorySelection && !isMainCmd) return;
+
+        if (isNumber && !isMainCmd) {
+            if (!m.quoted || lastMenuMessage.get(from) !== m.quoted.id) return;
+        }
+
+        const groupedCommands = {};
+        const customOrder = ["main", "download", "tools", "logo"];
+
+        commands.filter(c => c.pattern && c.pattern !== "menu").forEach(cmdData => {
+            let cat = cmdData.category?.toLowerCase() || "other";
+            if (!groupedCommands[cat]) groupedCommands[cat] = [];
+            groupedCommands[cat].push(cmdData);
+        });
+
+        const categoryKeys = Object.keys(groupedCommands).sort((a, b) => {
+            let indexA = customOrder.indexOf(a);
+            let indexB = customOrder.indexOf(b);
+            return (indexA === -1 ? 99 : indexA) - (indexB === -1 ? 99 : indexB);
+        });
+
+        const categoryMap = {}; 
+        categoryKeys.forEach((cat, index) => { categoryMap[index + 1] = cat; });
+
+        let selectedCategory;
+        if (isCategorySelection) {
+            selectedCategory = inputBody.replace('cat_', '');
+        } else if (isNumber) {
+            selectedCategory = categoryMap[parseInt(inputBody)];
+        }
 
         const contextInfo = {
             forwardingScore: 999,
             isForwarded: true,
             forwardedNewsletterMessageInfo: {
-                newsletterJid: "120363406265537739@newsletter",
-                newsletterName: "𝒁𝑨𝑵𝑻𝑨-𝑴𝑫 𝑶𝑭𝑭𝑰𝑪𝑰𝑨𝑳 </>",
-                serverMessageId: 100
+                newsletterJid: CHANNEL_JID,
+                serverMessageId: 100,
+                newsletterName: "𝒁𝑨𝑵𝑻𝑨-𝑴𝑫 𝑶𝑭𝑭𝑰𝑪𝑰𝑨𝑳 </>"
             }
         };
 
+        if (selectedCategory && groupedCommands[selectedCategory]) {
+            let displayTitle = selectedCategory.toUpperCase();
+            let emoji = { main: '🏠', download: '📥', tools: '🛠', logo: '🎨' }[selectedCategory.toLowerCase()] || '📌';
+
+            let commandList = `╭━━〔 ${emoji} ${displayTitle} 〕━━┈⊷\n`;
+            commandList += `┃ 📝 Category : ${displayTitle}\n┃ 📊 Available : ${groupedCommands[selectedCategory].length}\n╰━━━━━━━━━━━━━━┈⊷\n\n`;
+
+            groupedCommands[selectedCategory].forEach((c) => {
+                commandList += `┃ ◈ ⚡ ${finalPrefix}${c.pattern}\n`;
+            });
+            commandList += `╰━━━━━━━━━━━━━━┈⊷\n\n> *© ${botName}*`;
+
+            return await zanta.sendMessage(from, { text: commandList, contextInfo }, { quoted: mek }); 
+        }
+
+        let headerText = `╭━〔 ${botName} WA BOT 〕━··๏\n`;
+        headerText += `┃ 👑 Owner : ${ownerName}\n┃ ⚙ Mode : ${mode}\n┃ 🔣 Prefix : ${finalPrefix}\n┃ 📚 Commands : ${commands.length}\n╰━━━━━━━━━━━━━━┈⊷\n\n`;
+
+        // --- 🖼️ IMAGE LOGIC: DB Image එක ඇත්නම් එය පෙන්වයි, නැතිනම් Default Cache Image එක පෙන්වයි ---
+        let imageToDisplay;
+        if (settings.botImage && settings.botImage !== "null" && settings.botImage.startsWith("http")) {
+            imageToDisplay = { url: settings.botImage };
+        } else {
+            imageToDisplay = cachedMenuImage || { url: MENU_IMAGE_URL };
+        }
+
         if (isButtonsOn) {
-            // --- BUTTONS පෙන්වීම ---
-            return await bot.sendMessage(from, {
-                image: { url: video.thumbnail },
-                caption: msg,
-                footer: `© ${botName} • Song Downloader`,
+            return await zanta.sendMessage(from, {
+                image: imageToDisplay,
+                caption: headerText + "ꜱᴇʟᴇᴄᴛ 👇",
+                footer: `© ${botName} • Cyber System`,
                 buttons: [
-                    { buttonId: `${prefix}ytsong_audio ${video.url}`, buttonText: { displayText: "🎵 AUDIO" }, type: 1 },
-                    { buttonId: `${prefix}ytsong_doc ${video.url}`, buttonText: { displayText: "📂 DOCUMENT" }, type: 1 }
+                    { buttonId: "cat_main", buttonText: { displayText: "🏠 MAIN" }, type: 1 },
+                    { buttonId: "cat_download", buttonText: { displayText: "📥 DOWNLOAD" }, type: 1 },
+                    { buttonId: "cat_tools", buttonText: { displayText: "🛠 TOOLS" }, type: 1 },
+                    { buttonId: "cat_logo", buttonText: { displayText: "🎨 LOGO" }, type: 1 }
                 ],
                 headerType: 4,
                 contextInfo
             }, { quoted: mek });
         } else {
-            // --- REPLY MENU (Selection) පෙන්වීම ---
-            const sentMsg = await bot.sendMessage(from, { 
-                image: { url: video.thumbnail }, 
-                caption: msg,
+            let menuText = headerText + `╭━━〔 📜 MENU LIST 〕━━┈⊷\n`;
+            categoryKeys.forEach((catKey, index) => {
+                let title = catKey.toUpperCase();
+                let emoji = { main: '🏠', download: '📥', tools: '🛠', logo: '🎨' }[catKey] || '📌';
+                menuText += `┃ ${index + 1}. ${emoji} ${title} (${groupedCommands[catKey].length})\n`;
+            });
+            menuText += `╰━━━━━━━━━━━━━━┈⊷\n\n_💡 Reply with number to select._`;
+
+            const sent = await zanta.sendMessage(from, {
+                image: imageToDisplay,
+                caption: menuText,
                 contextInfo
             }, { quoted: mek });
 
-            // index.js එකේ logic එකට හසු වීමට ID එක Save කිරීම
-            if (global.lastSongMessage) {
-                global.lastSongMessage.set(from, sentMsg.key.id);
-                // විනාඩි 10 කින් Map එකෙන් ඉවත් කිරීම
-                setTimeout(() => global.lastSongMessage.delete(from), 3 * 60 * 1000);
-            }
+            lastMenuMessage.set(from, sent.key.id);
+            setTimeout(() => lastMenuMessage.delete(from), 10 * 60 * 1000);
         }
-        
-    } catch (e) {
-        console.log("SONG ERROR:", e);
-        reply("❌ *Error:* " + e.message);
+
+    } catch (err) {
+        console.error("Menu Error:", err);
+        reply("❌ Error generating menu.");
     }
 });
 
-// --- 1. AUDIO FILE HANDLER ---
-cmd({
-    pattern: "ytsong_audio",
-    dontAddCommandList: true,
-    filename: __filename,
-}, async (bot, mek, m, { from, q, reply }) => {
-    try {
-        if (!q) return;
-        await m.react("📥");
-        const finalLink = await getDownloadLink(q);
-        if (!finalLink) return reply("❌ Download link not found.");
-
-        await bot.sendMessage(from, { 
-            audio: { url: finalLink }, 
-            mimetype: "audio/mpeg", 
-            ptt: false 
-        }, { quoted: mek });
-        await m.react("✅");
-    } catch (e) { reply("❌ Audio Error"); }
-});
-
-// --- 2. DOCUMENT FILE HANDLER ---
-cmd({
-    pattern: "ytsong_doc",
-    dontAddCommandList: true,
-    filename: __filename,
-}, async (bot, mek, m, { from, q, reply }) => {
-    try {
-        if (!q) return;
-        await m.react("📥");
-        const finalLink = await getDownloadLink(q);
-        if (!finalLink) return reply("❌ Download link not found.");
-
-        await bot.sendMessage(from, { 
-            document: { url: finalLink }, 
-            mimetype: "audio/mpeg", 
-            fileName: `ZANTA-MD_SONG.mp3`,
-            caption: "> *© Generated by ZANTA-MD*"
-        }, { quoted: mek });
-        await m.react("✅");
-    } catch (e) { reply("❌ Document Error"); }
-});
-
-// --- API Logic ---
-async function getDownloadLink(videoUrl) {
-    try {
-        const apiUrl = `https://api-site-x-by-manul.vercel.app/convert?mp3=${encodeURIComponent(videoUrl)}&apikey=Manul-Official`;
-        const response = await axios.get(apiUrl);
-        if (response.data?.status && response.data.data?.url) return response.data.data.url;
-
-        const backupUrl = `https://api.giftedtech.my.id/api/download/dlmp3?url=${encodeURIComponent(videoUrl)}&apikey=gifted`;
-        const backup = await axios.get(backupUrl);
-        return backup.data.result?.download_url;
-    } catch (e) {
-        return null;
-    }
-}
+module.exports = { lastMenuMessage };
