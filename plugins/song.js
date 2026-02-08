@@ -7,10 +7,10 @@ cmd({
     pattern: "song",
     alias: ["yta", "mp3", "play"],
     react: "🎧",
-    desc: "Download YouTube MP3 via Manul Vercel API",
+    desc: "Download YouTube MP3 with selection menu",
     category: "download",
     filename: __filename,
-}, async (bot, mek, m, { from, q, reply, userSettings }) => {
+}, async (bot, mek, m, { from, q, reply, userSettings, prefix }) => {
     try {
         if (!q) return reply("🎧 *ZANTA-MD SONG SEARCH*\n\nExample: .song alone");
 
@@ -21,58 +21,87 @@ cmd({
         const settings = userSettings || global.CURRENT_BOT_SETTINGS || {};
         const botName = settings.botName || config.DEFAULT_BOT_NAME || "ZANTA-MD";
 
-        let msg = `
-🎵 *${botName} AUDIO PLAYER* 🎵
+        // Reply Menu එක සකස් කිරීම
+        let msg = `🎵 *ZANTA AUDIO PLAYER* 🎵\n\n` +
+                  `📝 *Title:* ${video.title}\n` +
+                  `👤 *Artist:* ${video.author.name}\n` +
+                  `⏱️ *Duration:* ${video.timestamp}\n` +
+                  `🔗 *Link:* ${video.url}\n\n` +
+                  `*Reply with a number:* \n\n` +
+                  `1️⃣ *Audio File* (MPEG)\n` +
+                  `2️⃣ *Document File* (MP3)\n\n` +
+                  `> *© ZANTA-MD SONG SERVICE*`;
 
-📝 *Title:* ${video.title}
-👤 *Artist:* ${video.author.name}
-⏱️ *Duration:* ${video.timestamp}
-🔗 *Link:* ${video.url}
+        // thumbnail එක සමඟ පණිවිඩය යැවීම
+        const sentMsg = await bot.sendMessage(from, { 
+            image: { url: video.thumbnail }, 
+            caption: msg 
+        }, { quoted: mek });
 
-> *📥 Downloading your song..*
-`;
+        // මෙතනදී index.js එකට හඳුනාගැනීම සඳහා caption එකට විශේෂ ලකුණක් (🎵 *SONG DOWNLOADER*) එකතු කිරීම හෝ 
+        // වෙනත් ක්‍රමයක් භාවිතා කළ හැක. 
+        // නමුත් වඩාත් නිවැරදි ක්‍රමය වන්නේ වෙනමම commands දෙකක් සාදා ගැනීමයි.
+        
+    } catch (e) {
+        console.log("SONG ERROR:", e);
+        reply("❌ *Error:* " + e.message);
+    }
+});
 
-        await bot.sendMessage(from, { image: { url: video.thumbnail }, caption: msg }, { quoted: mek });
+// --- 1. AUDIO FILE HANDLER ---
+cmd({
+    pattern: "ytsong_audio",
+    dontAddCommandList: true,
+    filename: __filename,
+}, async (bot, mek, m, { from, q, reply }) => {
+    try {
+        if (!q) return;
+        const finalLink = await getDownloadLink(q);
+        if (!finalLink) return reply("❌ Download link not found.");
 
-        let finalLink = null;
-        try {
-            // --- 🚀 MANUL API CALL ---
-            const apiUrl = `https://api-site-x-by-manul.vercel.app/convert?mp3=${encodeURIComponent(video.url)}&apikey=Manul-Official`;
-            const response = await axios.get(apiUrl);
-
-            // ඔයා එවපු අලුත් JSON එකේ දත්ත තියෙන්නේ මෙහෙමයි:
-            // response.data.data.url
-            if (response.data && response.data.status === true && response.data.data) {
-                finalLink = response.data.data.url; 
-            }
-        } catch (e) {
-            console.log("Manul API Error:", e.message);
-        }
-
-        // --- 🔄 BACKUP API (Manul API එක වැඩ නොකළොත් පමණි) ---
-        if (!finalLink) {
-            try {
-                const backupUrl = `https://api.giftedtech.my.id/api/download/dlmp3?url=${encodeURIComponent(video.url)}&apikey=gifted`;
-                const { data } = await axios.get(backupUrl);
-                finalLink = data.result?.download_url;
-            } catch (e) {
-                console.log("Backup Failed.");
-            }
-        }
-
-        if (!finalLink) throw new Error("Could not fetch download link.");
-
-        // 3. Send Final Audio
         await bot.sendMessage(from, { 
             audio: { url: finalLink }, 
             mimetype: "audio/mpeg", 
             ptt: false 
         }, { quoted: mek });
-
         await m.react("✅");
-
-    } catch (e) {
-        console.log("SONG ERROR:", e);
-        reply("❌ *Download Error:* " + e.message);
-    }
+    } catch (e) { reply("❌ Audio Error"); }
 });
+
+// --- 2. DOCUMENT FILE HANDLER ---
+cmd({
+    pattern: "ytsong_doc",
+    dontAddCommandList: true,
+    filename: __filename,
+}, async (bot, mek, m, { from, q, reply }) => {
+    try {
+        if (!q) return;
+        const finalLink = await getDownloadLink(q);
+        if (!finalLink) return reply("❌ Download link not found.");
+
+        await bot.sendMessage(from, { 
+            document: { url: finalLink }, 
+            mimetype: "audio/mpeg", 
+            fileName: `ZANTA-MD_SONG.mp3`,
+            caption: "> *© Generated by ZANTA-MD*"
+        }, { quoted: mek });
+        await m.react("✅");
+    } catch (e) { reply("❌ Document Error"); }
+});
+
+// --- API Logic එක පොදු Function එකක් ලෙස ---
+async function getDownloadLink(videoUrl) {
+    try {
+        // Manul API
+        const apiUrl = `https://api-site-x-by-manul.vercel.app/convert?mp3=${encodeURIComponent(videoUrl)}&apikey=Manul-Official`;
+        const response = await axios.get(apiUrl);
+        if (response.data?.status && response.data.data?.url) return response.data.data.url;
+
+        // Backup API
+        const backupUrl = `https://api.giftedtech.my.id/api/download/dlmp3?url=${encodeURIComponent(videoUrl)}&apikey=gifted`;
+        const backup = await axios.get(backupUrl);
+        return backup.data.result?.download_url;
+    } catch (e) {
+        return null;
+    }
+}
