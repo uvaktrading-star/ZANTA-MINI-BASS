@@ -263,8 +263,8 @@ cmd(
             const sizeInBytes = head?.headers["content-length"];
             const fileSizeMB = sizeInBytes ? (sizeInBytes / (1024 * 1024)).toFixed(2) : 0;
 
-            if (sizeInBytes && parseFloat(fileSizeMB) > 400) {
-                return reply(`⚠️ ගොනුවේ ප්‍රමාණය වැඩියි (${fileSizeMB} MB). Max limit is 400MB.`);
+            if (sizeInBytes && parseFloat(fileSizeMB) > 1000) {
+                return reply(`⚠️(${fileSizeMB} MB). Max limit is 1GB.`);
             }
 
             await reply(`⏳ *Downloading File...* ${fileSizeMB > 0 ? `[${fileSizeMB} MB]` : ""}`);
