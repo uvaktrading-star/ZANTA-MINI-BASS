@@ -11,7 +11,7 @@ const SettingsSchema = new mongoose.Schema({
     prefix: { type: String, default: config.DEFAULT_PREFIX },
     workType: { type: String, default: "public" }, // 04
     password: { type: String, default: "not_set" }, // 05
-    botImage: { type: String, default: "null" },    // 06 (🆕 Added)
+    botImage: { type: String, default: "null" },    // 06 (🆕 Added
     alwaysOnline: { type: String, default: "false" }, // 07
     autoRead: { type: String, default: "false" }, // 08
     autoTyping: { type: String, default: "false" }, // 09
