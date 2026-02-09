@@ -58,7 +58,6 @@ cmd({
 
             await bot.sendMessage(from, { 
                 text: mainMsg, 
-                contextInfo: contextInfo 
             }, { quoted: mek });
 
             // 4. Pair Code එක විතරක් Copy-Paste කිරීමට පහසු ලෙස යැවීම
