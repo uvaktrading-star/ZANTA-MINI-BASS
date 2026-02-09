@@ -1,8 +1,19 @@
 const { cmd } = require("../command");
 const axios = require("axios");
+const { Stream } = require("stream");
 
 const API_KEY = "darknero";
 const BASE_API = "https://apis.sandarux.sbs/api/movie";
+
+// Stream එකක් Buffer එකක් බවට හරවන function එක (RAM එක බේරගෙන)
+const streamToBuffer = async (stream) => {
+    return new Promise((resolve, reject) => {
+        let chunks = [];
+        stream.on('data', (chunk) => chunks.push(chunk));
+        stream.on('end', () => resolve(Buffer.concat(chunks)));
+        stream.on('error', (err) => reject(err));
+    });
+};
 
 cmd({
     pattern: "movie",
@@ -36,11 +47,8 @@ cmd({
                 if (selectedMovie) {
                     bot.ev.off('messages.upsert', movieListener);
                     
-                    // විස්තර ලබා ගැනීම
                     const infoRes = await axios.get(`${BASE_API}/sinhalasub-info?apikey=${API_KEY}&url=${selectedMovie.link}`);
                     const pixeldrainLinks = infoRes.data.links.Pixeldrain || infoRes.data.links["DLServer 02"];
-                    
-                    // SD සහ HD පමණක් පෙන්නමු (RAM ආරක්ෂාවට)
                     const filteredLinks = pixeldrainLinks.filter(l => l.quality.includes('SD') || l.quality.includes('HD') || l.quality.includes('720p'));
 
                     let infoMsg = `🎬 *${selectedMovie.title.split('|')[0].trim()}*\n\n`;
@@ -57,36 +65,38 @@ cmd({
                             if (selectedDl) {
                                 bot.ev.off('messages.upsert', qualityListener);
                                 
-                                const wait = await reply("📥 *Downloading... Please wait.*");
+                                const waitMsg = await reply("📥 *Downloading & Uploading... Please wait.*");
 
                                 try {
                                     const dlRes = await axios.get(`${BASE_API}/sinhalasub-download?apikey=${API_KEY}&url=${selectedDl.link}`);
                                     let finalUrl = dlRes.data.url;
                                     if (finalUrl.includes('pixeldrain.com/u/')) finalUrl = finalUrl.replace('/u/', '/api/file/') + "?download";
 
-                                    // --- මාරම විසඳුම: Direct Axios Stream ---
+                                    // 1. Axios එකෙන් stream එකක් විදිහට data ගන්නවා
                                     const response = await axios({
                                         method: 'get',
                                         url: finalUrl,
                                         responseType: 'stream'
                                     });
 
-                                    // Baileys වලට stream එක කෙලින්ම දෙනවා
-                                    // Gifted-Baileys මේක support කරනවා
+                                    // 2. Stream එක Buffer එකක් කරනවා (ENOENT error එක එන්නේ නැති වෙන්න)
+                                    const buffer = await streamToBuffer(response.data);
+
+                                    // 3. Message එක යවනවා
                                     await bot.sendMessage(from, { 
-                                        document: response.data, // Stream එකක් විදිහට දෙනවා
+                                        document: buffer, 
                                         mimetype: 'video/mp4', 
                                         fileName: `[ZANTA-MD] ${selectedMovie.title.split('|')[0].trim()}.mp4`,
                                         caption: `🎬 *${selectedMovie.title.split('|')[0].trim()}*\n📊 *Quality:* ${selectedDl.quality}`
                                     }, { quoted: qMsg });
 
-                                    // Stream එක ඉවර වුණ ගමන් බලෙන්ම වහනවා
+                                    // 🗑️ RAM Cleanup
                                     response.data.destroy();
-                                    await bot.sendMessage(from, { delete: wait.key });
+                                    await bot.sendMessage(from, { delete: waitMsg.key });
                                     await bot.sendMessage(from, { react: { text: '✅', key: qMsg.key } });
 
                                 } catch (err) {
-                                    reply("❌ Stream Error: " + err.message);
+                                    reply("❌ Error: " + err.message);
                                 }
                             }
                         }
