@@ -42,16 +42,23 @@ cmd({
                         const infoRes = await axios.get(`${BASE_API}/sinhalasub-info?apikey=${API_KEY}&url=${selectedMovie.link}`);
                         const rawLinks = infoRes.data.links.Pixeldrain || infoRes.data.links["DLServer 02"] || infoRes.data.links["UsersDrive"];
                         
-                        // 1. HD (720p) සහ SD (480p) විතරක් පෙරීම
-                        const filteredLinks = rawLinks.filter(l => 
-                            l.quality.includes('720p') || l.quality.includes('HD') || 
-                            l.quality.includes('480p') || l.quality.includes('SD')
-                        ).slice(0, 2); // පළමු ප්‍රතිඵල දෙක (HD සහ SD) පමණක් ගනී
+                        // --- නිවැරදිව SD සහ HD වෙන් කර ගැනීම ---
+                        let filteredLinks = [];
+                        
+                        // 1. මුලින්ම HD (720p) එකක් තියෙනවා නම් ඒක ගන්නවා
+                        const hdLink = rawLinks.find(l => l.quality.includes('720p') || l.quality.includes('HD'));
+                        if (hdLink) filteredLinks.push({ ...hdLink, qName: "HD - 720p" });
+
+                        // 2. ඊළඟට SD (480p) එකක් තියෙනවා නම් ඒක ගන්නවා
+                        const sdLink = rawLinks.find(l => l.quality.includes('480p') || l.quality.includes('SD'));
+                        if (sdLink) filteredLinks.push({ ...sdLink, qName: "SD - 480p" });
 
                         if (filteredLinks.length === 0) return reply("❌ සුදුසු Quality එකක් (HD/SD) හමු නොවීය.");
 
                         let infoMsg = `🎬 *${selectedMovie.title.split('|')[0].trim()}*\n\n`;
-                        filteredLinks.forEach((dl, i) => infoMsg += `${i + 1}️⃣ ${dl.quality} (${dl.size})\n`);
+                        filteredLinks.forEach((dl, i) => {
+                            infoMsg += `${i + 1}️⃣ ${dl.qName} (${dl.size})\n`;
+                        });
                         infoMsg += `\n> *Reply with the number to download.*`;
 
                         const infoSent = await bot.sendMessage(from, { 
@@ -68,8 +75,7 @@ cmd({
                                 if (selectedDl) {
                                     bot.ev.off('messages.upsert', qualityListener);
 
-                                    // 2. Size Limit Check (1.5GB)
-                                    // Size එක String එකක් (e.g., "1.2 GB") නිසා ඒක Number එකකට හරවමු
+                                    // Size Limit Check (1.5GB)
                                     const sizeInGB = parseFloat(selectedDl.size);
                                     if (selectedDl.size.includes('GB') && sizeInGB > 1.5) {
                                         return reply("⚠️ මේ ෆයිල් එක 1.5GB ට වඩා වැඩියි. කරුණාකර අඩු Quality එකක් (SD) තෝරාගන්න.");
@@ -82,19 +88,19 @@ cmd({
                                         let finalUrl = dlRes.data.url;
                                         if (finalUrl.includes('pixeldrain.com/u/')) finalUrl = finalUrl.replace('/u/', '/api/file/') + "?download";
 
-                                        // 3. Optimized Streaming for Gifted-Baileys
+                                        // Streaming via Gifted-Baileys
                                         const response = await axios({ method: 'get', url: finalUrl, responseType: 'stream' });
 
                                         await bot.sendMessage(from, { 
-                                            document: response.data, // Stream direct to Baileys
+                                            document: response.data, 
                                             mimetype: 'video/mp4', 
                                             fileName: `[ZANTA-MD] ${selectedMovie.title.split('|')[0].trim()}.mp4`,
-                                            caption: `🎬 *${selectedMovie.title.split('|')[0].trim()}*\n📊 *Quality:* ${selectedDl.quality}\n⚖️ *Size:* ${selectedDl.size}\n\n> *© ZANTA-MD*`
+                                            caption: `🎬 *${selectedMovie.title.split('|')[0].trim()}*\n📊 *Quality:* ${selectedDl.qName}\n⚖️ *Size:* ${selectedDl.size}\n\n> *© ZANTA-MD*`
                                         }, { quoted: qMsg });
 
-                                        // 🗑️ RAM Cleaning
-                                        response.data.destroy(); // සබඳතාව වහාම නවත්වයි
-                                        if (global.gc) global.gc(); // Garbage collector කැඳවීම (තිබේ නම්)
+                                        // RAM Cleanup
+                                        response.data.destroy();
+                                        if (global.gc) global.gc();
                                         
                                         await bot.sendMessage(from, { delete: wait.key });
                                         await bot.sendMessage(from, { react: { text: '✅', key: qMsg.key } });
