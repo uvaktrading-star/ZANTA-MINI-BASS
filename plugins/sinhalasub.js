@@ -1,19 +1,8 @@
 const { cmd } = require("../command");
 const axios = require("axios");
-const { Stream } = require("stream");
 
 const API_KEY = "darknero";
 const BASE_API = "https://apis.sandarux.sbs/api/movie";
-
-// Stream එකක් Buffer එකක් බවට හරවන function එක (RAM එක බේරගෙන)
-const streamToBuffer = async (stream) => {
-    return new Promise((resolve, reject) => {
-        let chunks = [];
-        stream.on('data', (chunk) => chunks.push(chunk));
-        stream.on('end', () => resolve(Buffer.concat(chunks)));
-        stream.on('error', (err) => reject(err));
-    });
-};
 
 cmd({
     pattern: "movie",
@@ -23,18 +12,19 @@ cmd({
     filename: __filename
 }, async (bot, mek, m, { from, q, reply }) => {
     try {
-        if (!q) return reply("🎬 *ZANTA MOVIE SEARCH*");
+        if (!q) return reply("🎬 *ZANTA MOVIE SEARCH*\n\nExample: .movie Avengers");
 
         const searchRes = await axios.get(`${BASE_API}/sinhalasub-search?apikey=${API_KEY}&q=${encodeURIComponent(q)}`);
-        if (!searchRes.data.status || !searchRes.data.results.length) return reply("❌ No results.");
+        if (!searchRes.data.status || !searchRes.data.results.length) return reply("❌ කිසිදු ප්‍රතිඵලයක් හමු නොවීය.");
 
         const results = searchRes.data.results.slice(0, 10);
         let msg = `🎬 *ZANTA MOVIE SEARCH* 🎬\n\n`;
         results.forEach((res, index) => msg += `${index + 1}️⃣ *${res.title.split('|')[0].trim()}*\n`);
+        msg += `\n*Reply with the number to see quality list.*`;
 
         const sentMsg = await bot.sendMessage(from, { 
             image: { url: results[0].image }, 
-            caption: msg + `\n> *© ZANTA-MD*` 
+            caption: msg 
         }, { quoted: mek });
 
         const movieListener = async (update) => {
@@ -46,62 +36,77 @@ cmd({
                 const selectedMovie = results[parseInt(body) - 1];
                 if (selectedMovie) {
                     bot.ev.off('messages.upsert', movieListener);
-                    
-                    const infoRes = await axios.get(`${BASE_API}/sinhalasub-info?apikey=${API_KEY}&url=${selectedMovie.link}`);
-                    const pixeldrainLinks = infoRes.data.links.Pixeldrain || infoRes.data.links["DLServer 02"];
-                    const filteredLinks = pixeldrainLinks.filter(l => l.quality.includes('SD') || l.quality.includes('HD') || l.quality.includes('720p'));
+                    await bot.sendMessage(from, { react: { text: '⏳', key: msgUpdate.key } });
 
-                    let infoMsg = `🎬 *${selectedMovie.title.split('|')[0].trim()}*\n\n`;
-                    filteredLinks.forEach((dl, i) => infoMsg += `${i + 1}️⃣ ${dl.quality} (${dl.size})\n`);
+                    try {
+                        const infoRes = await axios.get(`${BASE_API}/sinhalasub-info?apikey=${API_KEY}&url=${selectedMovie.link}`);
+                        const rawLinks = infoRes.data.links.Pixeldrain || infoRes.data.links["DLServer 02"] || infoRes.data.links["UsersDrive"];
+                        
+                        // 1. HD (720p) සහ SD (480p) විතරක් පෙරීම
+                        const filteredLinks = rawLinks.filter(l => 
+                            l.quality.includes('720p') || l.quality.includes('HD') || 
+                            l.quality.includes('480p') || l.quality.includes('SD')
+                        ).slice(0, 2); // පළමු ප්‍රතිඵල දෙක (HD සහ SD) පමණක් ගනී
 
-                    const infoSent = await bot.sendMessage(from, { image: { url: selectedMovie.image }, caption: infoMsg }, { quoted: msgUpdate });
+                        if (filteredLinks.length === 0) return reply("❌ සුදුසු Quality එකක් (HD/SD) හමු නොවීය.");
 
-                    const qualityListener = async (qUpdate) => {
-                        const qMsg = qUpdate.messages[0];
-                        const qBody = qMsg.message?.conversation || qMsg.message?.extendedTextMessage?.text;
+                        let infoMsg = `🎬 *${selectedMovie.title.split('|')[0].trim()}*\n\n`;
+                        filteredLinks.forEach((dl, i) => infoMsg += `${i + 1}️⃣ ${dl.quality} (${dl.size})\n`);
+                        infoMsg += `\n> *Reply with the number to download.*`;
 
-                        if (qMsg.message?.extendedTextMessage?.contextInfo?.stanzaId === infoSent.key.id && !isNaN(qBody)) {
-                            const selectedDl = filteredLinks[parseInt(qBody) - 1];
-                            if (selectedDl) {
-                                bot.ev.off('messages.upsert', qualityListener);
-                                
-                                const waitMsg = await reply("📥 *Downloading & Uploading... Please wait.*");
+                        const infoSent = await bot.sendMessage(from, { 
+                            image: { url: selectedMovie.image }, 
+                            caption: infoMsg 
+                        }, { quoted: msgUpdate });
 
-                                try {
-                                    const dlRes = await axios.get(`${BASE_API}/sinhalasub-download?apikey=${API_KEY}&url=${selectedDl.link}`);
-                                    let finalUrl = dlRes.data.url;
-                                    if (finalUrl.includes('pixeldrain.com/u/')) finalUrl = finalUrl.replace('/u/', '/api/file/') + "?download";
+                        const qualityListener = async (qUpdate) => {
+                            const qMsg = qUpdate.messages[0];
+                            const qBody = qMsg.message?.conversation || qMsg.message?.extendedTextMessage?.text;
 
-                                    // 1. Axios එකෙන් stream එකක් විදිහට data ගන්නවා
-                                    const response = await axios({
-                                        method: 'get',
-                                        url: finalUrl,
-                                        responseType: 'stream'
-                                    });
+                            if (qMsg.message?.extendedTextMessage?.contextInfo?.stanzaId === infoSent.key.id && !isNaN(qBody)) {
+                                const selectedDl = filteredLinks[parseInt(qBody) - 1];
+                                if (selectedDl) {
+                                    bot.ev.off('messages.upsert', qualityListener);
 
-                                    // 2. Stream එක Buffer එකක් කරනවා (ENOENT error එක එන්නේ නැති වෙන්න)
-                                    const buffer = await streamToBuffer(response.data);
+                                    // 2. Size Limit Check (1.5GB)
+                                    // Size එක String එකක් (e.g., "1.2 GB") නිසා ඒක Number එකකට හරවමු
+                                    const sizeInGB = parseFloat(selectedDl.size);
+                                    if (selectedDl.size.includes('GB') && sizeInGB > 1.5) {
+                                        return reply("⚠️ මේ ෆයිල් එක 1.5GB ට වඩා වැඩියි. කරුණාකර අඩු Quality එකක් (SD) තෝරාගන්න.");
+                                    }
 
-                                    // 3. Message එක යවනවා
-                                    await bot.sendMessage(from, { 
-                                        document: buffer, 
-                                        mimetype: 'video/mp4', 
-                                        fileName: `[ZANTA-MD] ${selectedMovie.title.split('|')[0].trim()}.mp4`,
-                                        caption: `🎬 *${selectedMovie.title.split('|')[0].trim()}*\n📊 *Quality:* ${selectedDl.quality}`
-                                    }, { quoted: qMsg });
+                                    const wait = await reply("📥 *Downloading your movie... Please wait.*");
 
-                                    // 🗑️ RAM Cleanup
-                                    response.data.destroy();
-                                    await bot.sendMessage(from, { delete: waitMsg.key });
-                                    await bot.sendMessage(from, { react: { text: '✅', key: qMsg.key } });
+                                    try {
+                                        const dlRes = await axios.get(`${BASE_API}/sinhalasub-download?apikey=${API_KEY}&url=${selectedDl.link}`);
+                                        let finalUrl = dlRes.data.url;
+                                        if (finalUrl.includes('pixeldrain.com/u/')) finalUrl = finalUrl.replace('/u/', '/api/file/') + "?download";
 
-                                } catch (err) {
-                                    reply("❌ Error: " + err.message);
+                                        // 3. Optimized Streaming for Gifted-Baileys
+                                        const response = await axios({ method: 'get', url: finalUrl, responseType: 'stream' });
+
+                                        await bot.sendMessage(from, { 
+                                            document: response.data, // Stream direct to Baileys
+                                            mimetype: 'video/mp4', 
+                                            fileName: `[ZANTA-MD] ${selectedMovie.title.split('|')[0].trim()}.mp4`,
+                                            caption: `🎬 *${selectedMovie.title.split('|')[0].trim()}*\n📊 *Quality:* ${selectedDl.quality}\n⚖️ *Size:* ${selectedDl.size}\n\n> *© ZANTA-MD*`
+                                        }, { quoted: qMsg });
+
+                                        // 🗑️ RAM Cleaning
+                                        response.data.destroy(); // සබඳතාව වහාම නවත්වයි
+                                        if (global.gc) global.gc(); // Garbage collector කැඳවීම (තිබේ නම්)
+                                        
+                                        await bot.sendMessage(from, { delete: wait.key });
+                                        await bot.sendMessage(from, { react: { text: '✅', key: qMsg.key } });
+
+                                    } catch (err) {
+                                        reply("❌ බාගත කිරීමේදී දෝෂයක් ඇති විය.");
+                                    }
                                 }
                             }
-                        }
-                    };
-                    bot.ev.on('messages.upsert', qualityListener);
+                        };
+                        bot.ev.on('messages.upsert', qualityListener);
+                    } catch (err) { reply("❌ විස්තර ලබා ගැනීමේ දෝෂයකි."); }
                 }
             }
         };
