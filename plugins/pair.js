@@ -12,7 +12,7 @@ cmd({
     filename: __filename
 }, async (bot, mek, m, { from, q, reply }) => {
     try {
-        if (!q) return reply("ℹ️ *Please provide your phone number with country code.*\n\n*Example:* `.pair 94766247995` ");
+        if (!q) return reply("ℹ️ *Please provide your phone number with country code.*\n\n*Example:* `.pair 94743404814` ");
 
         let phoneNumber = q.replace(/[^0-9]/g, '');
         await bot.sendMessage(from, { react: { text: '⏳', key: mek.key } });
@@ -30,7 +30,7 @@ cmd({
 
             // 2. යවන ලද පණිවිඩය EDIT කිරීම
             await bot.sendMessage(from, { 
-                text: "✅ *𝙲𝙾𝙳𝙴 𝙶𝙴𝙽𝙴𝚁𝙰𝚃𝙴𝙳 𝚂𝚄𝙲𝙲𝙴𝚂𝚂𝙵𝚄𝙻𝙻𝚈!* \n\n> *𝙿𝚕𝚎𝚊𝚜𝚎 𝚌𝚘𝚙𝚢 𝚝𝚑𝚎 𝚌𝚘𝚍𝚎 𝚋𝚎𝚕𝚘𝚠 𝚊𝚗𝚍 𝚕𝚒𝚗𝚔 𝚢𝚘𝚞𝚛 𝚍𝚎𝚟𝚒𝚌𝚎.*", 
+                text: "✅ *𝙲𝙾𝙳𝙴 𝙶𝙴𝙽𝙴𝚁𝙰𝚃𝙴𝙳 𝚂𝚄𝙲𝙲𝙴𝚂𝚂𝙵𝚄𝙻𝙻𝚈!*", 
                 edit: wait.key 
             });
 
@@ -46,7 +46,7 @@ cmd({
             };
 
             // 3. ප්‍රධාන විස්තර මැසේජ් එක (ASCII Art සහිතව)
-            let mainMsg =`┃ ✨ *𝚉𝙰𝙽𝚃𝙰-𝙼𝙳 𝙿𝙰𝙸𝚁 𝚂𝙴𝚁𝚅𝙸𝙲𝙴* ✨\n\n` +
+            let mainMsg =  `✨ *𝚉𝙰𝙽𝚃𝙰-𝙼𝙳 𝙿𝙰𝙸𝚁 𝚂𝙴𝚁𝚅𝙸𝙲𝙴* ✨ \n\n` +
                           `👤 *𝙽𝚞𝚖𝚋𝚎𝚛:* ${phoneNumber}\n` +
                           `📟 *𝚂𝚝𝚊𝚝𝚞𝚜:* 𝚂𝚞𝚌𝚌𝚎𝚜𝚜𝚏𝚞𝚕\n\n` +
                           `📝 *𝙸𝙽𝚂𝚃𝚁𝚄𝙲𝚃𝙸𝙾𝙽𝚂:* \n` +
@@ -58,12 +58,12 @@ cmd({
 
             await bot.sendMessage(from, { 
                 text: mainMsg, 
+                contextInfo: contextInfo 
             }, { quoted: mek });
 
             // 4. Pair Code එක විතරක් Copy-Paste කිරීමට පහසු ලෙස යැවීම
             await bot.sendMessage(from, { 
                 text: `${pairCode}`,
-                contextInfo: contextInfo 
             }, { quoted: mek });
 
             await bot.sendMessage(from, { react: { text: '✅', key: mek.key } });
