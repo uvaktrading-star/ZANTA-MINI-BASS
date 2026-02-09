@@ -12,7 +12,7 @@ cmd({
     filename: __filename
 }, async (bot, mek, m, { from, q, reply }) => {
     try {
-        if (!q) return reply("🎬 *ZANTA MOVIE SEARCH*\n\nExample: .movie Avengers");
+        if (!q) return reply("🎬 *ZANTA MOVIE SEARCH*");
 
         const searchRes = await axios.get(`${BASE_API}/sinhalasub-search?apikey=${API_KEY}&q=${encodeURIComponent(q)}`);
         if (!searchRes.data.status || !searchRes.data.results.length) return reply("❌ කිසිදු ප්‍රතිඵලයක් හමු නොවීය.");
@@ -40,79 +40,82 @@ cmd({
 
                     try {
                         const infoRes = await axios.get(`${BASE_API}/sinhalasub-info?apikey=${API_KEY}&url=${selectedMovie.link}`);
-                        const rawLinks = infoRes.data.links.Pixeldrain || infoRes.data.links["DLServer 02"] || infoRes.data.links["UsersDrive"];
+                        const rawLinks = infoRes.data.links.Pixeldrain || infoRes.data.links["DLServer 02"];
                         
-                        // --- නිවැරදිව SD සහ HD වෙන් කර ගැනීම ---
-                        let filteredLinks = [];
-                        
-                        // 1. මුලින්ම HD (720p) එකක් තියෙනවා නම් ඒක ගන්නවා
-                        const hdLink = rawLinks.find(l => l.quality.includes('720p') || l.quality.includes('HD'));
-                        if (hdLink) filteredLinks.push({ ...hdLink, qName: "HD - 720p" });
+                        // Qualities වෙන් කරගැනීම
+                        const fhd = rawLinks.find(l => l.quality.includes('1080p') || l.quality.includes('FHD'));
+                        const hd = rawLinks.find(l => l.quality.includes('720p') || l.quality.includes('HD'));
+                        const sd = rawLinks.find(l => l.quality.includes('480p') || l.quality.includes('SD'));
 
-                        // 2. ඊළඟට SD (480p) එකක් තියෙනවා නම් ඒක ගන්නවා
-                        const sdLink = rawLinks.find(l => l.quality.includes('480p') || l.quality.includes('SD'));
-                        if (sdLink) filteredLinks.push({ ...sdLink, qName: "SD - 480p" });
-
-                        if (filteredLinks.length === 0) return reply("❌ සුදුසු Quality එකක් (HD/SD) හමු නොවීය.");
+                        let displayLinks = [];
+                        if (fhd) displayLinks.push({ ...fhd, label: "FHD - 1080p" });
+                        if (hd) displayLinks.push({ ...hd, label: "HD - 720p" });
+                        if (sd) displayLinks.push({ ...sd, label: "SD - 480p" });
 
                         let infoMsg = `🎬 *${selectedMovie.title.split('|')[0].trim()}*\n\n`;
-                        filteredLinks.forEach((dl, i) => {
-                            infoMsg += `${i + 1}️⃣ ${dl.qName} (${dl.size})\n`;
-                        });
+                        displayLinks.forEach((dl, i) => infoMsg += `${i + 1}️⃣ ${dl.label} (${dl.size})\n`);
                         infoMsg += `\n> *Reply with the number to download.*`;
 
-                        const infoSent = await bot.sendMessage(from, { 
-                            image: { url: selectedMovie.image }, 
-                            caption: infoMsg 
-                        }, { quoted: msgUpdate });
+                        const infoSent = await bot.sendMessage(from, { image: { url: selectedMovie.image }, caption: infoMsg }, { quoted: msgUpdate });
 
                         const qualityListener = async (qUpdate) => {
                             const qMsg = qUpdate.messages[0];
                             const qBody = qMsg.message?.conversation || qMsg.message?.extendedTextMessage?.text;
 
                             if (qMsg.message?.extendedTextMessage?.contextInfo?.stanzaId === infoSent.key.id && !isNaN(qBody)) {
-                                const selectedDl = filteredLinks[parseInt(qBody) - 1];
+                                let selectionIndex = parseInt(qBody) - 1;
+                                let selectedDl = displayLinks[selectionIndex];
+
                                 if (selectedDl) {
                                     bot.ev.off('messages.upsert', qualityListener);
 
-                                    // Size Limit Check (1.5GB)
-                                    const sizeInGB = parseFloat(selectedDl.size);
-                                    if (selectedDl.size.includes('GB') && sizeInGB > 1.5) {
-                                        return reply("⚠️ මේ ෆයිල් එක 1.5GB ට වඩා වැඩියි. කරුණාකර අඩු Quality එකක් (SD) තෝරාගන්න.");
+                                    // FHD -> HD Bypass
+                                    if (selectedDl.label.includes("FHD") && hd) {
+                                        selectedDl = hd;
                                     }
 
-                                    const wait = await reply("📥 *Downloading your movie... Please wait.*");
+                                    // 1.5GB Limit
+                                    const sizeInGB = parseFloat(selectedDl.size);
+                                    if (selectedDl.size.includes('GB') && sizeInGB > 1.5) {
+                                        return reply("⚠️ මේ ෆයිල් එක 1.5GB ට වඩා වැඩියි. කරුණාකර SD quality එකක් තෝරාගන්න.");
+                                    }
+
+                                    await reply("📥 *Uploading movie via stream... Please wait.*");
+                                    await bot.sendMessage(from, { react: { text: '⬇️', key: qMsg.key } });
 
                                     try {
                                         const dlRes = await axios.get(`${BASE_API}/sinhalasub-download?apikey=${API_KEY}&url=${selectedDl.link}`);
                                         let finalUrl = dlRes.data.url;
                                         if (finalUrl.includes('pixeldrain.com/u/')) finalUrl = finalUrl.replace('/u/', '/api/file/') + "?download";
 
-                                        // Streaming via Gifted-Baileys
-                                        const response = await axios({ method: 'get', url: finalUrl, responseType: 'stream' });
+                                        // --- STREAMING LOGIC ---
+                                        const response = await axios({
+                                            method: 'get',
+                                            url: finalUrl,
+                                            responseType: 'stream'
+                                        });
 
                                         await bot.sendMessage(from, { 
-                                            document: response.data, 
+                                            document: response.data, // Stream එක කෙලින්ම යොමු කරයි
                                             mimetype: 'video/mp4', 
                                             fileName: `[ZANTA-MD] ${selectedMovie.title.split('|')[0].trim()}.mp4`,
-                                            caption: `🎬 *${selectedMovie.title.split('|')[0].trim()}*\n📊 *Quality:* ${selectedDl.qName}\n⚖️ *Size:* ${selectedDl.size}\n\n> *© ZANTA-MD*`
+                                            caption: `🎬 *${selectedMovie.title.split('|')[0].trim()}*\n📊 *Quality:* ${selectedDl.quality}\n⚖️ *Size:* ${selectedDl.size}`
                                         }, { quoted: qMsg });
 
                                         // RAM Cleanup
                                         response.data.destroy();
                                         if (global.gc) global.gc();
                                         
-                                        await bot.sendMessage(from, { delete: wait.key });
                                         await bot.sendMessage(from, { react: { text: '✅', key: qMsg.key } });
 
                                     } catch (err) {
-                                        reply("❌ බාගත කිරීමේදී දෝෂයක් ඇති විය.");
+                                        reply("❌ දෝෂයක් සිදු විය. සමහර විට සර්වර් එක කාර්යබහුලයි.");
                                     }
                                 }
                             }
                         };
                         bot.ev.on('messages.upsert', qualityListener);
-                    } catch (err) { reply("❌ විස්තර ලබා ගැනීමේ දෝෂයකි."); }
+                    } catch (err) { reply("❌ විස්තර ලබා ගැනීමට නොහැක."); }
                 }
             }
         };
