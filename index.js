@@ -33,6 +33,8 @@ const logger = P({ level: "silent" });
 const activeSockets = new Set();
 const lastWorkTypeMessage = new Map();
 const lastAntiDeleteMessage = new Map();
+const NodeCache = require("node-cache");
+const msgRetryCounterCache = new NodeCache();
 
 global.activeSockets = new Set();
 global.BOT_SESSIONS_CONFIG = {};
@@ -185,18 +187,46 @@ async function connectToWA(sessionData) {
     const { version } = await fetchLatestBaileysVersion();
 
     const zanta = makeWASocket({
-        logger: logger,
-        printQRInTerminal: false,
-        browser: Browsers.macOS("Firefox"),
-        auth: state,
-        version,
-        syncFullHistory: false,
-        shouldSyncHistoryMessage: () => false,
-        ignoreNewsletterMessages: false,
-        emitOwnEvents: true,
-        markOnlineOnConnect: userSettings.alwaysOnline === "true",
-        getMessage: async (key) => ({ conversation: "ZANTA-MD" }),
-    });
+    logger: logger,
+    printQRInTerminal: false,
+    browser: Browsers.macOS("Firefox"),
+    auth: state,
+    version,
+    syncFullHistory: false,
+    shouldSyncHistoryMessage: () => false,
+    ignoreNewsletterMessages: false,
+    emitOwnEvents: true,
+    markOnlineOnConnect: userSettings.alwaysOnline === "true",
+            
+    msgRetryCounterCache, // මැසේජ් එක retry වෙන්න මේක ඕනේ
+    getMessage: async (key) => {
+        const msgs = readMsgs();
+        if (msgs[key.id]) return msgs[key.id].message;
+        return { conversation: "ZANTA-MD" };
+    },
+    patchMessageBeforeSending: (message) => {
+        const requiresPatch = !!(
+            message.buttonsMessage ||
+            message.templateMessage ||
+            message.listMessage
+        );
+        if (requiresPatch) {
+            message = {
+                viewOnceMessage: {
+                    message: {
+                        messageContextInfo: {
+                            deviceListMetadata: {},
+                            deviceListMetadataVersion: 2,
+                        },
+                        ...message,
+                    },
+                },
+            };
+        }
+        return message;
+    },
+    // ------------------------------------------
+});
 
     activeSockets.add(zanta);
     global.activeSockets.add(zanta);
