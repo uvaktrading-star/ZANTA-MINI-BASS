@@ -26,6 +26,9 @@ const { lastSettingsMessage } = require("./plugins/settings");
 const { lastHelpMessage } = require("./plugins/help");
 const { connectDB, getBotSettings, updateSetting } = require("./plugins/bot_db");
 
+const NodeCache = require("node-cache");
+const msgRetryCounterCache = new NodeCache();
+
 // --------------------------------------------------------------------------
 // [SECTION: GLOBAL CONFIGURATIONS & LOGGING]
 // --------------------------------------------------------------------------
@@ -33,8 +36,6 @@ const logger = P({ level: "silent" });
 const activeSockets = new Set();
 const lastWorkTypeMessage = new Map();
 const lastAntiDeleteMessage = new Map();
-const NodeCache = require("node-cache");
-const msgRetryCounterCache = new NodeCache();
 
 global.activeSockets = new Set();
 global.BOT_SESSIONS_CONFIG = {};
