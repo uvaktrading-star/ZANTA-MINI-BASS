@@ -5,8 +5,8 @@ const axios = require("axios");
 const aiImgData = new Map();
 
 cmd({
-    pattern: "aiimg",
-    alias: ["genimg", "createimg", "zanta-ai"],
+    pattern: "genimg",
+    alias: ["gen", "createimg", "zanta-ai"],
     react: "🎨",
     desc: "Generate AI images from text prompts",
     category: "download",
