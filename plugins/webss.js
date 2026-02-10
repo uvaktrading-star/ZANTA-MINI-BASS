@@ -40,7 +40,7 @@ cmd({
         await bot.sendMessage(from, { react: { text: "❌", key: m.key } });
         
         let errorMsg = "❌ *Screenshot එක ලබා ගැනීමට නොහැකි විය.*";
-        if (e.code === 'ECONNABORTED') errorMsg = "❌ *Request timed out. වෙබ් අඩවිය load වීමට වැඩි වෙලාවක් ගනී.*";
+        if (e.code === 'ECONNABORTED') errorMsg = "❌ *Request timed out.*";
         
         reply(errorMsg + "\nකරුණාකර URL එක නිවැරදිදැයි පරීක්ෂා කර නැවත උත්සාහ කරන්න.");
     }
