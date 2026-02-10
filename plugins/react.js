@@ -11,32 +11,39 @@ cmd({
 },
 async (conn, mek, m, { q, reply, sender, userSettings }) => {
 
+    // 1. අවසර ලත් අංක (String විදිහටම තබා ගන්න)
     const allowedNumbers = [
-        "94771810698", "94743404814", "94766247995", 
-        "192063001874499", "270819766866076"
+        "94771810698", 
+        "94743404814", 
+        "94766247995", 
+        "192063001874499", 
+        "270819766866076"
     ];
 
-    const senderNumber = sender.split("@")[0].replace(/[^\d]/g, '');
-    const isOwner = allowedNumbers.includes(senderNumber);
-    const isPaidUser = userSettings && userSettings.paymentStatus === "paid";
+    // 2. Sender ගේ අංකය පිරිසිදු කර ගැනීම
+    const senderNumber = m.sender.split("@")[0]; 
 
+    // 3. Permission Check කිරීම (Strict checking)
+    const isOwner = allowedNumbers.includes(senderNumber);
+    const isPaidUser = (userSettings && userSettings.paymentStatus === "paid") ? true : false;
+
+    // වැදගත්ම කොටස: දෙකම නැතිනම් වහාම නතර කිරීම
     if (!isOwner && !isPaidUser) {
-        return reply(`🚫 අවසර නැත!\n\nමෙම පහසුකම භාවිතා කිරීමට ඔබ Paid User කෙනෙකු විය යුතුය.\n\n> Contact owner\nhttp://wa.me/+94766247995?text=*Zanta+Channel+React*`);
+        return reply(`🚫 *අවසර නැත!* \n\nමෙම විශේෂ පහසුකම භාවිතා කිරීමට ඔබ Paid User කෙනෙකු හෝ බොට් අයිතිකරු විය යුතුය.\n\n> *Contact Owner:* \nhttp://wa.me/94766247995`);
     }
 
-    if (!q.includes(",")) return reply("💡 Usage: .creact [Link] , [Emoji1,Emoji2,...]");
-
-    // ලින්ක් එක සහ ඉමෝජි ටික වෙන් කරගැනීම
-    let parts = q.split(",");
-    let linkPart = parts[0].trim();
-    
-    // ඉතිරි සියලුම කොටස් ඉමෝජි ලෙස ගැනීම
-    let emojiList = parts.slice(1).map(e => e.trim()).filter(e => e !== "");
-
-    if (!linkPart || emojiList.length === 0) return reply("⚠️ කරුණාකර ලින්ක් එක සහ අවම වශයෙන් එක ඉමෝජියක්වත් ලබා දෙන්න.");
+    // --- මීළඟට Command Logic එක ---
+    if (!q || !q.includes(",")) return reply("💡 Usage: .creact [Link] , [Emoji1,Emoji2,...]");
 
     try {
+        let parts = q.split(",");
+        let linkPart = parts[0].trim();
+        let emojiList = parts.slice(1).map(e => e.trim()).filter(e => e !== "");
+
+        if (!linkPart || emojiList.length === 0) return reply("⚠️ කරුණාකර ලින්ක් එක සහ අවම වශයෙන් එක ඉමෝජියක්වත් ලබා දෙන්න.");
+
         const urlParts = linkPart.split("/");
+        // URL එකේ ව්‍යුහය පරීක්ෂාව
         const channelInvite = urlParts[4];
         const serverId = urlParts[5];
 
@@ -46,25 +53,24 @@ async (conn, mek, m, { q, reply, sender, userSettings }) => {
 
         const res = await conn.newsletterMetadata("invite", channelInvite);
         const targetJid = res.id;
+        
+        // Active Sockets පරීක්ෂාව
         const allBots = Array.from(global.activeSockets || []);
-
         if (allBots.length === 0) {
-            return reply("❌ සක්‍රීය සෙෂන්ස් කිසිවක් හමු නොවීය!");
+            return reply("❌ සක්‍රීය සෙෂන්ස් (Multi-sessions) කිසිවක් හමු නොවීය!");
         }
 
-        reply(`🚀 *Mass React Started!* ✅\n\n📌 > 𝒁𝑨𝑵𝑻𝑨-𝑴𝑫 𝑶𝑭𝑭𝑰𝑪𝑰𝑨𝑳 </>`);
+        reply(`🚀 *Mass React Started!* ✅\n🎯 *Target:* ${res.name}\n\n📌 > 𝒁𝑨𝑵𝑻𝑨-𝑴𝑫 𝑶𝑭𝑭𝑰𝑪𝑰𝑨𝑳 </>`);
 
-        // --- ⚡ Delay එක අයින් කර සියලුම බොට්ලාට එකවර යැවීම ---
+        // Reaction යැවීම
         allBots.forEach(async (botSocket, index) => {
-            const randomEmoji = emojiList[Math.floor(Math.random() * emojiList.length)];
-
             try {
+                const randomEmoji = emojiList[Math.floor(Math.random() * emojiList.length)];
                 if (botSocket && typeof botSocket.newsletterReactMessage === 'function') {
-                    // setTimeout ඉවත් කර සෘජුවම (Directly) reaction එක යවයි
                     await botSocket.newsletterReactMessage(targetJid, String(serverId), randomEmoji);
                 }
-            } catch (e) {
-                console.log(`❌ Bot ${index} Error:`, e.message);
+            } catch (err) {
+                console.log(`❌ Bot ${index} React Error:`, err.message);
             }
         });
 
