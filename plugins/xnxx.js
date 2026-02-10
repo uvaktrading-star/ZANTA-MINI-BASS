@@ -1,88 +1,112 @@
 const { cmd } = require("../command");
 const axios = require("axios");
-
-const API_KEY = "darknero";
-const SEARCH_API = "https://apis.sandarux.sbs/api/download/xnxx-search";
-const DL_API = "https://apis.sandarux.sbs/api/download/xnxx-dl";
-
-// තාවකාලිකව සර්ච් රිසල්ට් මතක තබා ගැනීමට
-const xnxxData = new Map();
+const yts = require("yt-search");
+const config = require("../config");
 
 cmd({
-    pattern: "xnxx",
-    alias: ["porn", "xvideo"],
-    react: "🔞",
-    desc: "Search and download XNXX videos with Direct Stream Logic",
+    pattern: "song",
+    alias: ["yta", "mp3", "play"],
+    react: "🎧",
+    desc: "Download YouTube MP3 with selection menu",
     category: "download",
-    filename: __filename
-}, async (bot, mek, m, { from, q, reply }) => {
+    filename: __filename,
+}, async (bot, mek, m, { from, q, reply, prefix }) => {
     try {
-        // --- 1. වීඩියෝව ලබා ගැනීම (Reply Logic) ---
-        if (m.quoted && xnxxData.has(from + m.quoted.stanzaId)) {
-            const results = xnxxData.get(from + m.quoted.stanzaId);
-            const index = parseInt(q) - 1;
-            const selectedVideo = results[index];
+        if (!q) return reply("🎧 *ZANTA-MD SONG SEARCH*\n\nExample: .song alone");
 
-            if (!selectedVideo) return reply("⚠️ වැරදි අංකයකි. කරුණාකර ලැයිස්තුවේ ඇති අංකයක් ලබා දෙන්න.");
+        const search = await yts(q);
+        const video = search.videos[0];
+        if (!video) return reply("❌ No results found on YouTube.");
 
-            await bot.sendMessage(from, { react: { text: '⏳', key: m.key } });
+        let msg = `🎵 *ZANTA AUDIO PLAYER* 🎵\n\n` +
+                  `📝 *Title:* ${video.title}\n` +
+                  `👤 *Artist:* ${video.author.name}\n` +
+                  `⏱️ *Duration:* ${video.timestamp}\n` +
+                  `🔗 *Link:* ${video.url}\n\n` +
+                  `*Reply with a number:* \n\n` +
+                  `1️⃣ *Audio File* (MPEG)\n` +
+                  `2️⃣ *Document File* (MP3)\n\n` +
+                  `> *© ZANTA-MD SONG SERVICE*`;
 
-            // ඩවුන්ලෝඩ් ලින්ක් එක ලබා ගැනීම
-            const dlRes = await axios.get(`${DL_API}?apikey=${API_KEY}&url=${selectedVideo.url}`);
-            
-            if (!dlRes.data.status || !dlRes.data.links) {
-                return reply("❌ වීඩියෝ ලින්ක් එක ලබා ගැනීමට නොහැකි විය.");
-            }
-
-            const finalUrl = dlRes.data.links.high || dlRes.data.links.low;
-            const videoTitle = selectedVideo.title || "XNXX Video";
-
-            // [DIRECT STREAM METHOD]
-            // Gifted-Baileys හරහා URL එක කෙලින්ම යවනවා. RAM එක පාවිච්චි වෙන්නේ නැත.
-            await bot.sendMessage(from, { 
-                document: { url: finalUrl }, 
-                mimetype: 'video/mp4', 
-                fileName: `[ZANTA-MD] ${videoTitle}.mp4`,
-                caption: `🎬 *${videoTitle}*\n\n> *© ZANTA-MD XNXX SERVICE*`
-            }, { quoted: m });
-
-            await bot.sendMessage(from, { react: { text: '✅', key: m.key } });
-            return;
-        }
-
-        // --- 2. සර්ච් කිරීම ---
-        if (!q) return reply("🔞 *ZANTA XNXX SEARCH*\n\nExample: .xnxx blue film");
-
-        const searchRes = await axios.get(`${SEARCH_API}?apikey=${API_KEY}&q=${encodeURIComponent(q)}`);
-        
-        // API Response එකේ 'data' array එක තිබේදැයි බැලීම
-        if (!searchRes.data.status || !searchRes.data.data || searchRes.data.data.length === 0) {
-            return reply("❌ කිසිදු ප්‍රතිඵලයක් හමු නොවීය.");
-        }
-
-        const results = searchRes.data.data.slice(0, 10); // මුල් 10 ගමු
-        let msg = `🔞 *ZANTA XNXX SEARCH* 🔞\n\n🔍 Query: *${q}*\n\n`;
-        
-        results.forEach((res, index) => {
-            msg += `${index + 1}️⃣ *${res.title}*\n`;
-        });
-        
-        msg += `\n> *Reply with the number to download.* \n\n*© ZANTA-MD*`;
-
-        const sentSearch = await bot.sendMessage(from, { 
-            text: msg 
+        const sentMsg = await bot.sendMessage(from, { 
+            image: { url: video.thumbnail }, 
+            caption: msg 
         }, { quoted: mek });
 
-        // සර්ච් රිසල්ට් එක Map එකේ සේව් කිරීම (රිප්ලයි එක හඳුනා ගැනීමට)
-        xnxxData.set(from + sentSearch.key.id, results);
+        // --- Reply Listener එක මෙතනින් පටන් ගනී ---
+        const listener = async (update) => {
+            const msgUpdate = update.messages[0];
+            if (!msgUpdate.message) return;
 
-        // පැයකට පසු Map එකෙන් දත්ත ඉවත් කිරීම (RAM Cleanup)
+            const body = msgUpdate.message.conversation || 
+                         msgUpdate.message.extendedTextMessage?.text || 
+                         msgUpdate.message.buttonsResponseMessage?.selectedButtonId;
+
+            // පරීක්ෂා කිරීම: රිප්ලයි එක කළේ කලින් යැවූ මැසේජ් එකටද සහ අංකය 1 හෝ 2 ද කියා
+            const isReplyToBot = msgUpdate.message.extendedTextMessage?.contextInfo?.stanzaId === sentMsg.key.id;
+
+            if (isReplyToBot && (body === '1' || body === '2')) {
+                await bot.sendMessage(from, { react: { text: '⏳', key: msgUpdate.key } });
+
+                try {
+                    const finalLink = await getDownloadLink(video.url);
+                    if (!finalLink) return reply("❌ Download link not found.");
+
+                    if (body === '1') {
+                        // Audio එවන්න
+                        await bot.sendMessage(from, { 
+                            audio: { url: finalLink }, 
+                            mimetype: "audio/mpeg", 
+                            ptt: false 
+                        }, { quoted: msgUpdate });
+                    } else if (body === '2') {
+                        // Document එවන්න
+                        await bot.sendMessage(from, { 
+                            document: { url: finalLink }, 
+                            mimetype: "audio/mpeg", 
+                            fileName: `${video.title}.mp3`,
+                            caption: "> *© Generated by ZANTA-MD*"
+                        }, { quoted: msgUpdate });
+                    }
+
+                    await bot.sendMessage(from, { react: { text: '✅', key: msgUpdate.key } });
+                } catch (err) {
+                    console.error(err);
+                    reply("❌ Error downloading audio.");
+                }
+
+                // වැඩේ ඉවර වුණාම Listener එක ඉවත් කරන්න
+                bot.ev.off('messages.upsert', listener);
+            }
+        };
+
+        // Listener එක Register කිරීම
+        bot.ev.on('messages.upsert', listener);
+
+        // විනාඩි 5කට පසු රිප්ලයි එකක් නැත්නම් ඉබේම Listener එක නතර කරන්න
         setTimeout(() => {
-            xnxxData.delete(from + sentSearch.key.id);
-        }, 3600000);
+            bot.ev.off('messages.upsert', listener);
+        }, 300000);
 
     } catch (e) {
-        console.error("XNXX Error:", e);
-        reply("❌ දෝෂයක් සිදු විය: " + e.message);
+        console.log("SONG ERROR:", e);
+        reply("❌ *Error:* " + e.message);
     }
 });
+
+// --- API Logic එක පොදු Function එකක් ලෙස ---
+async function getDownloadLink(videoUrl) {
+    try {
+        // Manul API
+        const apiUrl = `https://api-site-x-by-manul.vercel.app/convert?mp3=${encodeURIComponent(videoUrl)}&apikey=Manul-Official`;
+        const response = await axios.get(apiUrl);
+        if (response.data?.status && response.data.data?.url) return response.data.data.url;
+
+        // Backup API
+        const backupUrl = `https://api.giftedtech.my.id/api/download/dlmp3?url=${encodeURIComponent(videoUrl)}&apikey=gifted`;
+        const backup = await axios.get(backupUrl);
+        return backup.data.result?.download_url;
+    } catch (e) {
+        return null;
+    }
+}
