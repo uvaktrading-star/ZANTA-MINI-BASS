@@ -2,7 +2,7 @@ const { cmd } = require("../command");
 const axios = require("axios");
 
 cmd({
-    pattern: "animeai",
+    pattern: "genimg",
     alias: ["animegen", "zonerai"],
     react: "🌸",
     desc: "Generate beautiful anime images using Zoner AI.",
