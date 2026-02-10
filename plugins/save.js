@@ -7,7 +7,7 @@ cmd(
     pattern: "save",
     react: "💾",
     desc: "Saves View Once image or video safely.",
-    category: "download",
+    category: "media",
     filename: __filename,
 },
 async (zanta, mek, m, { from, reply }) => {
