@@ -6,7 +6,7 @@ cmd({
     alias: ["screenshot", "webss"],
     react: "📸",
     desc: "Take a screenshot of a website.",
-    category: "tools",
+    category: "media",
     filename: __filename
 }, async (bot, mek, m, { from, q, reply }) => {
     try {
