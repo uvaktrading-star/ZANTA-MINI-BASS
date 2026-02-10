@@ -6,7 +6,7 @@ cmd({
     alias: ["hiru", "latestnews"],
     react: "📰",
     desc: "Get the latest breaking news from Hiru News.",
-    category: "news",
+    category: "tools",
     filename: __filename
 }, async (bot, mek, m, { from, reply }) => {
     try {
