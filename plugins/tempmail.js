@@ -15,14 +15,17 @@ cmd({
         const API_URL = `https://apis.sandarux.sbs/api/tools/tempmail?apikey=darknero`;
         const { data } = await axios.get(API_URL);
 
-        if (!data.status || !data.result) {
+        // මෙතන 'success' සහ 'data.result.email' චෙක් කරන්න
+        if (!data.success || !data.result || !data.result.email) {
             return reply("❌ ඊමේල් ලිපිනයක් ජෙනරේට් කිරීමට නොහැකි විය. පසුව උත්සාහ කරන්න.");
         }
 
+        const tempEmail = data.result.email; // ඊමේල් එක මෙතන තියෙන්නේ
+
         let mailMsg = `📧 *ZANTA-MD TEMP MAIL* 📧\n\n` +
-                      `📍 *Email:* ${data.result}\n\n` +
-                      `> *Note:* Use this email for temporary registrations. Check your inbox using the specific tool if available.\n\n` +
-                      `> *© ZANTA-MD TOOLS SERVICE*`;
+                      `📍 *Email:* \`${tempEmail}\` \n\n` + // Copy කරගන්න ලේසි වෙන්න code format එකට දැම්මා
+                      `> *Note:* Use this email for temporary registrations.\n\n` +
+                      `*© ZANTA-MD TOOLS SERVICE*`;
 
         await bot.sendMessage(from, {
             text: mailMsg,
