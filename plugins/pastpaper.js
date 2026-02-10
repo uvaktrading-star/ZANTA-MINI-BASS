@@ -1,91 +1,77 @@
 const { cmd } = require("../command");
 const axios = require("axios");
 
+// තාවකාලිකව දත්ත මතක තබා ගැනීමට (RAM Cleanup Optimized)
+const paperData = new Map();
+
 cmd({
     pattern: "paper",
-    alias: ["pastpaper", "pp"],
-    desc: "Search and download past papers.",
-    category: "download",
+    alias: ["pastpaper", "pp", "exam"],
     react: "🔎",
-    filename: __filename,
-}, async (zanta, mek, m, { from, q, reply, prefix }) => {
+    desc: "Search and download past papers from Paperhub.",
+    category: "download",
+    filename: __filename
+}, async (bot, mek, m, { from, q, reply, prefix }) => {
     try {
-        if (!q) return reply(`❎ කරුණාකර සෙවිය යුතු විෂය ලබා දෙන්න!\n\nExample: \`${prefix}pp o/l ict\``);
+        // --- 1. පේපර් එක ඩවුන්ලෝඩ් කිරීම (Reply Logic) ---
+        if (m.quoted && paperData.has(from + m.quoted.stanzaId)) {
+            const results = paperData.get(from + m.quoted.stanzaId);
+            const index = parseInt(q) - 1;
+            const selected = results[index];
 
-        const searchApi = `https://pp-api-beta.vercel.app/api/pastpapers?q=${encodeURIComponent(q)}`;
-        const { data } = await axios.get(searchApi);
+            if (!selected) return reply("⚠️ වැරදි අංකයකි. ලැයිස්තුවේ ඇති අංකයක් ලබා දෙන්න.");
+            if (!selected.download) return reply("❌ සමාවෙන්න, මේ පේපර් එකට සෘජු ඩවුන්ලෝඩ් ලින්ක් එකක් හමු නොවීය.");
 
-        if (!data?.results || data.results.length === 0) {
+            await bot.sendMessage(from, { react: { text: '⏳', key: m.key } });
+
+            // [DIRECT STREAM METHOD]
+            // PDF එක RAM එකට නොගෙන URL එක හරහා කෙලින්ම WhatsApp වෙත යොමු කරයි.
+            await bot.sendMessage(from, {
+                document: { url: selected.download },
+                mimetype: 'application/pdf',
+                fileName: `${selected.title}.pdf`,
+                caption: `📄 *${selected.title}*\n\n> *© ZANTA-MD PAPER SERVICE*`
+            }, { quoted: m });
+
+            await bot.sendMessage(from, { react: { text: '✅', key: m.key } });
+            return;
+        }
+
+        // --- 2. පේපර් සර්ච් කිරීම ---
+        if (!q) return reply(`📚 *ZANTA PAPER SEARCH*\n\nExample: \`${prefix}paper combined maths\``);
+
+        const API_URL = `https://apis.sandarux.sbs/api/download/paperhub?apikey=darknero&q=${encodeURIComponent(q)}`;
+        const { data } = await axios.get(API_URL);
+
+        if (!data.status || !data.results || data.results.length === 0) {
             return reply("❎ කිසිදු ප්‍රතිඵලයක් හමු නොවීය!");
         }
 
-        // අනවශ්‍ය පිටු ඉවත් කිරීම
-        const filtered = data.results.filter(r => {
-            const t = (r.title || '').toLowerCase();
-            return r.link && !t.includes('next page') && !t.includes('contact us') && !t.includes('terms');
+        // පළමු ප්‍රතිඵල 10 පමණක් ගැනීම
+        const results = data.results.slice(0, 10);
+        let msg = `📚 *ZANTA-MD PAPER HUB* 📚\n\n🔍 Query: *${q}*\n\n`;
+        
+        results.forEach((res, index) => {
+            msg += `${index + 1}️⃣ *${res.title}*\n`;
         });
+        
+        msg += `\n> *පේපර් එක ලබා ගැනීමට අදාළ අංකය Reply කරන්න.* \n\n*© ZANTA-MD*`;
 
-        const results = filtered.slice(0, 5);
-        let caption = `📚 *TOP PASTPAPER RESULTS:* ${q}\n\n`;
-        results.forEach((r, i) => {
-            caption += `*${i + 1}. ${r.title}*\n🔗 View: ${r.link}\n\n`;
-        });
-        caption += `*💬 පේපර් එක ඩවුන්ලෝඩ් කිරීමට අදාළ අංකය (1-${results.length}) Reply කරන්න.*`;
-
-        // මෙහි zanta යනු ඔයාගේ socket එකයි
-        const sentMsg = await zanta.sendMessage(from, {
-            image: results[0].thumbnail ? { url: results[0].thumbnail } : undefined,
-            text: results[0].thumbnail ? undefined : caption,
-            caption: results[0].thumbnail ? caption : undefined
+        const sentMsg = await bot.sendMessage(from, {
+            image: { url: results[0].image || "https://paperhub.lk/wp-content/uploads/2022/04/paperhub_logo.png" },
+            caption: msg
         }, { quoted: mek });
 
-        // User Reply එක අල්ලා ගැනීම (Listener)
-const listener = async (update) => {
-            const msg = update.messages[0];
-            if (!msg.message) return;
+        // සර්ච් රිසල්ට් එක Map එකේ සේව් කිරීම
+        paperData.set(from + sentMsg.key.id, results);
 
-            const text = msg.message.conversation || msg.message.extendedTextMessage?.text;
-            const isReply = msg.message.extendedTextMessage?.contextInfo?.stanzaId === sentMsg.key.id;
-
-            if (isReply && ['1','2','3','4','5'].includes(text)) {
-                const selected = results[parseInt(text) - 1];
-                await zanta.sendMessage(from, { react: { text: '⏳', key: msg.key } });
-
-                try {
-                    const dlApi = `https://pp-api-beta.vercel.app/api/download?url=${encodeURIComponent(selected.link)}`;
-                    const { data: dlData } = await axios.get(dlApi);
-
-                    if (!dlData?.found || !dlData.pdfs.length) {
-                        reply("❎ මෙහි PDF එකක් සොයාගත නොහැකි විය.");
-                    } else {
-                        for (const pdfUrl of dlData.pdfs) {
-                            await zanta.sendMessage(from, {
-                                document: { url: pdfUrl },
-                                mimetype: 'application/pdf',
-                                fileName: `${selected.title}.pdf`,
-                                caption: `📄 ${selected.title}\n\n> *© 𝑷𝒐𝒘𝒆𝒓𝒆𝒅 𝑩𝒚 𝒁𝑨𝑵𝑻𝑨-𝑴𝑫*`
-                            }, { quoted: msg });
-                        }
-                        await zanta.sendMessage(from, { react: { text: '✅', key: msg.key } });
-                    }
-                } catch (err) {
-                    reply("❌ Download Failed!");
-                }
-
-                // ✅ වැදගත්ම දේ: වැඩේ ඉවර වුණ ගමන් මේ Listener එක නතර කරනවා (Stop Listening)
-                zanta.ev.off('messages.upsert', listener);
-            }
-        };
-
-        zanta.ev.on('messages.upsert', listener);
-
-        // විනාඩි 5කින් පස්සේ කිසිම රෙප්ලයි එකක් නැත්නම් ඉබේම Listener එක අයින් කරනවා
+        // පැයකින් මතකයෙන් ඉවත් කිරීම
         setTimeout(() => {
-            zanta.ev.off('messages.upsert', listener);
-        }, 300000); 
+            paperData.delete(from + sentMsg.key.id);
+        }, 3600000);
 
     } catch (e) {
-        console.error(e);
-        reply("❌ දෝෂයක් සිදු විය!");
+        console.error("Paperhub Error:", e);
+        reply("❌ දෝෂයක් සිදු විය: " + e.message);
     }
 });
