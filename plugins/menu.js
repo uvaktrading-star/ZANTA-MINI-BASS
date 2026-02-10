@@ -51,7 +51,7 @@ async (zanta, mek, m, { from, reply, args, userSettings }) => {
         }
 
         const groupedCommands = {};
-        const customOrder = ["main", "download", "tools", "logo"];
+        const customOrder = ["main", "download", "tools", "logo", "media"];
 
         commands.filter(c => c.pattern && c.pattern !== "menu").forEach(cmdData => {
             let cat = cmdData.category?.toLowerCase() || "other";
@@ -87,7 +87,7 @@ async (zanta, mek, m, { from, reply, args, userSettings }) => {
 
         if (selectedCategory && groupedCommands[selectedCategory]) {
             let displayTitle = selectedCategory.toUpperCase();
-            let emoji = { main: '🏠', download: '📥', tools: '🛠', logo: '🎨' }[selectedCategory.toLowerCase()] || '📌';
+            let emoji = { main: '🏠', download: '📥', tools: '🛠', logo: '🎨', media: '🖼' }[selectedCategory.toLowerCase()] || '📌';
 
             let commandList = `╭━━〔 ${emoji} ${displayTitle} 〕━━┈⊷\n`;
             commandList += `┃ 📝 Category : ${displayTitle}\n┃ 📊 Available : ${groupedCommands[selectedCategory].length}\n╰━━━━━━━━━━━━━━┈⊷\n\n`;
@@ -115,12 +115,13 @@ async (zanta, mek, m, { from, reply, args, userSettings }) => {
             return await zanta.sendMessage(from, {
                 image: imageToDisplay,
                 caption: headerText + "ꜱᴇʟᴇᴄᴛ 👇",
-                footer: `© ${botName} • Cyber System`,
+                footer: `© ZANTA-MD •`,
                 buttons: [
                     { buttonId: "cat_main", buttonText: { displayText: "🏠 MAIN" }, type: 1 },
                     { buttonId: "cat_download", buttonText: { displayText: "📥 DOWNLOAD" }, type: 1 },
                     { buttonId: "cat_tools", buttonText: { displayText: "🛠 TOOLS" }, type: 1 },
-                    { buttonId: "cat_logo", buttonText: { displayText: "🎨 LOGO" }, type: 1 }
+                    { buttonId: "cat_logo", buttonText: { displayText: "🎨 LOGO" }, type: 1 },
+                    { buttonId: "cat_media", buttonText: { displayText: "🖼 MEDIA" }, type: 1 }
                 ],
                 headerType: 4,
                 contextInfo
@@ -129,7 +130,7 @@ async (zanta, mek, m, { from, reply, args, userSettings }) => {
             let menuText = headerText + `╭━━〔 📜 MENU LIST 〕━━┈⊷\n`;
             categoryKeys.forEach((catKey, index) => {
                 let title = catKey.toUpperCase();
-                let emoji = { main: '🏠', download: '📥', tools: '🛠', logo: '🎨' }[catKey] || '📌';
+                let emoji = { main: '🏠', download: '📥', tools: '🛠', logo: '🎨', media: '🖼' }[catKey] || '📌';
                 menuText += `┃ ${index + 1}. ${emoji} ${title} (${groupedCommands[catKey].length})\n`;
             });
             menuText += `╰━━━━━━━━━━━━━━┈⊷\n\n_💡 Reply with number to select._`;
@@ -151,3 +152,4 @@ async (zanta, mek, m, { from, reply, args, userSettings }) => {
 });
 
 module.exports = { lastMenuMessage };
+
