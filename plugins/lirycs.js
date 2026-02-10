@@ -6,7 +6,7 @@ cmd({
     alias: ["lyric", "සින්දුපද"],
     react: "🎶",
     desc: "Search lyrics for any song.",
-    category: "tools",
+    category: "media",
     filename: __filename
 }, async (bot, mek, m, { from, q, reply }) => {
     try {
