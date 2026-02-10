@@ -29,7 +29,7 @@ cmd({
                        `───────────────────\n\n` +
                        `${lyrics.lyrics}\n\n` +
                        `───────────────────\n` +
-                       `> *© ZANTA-MD LYRICS SERVICE*`;
+                       `> *© ZANTA-MD LYRICS*`;
 
         // සින්දුවේ Image එක සමඟ පද පේළි යැවීම
         await bot.sendMessage(from, {
