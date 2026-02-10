@@ -1,99 +1,112 @@
 const { cmd } = require("../command");
 const axios = require("axios");
-
-const API_KEY = "darknero";
-const SEARCH_API = "https://apis.sandarux.sbs/api/download/xnxx-search";
-const DL_API = "https://apis.sandarux.sbs/api/download/xnxx-dl";
-const LOGO_URL = "https://github.com/Akashkavindu/ZANTA_MD/blob/main/images/zanta-md.png?raw=true";
+const yts = require("yt-search");
+const config = require("../config");
 
 cmd({
-    pattern: "xnxx",
-    alias: ["porn", "xvideo"],
-    react: "🔞",
-    desc: "Search and download XNXX videos with Selection Menu",
+    pattern: "song",
+    alias: ["yta", "mp3", "play"],
+    react: "🎧",
+    desc: "Download YouTube MP3 with selection menu",
     category: "download",
     filename: __filename,
-}, async (bot, mek, m, { from, q, reply }) => {
+}, async (bot, mek, m, { from, q, reply, prefix }) => {
     try {
-        if (!q) return reply("🔞 *ZANTA-MD XNXX SEARCH*\n\nExample: .xnxx blue film");
+        if (!q) return reply("🎧 *ZANTA-MD SONG SEARCH*\n\nExample: .song alone");
 
-        // 1. සර්ච් කිරීම
-        const searchRes = await axios.get(`${SEARCH_API}?apikey=${API_KEY}&q=${encodeURIComponent(q)}`);
-        
-        if (!searchRes.data.status || !searchRes.data.data || searchRes.data.data.length === 0) {
-            return reply("❌ කිසිදු ප්‍රතිඵලයක් හමු නොවීය.");
-        }
+        const search = await yts(q);
+        const video = search.videos[0];
+        if (!video) return reply("❌ No results found on YouTube.");
 
-        const results = searchRes.data.data.slice(0, 10); // මුල් 10 ගමු
-        let msg = `🔞 *ZANTA XNXX SEARCH* 🔞\n\n🔍 Query: *${q}*\n\n`;
-        
-        results.forEach((res, index) => {
-            msg += `${index + 1}️⃣ *${res.title}*\n`;
-        });
-        
-        msg += `\n> *Reply with the number to download.* \n\n*© ZANTA-MD*`;
+        let msg = `🎵 *ZANTA AUDIO PLAYER* 🎵\n\n` +
+                  `📝 *Title:* ${video.title}\n` +
+                  `👤 *Artist:* ${video.author.name}\n` +
+                  `⏱️ *Duration:* ${video.timestamp}\n` +
+                  `🔗 *Link:* ${video.url}\n\n` +
+                  `*Reply with a number:* \n\n` +
+                  `1️⃣ *Audio File* (MPEG)\n` +
+                  `2️⃣ *Document File* (MP3)\n\n` +
+                  `> *© ZANTA-MD SONG SERVICE*`;
 
         const sentMsg = await bot.sendMessage(from, { 
-            image: { url: LOGO_URL }, 
+            image: { url: video.thumbnail }, 
             caption: msg 
         }, { quoted: mek });
 
-        // --- Reply Listener එක ආරම්භය ---
+        // --- Reply Listener එක මෙතනින් පටන් ගනී ---
         const listener = async (update) => {
             const msgUpdate = update.messages[0];
             if (!msgUpdate.message) return;
 
             const body = msgUpdate.message.conversation || 
-                         msgUpdate.message.extendedTextMessage?.text;
+                         msgUpdate.message.extendedTextMessage?.text || 
+                         msgUpdate.message.buttonsResponseMessage?.selectedButtonId;
 
+            // පරීක්ෂා කිරීම: රිප්ලයි එක කළේ කලින් යැවූ මැසේජ් එකටද සහ අංකය 1 හෝ 2 ද කියා
             const isReplyToBot = msgUpdate.message.extendedTextMessage?.contextInfo?.stanzaId === sentMsg.key.id;
 
-            if (isReplyToBot) {
-                const index = parseInt(body) - 1;
-                if (isNaN(index) || index < 0 || index >= results.length) return; // අංකය වැරදි නම් ignore කරන්න
-
+            if (isReplyToBot && (body === '1' || body === '2')) {
                 await bot.sendMessage(from, { react: { text: '⏳', key: msgUpdate.key } });
 
                 try {
-                    const selectedVideo = results[index];
-                    const dlRes = await axios.get(`${DL_API}?apikey=${API_KEY}&url=${selectedVideo.url}`);
-                    
-                    if (!dlRes.data.status || !dlRes.data.links) {
-                        return reply("❌ වීඩියෝ ලින්ක් එක ලබා ගැනීමට නොහැකි විය.");
+                    const finalLink = await getDownloadLink(video.url);
+                    if (!finalLink) return reply("❌ Download link not found.");
+
+                    if (body === '1') {
+                        // Audio එවන්න
+                        await bot.sendMessage(from, { 
+                            audio: { url: finalLink }, 
+                            mimetype: "audio/mpeg", 
+                            ptt: false 
+                        }, { quoted: msgUpdate });
+                    } else if (body === '2') {
+                        // Document එවන්න
+                        await bot.sendMessage(from, { 
+                            document: { url: finalLink }, 
+                            mimetype: "audio/mpeg", 
+                            fileName: `${video.title}.mp3`,
+                            caption: "> *© Generated by ZANTA-MD*"
+                        }, { quoted: msgUpdate });
                     }
 
-                    const finalUrl = dlRes.data.links.high || dlRes.data.links.low;
-                    const videoTitle = selectedVideo.title || "XNXX Video";
-
-                    // වීඩියෝව Document එකක් ලෙස යැවීම (RAM එකට බරක් නැත)
-                    await bot.sendMessage(from, { 
-                        document: { url: finalUrl }, 
-                        mimetype: 'video/mp4', 
-                        fileName: `[ZANTA-MD] ${videoTitle}.mp4`,
-                        caption: `🎬 *${videoTitle}*\n\n> *© ZANTA-MD XNXX SERVICE*`
-                    }, { quoted: msgUpdate });
-
                     await bot.sendMessage(from, { react: { text: '✅', key: msgUpdate.key } });
-
                 } catch (err) {
                     console.error(err);
-                    reply("❌ වීඩියෝව ලබා ගැනීමේදී දෝෂයක් සිදු විය.");
+                    reply("❌ Error downloading audio.");
                 }
 
-                // වැඩේ ඉවර වුණාම Listener එක අයින් කරන්න
+                // වැඩේ ඉවර වුණාම Listener එක ඉවත් කරන්න
                 bot.ev.off('messages.upsert', listener);
             }
         };
 
+        // Listener එක Register කිරීම
         bot.ev.on('messages.upsert', listener);
 
-        // විනාඩි 5කට පසු Listener එක ඉවත් කිරීම
+        // විනාඩි 5කට පසු රිප්ලයි එකක් නැත්නම් ඉබේම Listener එක නතර කරන්න
         setTimeout(() => {
             bot.ev.off('messages.upsert', listener);
         }, 300000);
 
     } catch (e) {
-        console.error("XNXX ERROR:", e);
+        console.log("SONG ERROR:", e);
         reply("❌ *Error:* " + e.message);
     }
 });
+
+// --- API Logic එක පොදු Function එකක් ලෙස ---
+async function getDownloadLink(videoUrl) {
+    try {
+        // Manul API
+        const apiUrl = `https://api-site-x-by-manul.vercel.app/convert?mp3=${encodeURIComponent(videoUrl)}&apikey=Manul-Official`;
+        const response = await axios.get(apiUrl);
+        if (response.data?.status && response.data.data?.url) return response.data.data.url;
+
+        // Backup API
+        const backupUrl = `https://api.giftedtech.my.id/api/download/dlmp3?url=${encodeURIComponent(videoUrl)}&apikey=gifted`;
+        const backup = await axios.get(backupUrl);
+        return backup.data.result?.download_url;
+    } catch (e) {
+        return null;
+    }
+}
