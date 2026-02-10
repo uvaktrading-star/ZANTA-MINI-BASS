@@ -3,7 +3,7 @@ const axios = require("axios");
 
 cmd({
     pattern: "gemini",
-    alias: ["gpt", "chatgt"],
+    alias: ["gpt", "chatgpt", "ai"],
     react: "🤖",
     desc: "Chat with OpenAI ChatGPT AI.",
     category: "tools",
@@ -17,15 +17,15 @@ cmd({
         const API_URL = `https://apis.sandarux.sbs/api/ai/chatopenai?apikey=darknero&text=${encodeURIComponent(q)}`;
         const { data } = await axios.get(API_URL);
 
-        if (!data.status || !data.result) {
+        // මෙතන තමයි වෙනස: 'data.answer' චෙක් කරන්න ඕනේ
+        if (!data.status || !data.answer) {
             return reply("❌ AI සේවාව මේ වෙලාවේ කාර්යබහුලයි. පසුව උත්සාහ කරන්න.");
         }
 
-        const aiResponse = data.result;
+        const aiResponse = data.answer; // 'result' වෙනුවට 'answer' ගන්න
 
         let finalMsg = `🤖 *ZANTA-MD AI CHAT* 🤖\n\n${aiResponse}\n\n> *© 𝑷𝒐𝒘𝒆𝒓𝒆𝒅 𝑩𝒚 𝒁𝑨𝑵𝑻𝑨-𝑴𝑫*`;
 
-        // AI පිළිතුර යැවීම (With Branding)
         await bot.sendMessage(from, {
             text: finalMsg,
             contextInfo: {
@@ -39,7 +39,7 @@ cmd({
                 externalAdReply: {
                     title: "ZANTA-MD AI ASSISTANT",
                     body: "Powered by OpenAI",
-                    thumbnailUrl: "https://i.ibb.co/3S6VpxC/ai-logo.png", // AI ලෝගෝ එකක් මෙතනට දාන්න
+                    thumbnailUrl: "https://i.ibb.co/3S6VpxC/ai-logo.png",
                     sourceUrl: "https://whatsapp.com/channel/0029Vb6xGdD11ulNhYPtMt3j",
                     mediaType: 1,
                     renderLargerThumbnail: false
