@@ -9,7 +9,7 @@ cmd({
     pattern: "wiki",
     alias: ["wikipedia", "search"],
     desc: "Search information from Wikipedia with an image.",
-    category: "tools",
+    category: "media",
     react: "🌐",
     filename: __filename,
 }, async (zanta, mek, m, { from, reply, q, prefix, userSettings }) => {
