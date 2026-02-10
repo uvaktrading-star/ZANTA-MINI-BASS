@@ -45,34 +45,6 @@ cmd({
     } catch (e) { reply("Error!"); }
 });
 
-// --- 🎨 AI IMAGE GENERATOR ---
-cmd({
-    pattern: "genimg",
-    alias: ["aiimg", "draw"],
-    react: "🎨",
-    desc: "create AI Images.",
-    category: "download",
-    filename: __filename,
-}, async (zanta, mek, m, { from, reply, args }) => {
-    try {
-        let text = args.join(" ");
-        if (!text) return reply("*විස්තරයක් ලබා දෙන්න!* ❌");
-
-        reply("*ඔබේ පින්තූරය නිර්මාණය කරමින් පවතී...* ⏳");
-
-        let apiUrl = `https://pollinations.ai/p/${encodeURIComponent(text)}?width=1024&height=1024&seed=${Math.floor(Math.random() * 1000)}`;
-        const response = await axios.get(apiUrl, { responseType: 'arraybuffer' });
-        const buffer = Buffer.from(response.data, 'binary');
-
-        await zanta.sendMessage(from, { 
-            image: buffer, 
-            caption: `*🎨 AI Image Generated*\n*Prompt:* ${text}`,
-            contextInfo: contextInfo 
-        }, { quoted: mek });
-
-    } catch (e) { reply("*Error generating image!* ❌"); }
-});
-
 // --- ✍️ FANCY FONTS ---
 cmd({
     pattern: "fancy",
