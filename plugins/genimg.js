@@ -6,7 +6,7 @@ cmd({
     alias: ["animegen", "zonerai"],
     react: "🌸",
     desc: "Generate beautiful anime images using Zoner AI.",
-    category: "tools",
+    category: "media",
     filename: __filename
 }, async (bot, mek, m, { from, q, reply }) => {
     try {
