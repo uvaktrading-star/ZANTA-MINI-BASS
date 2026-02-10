@@ -6,7 +6,7 @@ cmd({
     alias: ["gpt", "chatgt"],
     react: "🤖",
     desc: "Chat with OpenAI ChatGPT AI.",
-    category: "ai",
+    category: "tools",
     filename: __filename
 }, async (bot, mek, m, { from, q, reply }) => {
     try {
