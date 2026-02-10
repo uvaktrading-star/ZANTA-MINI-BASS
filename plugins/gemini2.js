@@ -24,7 +24,7 @@ cmd({
 
         const aiResponse = data.answer; // 'result' වෙනුවට 'answer' ගන්න
 
-        let finalMsg = `🤖 *ZANTA-MD AI CHAT* 🤖\n\n${aiResponse}\n\n> *© 𝑷𝒐𝒘𝒆𝒓𝒆𝒅 𝑩𝒚 𝒁𝑨𝑵𝑻𝑨-𝑴𝑫*`;
+        let finalMsg = `${aiResponse}\n\n> *© 𝑷𝒐𝒘𝒆𝒓𝒆𝒅 𝑩𝒚 𝒁𝑨𝑵𝑻𝑨-𝑴𝑫*`;
 
         await bot.sendMessage(from, {
             text: finalMsg,
@@ -35,14 +35,6 @@ cmd({
                     newsletterJid: '120363406265537739@newsletter',
                     serverMessageId: 100,
                     newsletterName: "𝒁𝑨𝑵𝑻𝑨-𝑴𝑫 𝑶𝑭𝑭𝑰𝑪𝑰𝑨𝑳"
-                },
-                externalAdReply: {
-                    title: "ZANTA-MD AI ASSISTANT",
-                    body: "Powered by OpenAI",
-                    thumbnailUrl: "https://i.ibb.co/3S6VpxC/ai-logo.png",
-                    sourceUrl: "https://whatsapp.com/channel/0029Vb6xGdD11ulNhYPtMt3j",
-                    mediaType: 1,
-                    renderLargerThumbnail: false
                 }
             }
         }, { quoted: mek });
