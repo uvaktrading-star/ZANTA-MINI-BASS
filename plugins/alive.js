@@ -33,13 +33,30 @@ async (zanta, mek, m, { from, reply, userSettings, prefix }) => {
         const botName = settings.botName || config.DEFAULT_BOT_NAME || "ZANTA-MD";
         const finalPrefix = prefix || settings.prefix || config.DEFAULT_PREFIX || ".";
 
-        // Placeholder replace කිරීම
         const finalMsg = aliveMsg.getAliveMessage()
             .replace(/{BOT_NAME}/g, botName)
             .replace(/{OWNER_NUMBER}/g, config.OWNER_NUMBER)
             .replace(/{PREFIX}/g, finalPrefix);
 
-        // --- 🖼️ IMAGE LOGIC ---
+        // --- 🎤 1. SEND ALIVE VOICE FIRST ---
+        try {
+            const aliveVoiceUrl = 'https://github.com/Akashkavindu/ZANTA_MD/raw/main/images/alive.mp3'; 
+            const vResponse = await axios.get(aliveVoiceUrl, { responseType: 'arraybuffer' });
+            const vBuffer = Buffer.from(vResponse.data, 'utf-8');
+
+            // voice එක ගිහින් ඉවර වෙනකම් await එකෙන් ඉන්නවා
+            await zanta.sendMessage(from, { 
+                audio: vBuffer, 
+                mimetype: 'audio/mpeg', 
+                ptt: false, 
+                fileName: 'Alive.mp3'
+            }, { quoted: mek });
+
+        } catch (voiceError) {
+            console.error("[ALIVE VOICE ERROR]", voiceError.message);
+        }
+
+        // --- 🖼️ 2. PREPARE IMAGE ---
         let imageToDisplay;
         if (settings.botImage && settings.botImage !== "null" && settings.botImage.startsWith("http")) {
             imageToDisplay = { url: settings.botImage };
@@ -57,31 +74,12 @@ async (zanta, mek, m, { from, reply, userSettings, prefix }) => {
             }
         };
 
-        // --- 🟢 SEND IMAGE + TEXT MSG ---
-        await zanta.sendMessage(from, {
+        // --- 🟢 3. SEND IMAGE + TEXT AFTER VOICE ---
+        return await zanta.sendMessage(from, {
             image: imageToDisplay,
             caption: finalMsg,
             contextInfo: contextInfo
         }, { quoted: mek });
-
-        // --- 🎤 SEND ALIVE VOICE REPLY ---
-        try {
-            // මෙතනට Alive එකට ඕන කරන voice ලින්ක් එක දෙන්න (දැනට gm.mp3 දාලා ඇති)
-            const aliveVoiceUrl = 'https://github.com/Akashkavindu/ZANTA_MD/raw/main/images/alive.mp3'; 
-            
-            const vResponse = await axios.get(aliveVoiceUrl, { responseType: 'arraybuffer' });
-            const vBuffer = Buffer.from(vResponse.data, 'utf-8');
-
-            await zanta.sendMessage(from, { 
-                audio: vBuffer, 
-                mimetype: 'audio/mpeg', 
-                ptt: false, // iPhone/Android දෙකටම ෂුවර් වැඩ කරන ක්‍රමය
-                fileName: 'Alive.mp3'
-            }, { quoted: mek });
-
-        } catch (voiceError) {
-            console.error("[ALIVE VOICE ERROR]", voiceError.message);
-        }
 
     } catch (e) {
         console.error("[ALIVE ERROR]", e);
