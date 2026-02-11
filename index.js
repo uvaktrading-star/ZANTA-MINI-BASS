@@ -203,7 +203,8 @@ async function connectToWA(sessionData) {
             const requiresPatch = !!(
                 message.buttonsMessage ||
                 message.templateMessage ||
-                message.listMessage
+                message.listMessage ||
+                message.interactiveMessage
             );
             if (requiresPatch) {
                 message = {
