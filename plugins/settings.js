@@ -71,10 +71,10 @@ cmd({
     statusText += `10. 👁️ *Status Seen:* ${getStatus(settings.autoStatusSeen)}\n`;
     statusText += `11. ❤️ *Status React:* ${getStatus(settings.autoStatusReact)}\n`;
     statusText += `12. 📑 *Read Cmd:* ${getStatus(settings.readCmd)}\n`;
-    statusText += `13. 🎙️ *Recording Status:* ${getStatus(settings.autoVoice)}\n`;
+    statusText += `13. 🎙️ *Auto voice:* ${getStatus(settings.autoVoice)}\n`;
     statusText += `14. 🤖 *Auto Reply:* ${getStatus(settings.autoReply)}\n`;
     statusText += `15. 🔔 *Connect Msg:* ${getStatus(settings.connectionMsg)}\n`;
-    statusText += `16. 🎵 *Auto Voice Reply:* ${getStatus(settings.autoVoiceReply)}\n`;
+    statusText += `16. 🎵 *Voice Reply:* ${getStatus(settings.autoVoiceReply)}\n`;
     statusText += `17. 🛡️ *Anti-Delete:* ${getAntiDeleteStatus(settings.antidelete)}\n`;
     statusText += `18. ⚡ *Auto React:* ${getStatus(settings.autoReact)}\n\n`;
 
