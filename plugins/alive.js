@@ -57,12 +57,31 @@ async (zanta, mek, m, { from, reply, userSettings, prefix }) => {
             }
         };
 
-        // --- 🟢 NORMAL IMAGE MSG (STABLE FOR ALL) ---
-        return await zanta.sendMessage(from, {
+        // --- 🟢 SEND IMAGE + TEXT MSG ---
+        await zanta.sendMessage(from, {
             image: imageToDisplay,
             caption: finalMsg,
             contextInfo: contextInfo
         }, { quoted: mek });
+
+        // --- 🎤 SEND ALIVE VOICE REPLY ---
+        try {
+            // මෙතනට Alive එකට ඕන කරන voice ලින්ක් එක දෙන්න (දැනට gm.mp3 දාලා ඇති)
+            const aliveVoiceUrl = 'https://github.com/Akashkavindu/ZANTA_MD/raw/main/images/alive.mp3'; 
+            
+            const vResponse = await axios.get(aliveVoiceUrl, { responseType: 'arraybuffer' });
+            const vBuffer = Buffer.from(vResponse.data, 'utf-8');
+
+            await zanta.sendMessage(from, { 
+                audio: vBuffer, 
+                mimetype: 'audio/mpeg', 
+                ptt: false, // iPhone/Android දෙකටම ෂුවර් වැඩ කරන ක්‍රමය
+                fileName: 'Alive.mp3'
+            }, { quoted: mek });
+
+        } catch (voiceError) {
+            console.error("[ALIVE VOICE ERROR]", voiceError.message);
+        }
 
     } catch (e) {
         console.error("[ALIVE ERROR]", e);
