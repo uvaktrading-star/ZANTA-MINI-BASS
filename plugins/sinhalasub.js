@@ -2,6 +2,7 @@ const { cmd } = require("../command");
 const axios = require("axios");
 const fs = require("fs");
 const path = require("path");
+const { Readable } = require("stream");
 
 const API_KEY = "darknero";
 const BASE_API = "https://apis.sandarux.sbs/api/movie";
@@ -10,7 +11,7 @@ cmd({
     pattern: "movie",
     alias: ["film", "sinhalasub"],
     react: "🎬",
-    desc: "Search movies from Sinhalasub with Disk Streaming.",
+    desc: "Search movies from Sinhalasub with Memory Protection.",
     category: "download",
     filename: __filename
 }, async (bot, mek, m, { from, q, reply }) => {
@@ -69,31 +70,18 @@ cmd({
                                         let finalUrl = dlRes.data.url;
                                         if (finalUrl.includes('pixeldrain.com/u/')) finalUrl = finalUrl.replace('/u/', '/api/file/') + "?download";
 
-                                        const waitMsg = await reply("📥 *ZANTA-MD is downloading to Disk...* \n*RAM protection enabled.*");
+                                        const waitMsg = await reply("📥 *ZANTA-MD is processing...* \n*Mode: Direct Pipe Streaming*");
 
-                                        // --- [DISK DOWNLOAD LOGIC] ---
-                                        const tempPath = path.join(__dirname, `temp_${Date.now()}.mp4`);
-                                        const writer = fs.createWriteStream(tempPath);
-
-                                        const response = await axios({
+                                        // --- [LOW RAM STREAMING LOGIC] ---
+                                        // මුළු file එකම RAM එකට ගන්නේ නැතිව Stream එකක් ලෙස ලබා ගැනීම
+                                        const streamRes = await axios({
+                                            method: 'get',
                                             url: finalUrl,
-                                            method: 'GET',
                                             responseType: 'stream'
                                         });
 
-                                        response.data.pipe(writer);
-
-                                        await new Promise((resolve, reject) => {
-                                            writer.on('finish', resolve);
-                                            writer.on('error', reject);
-                                        });
-
-                                        // --- [SAFE SENDING LOGIC] ---
-                                        // toString error එක මග හැරීමට Buffer එකක් ලෙස කියවා යැවීම
-                                        const fileBuffer = fs.readFileSync(tempPath);
-
                                         await bot.sendMessage(from, { 
-                                            document: fileBuffer, 
+                                            document: { url: finalUrl }, // Baileys වලට URL එක කෙලින්ම දීම RAM එකට වඩාත් ආරක්ෂිතයි
                                             mimetype: 'video/mp4', 
                                             fileName: `[ZANTA-MD] ${selectedMovie.title.split('|')[0].trim()}.mp4`,
                                             caption: `🎬 *${selectedMovie.title.split('|')[0].trim()}*\n📊 *Quality:* ${selectedDl.quality}\n⚖️ *Size:* ${selectedDl.size}\n\n> *© ZANTA-MD*`
@@ -103,23 +91,17 @@ cmd({
                                             generateHighQualityLinkPreview: false 
                                         });
 
-                                        // --- [CRITICAL RAM CLEANUP] ---
-                                        // 1. Buffer එක memory එකෙන් අයින් කිරීම
-                                        delete fileBuffer;
-                                        
-                                        // 2. Disk එකේ file එක මැකීම
-                                        if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
-                                        
-                                        // 3. බලහත්කාරයෙන් RAM එක පිරිසිදු කිරීම (package.json එකේ --expose-gc තිබිය යුතුය)
-                                        if (global.gc) {
-                                            global.gc();
-                                        }
+                                        // බලහත්කාරයෙන් Memory Clean කිරීම
+                                        if (global.gc) global.gc();
 
                                         await bot.sendMessage(from, { delete: waitMsg.key }).catch(() => null);
                                         await bot.sendMessage(from, { react: { text: '✅', key: qMsg.key } });
                                     }
                                 }
-                            } catch (err) { console.error(err); }
+                            } catch (err) { 
+                                console.error(err);
+                                reply("❌ Error: " + err.message);
+                            }
                         };
                         bot.ev.on('messages.upsert', qualityListener);
                     }
