@@ -68,16 +68,16 @@ async (zanta, mek, m, { from, reply, args, userSettings, prefix }) => {
             const buttonRows = categoryKeys.map(catKey => ({
                 header: "",
                 title: `${catKey.toUpperCase()} MENU`,
-                description: `View ${catKey} commands`,
+                description: `View ${catKey} category commands`,
                 id: `cat_${catKey}`
             }));
 
             // --- 📦 INTERACTIVE MESSAGE CONTENT ---
             const interactiveMessage = {
-                body: { text: headerText + "\nPlease select a category below." },
+                body: { text: headerText + "\nPlease select a category from the button below." },
                 footer: { text: `© ${botName} • 2026` },
                 header: {
-                    title: botName,
+                    title: `*${botName}*`,
                     hasVideoDeterminer: false,
                     imageMessage: (await prepareWAMessageMedia({ image: { url: MENU_IMAGE_URL } }, { upload: zanta.waUploadToServer })).imageMessage
                 },
@@ -98,7 +98,8 @@ async (zanta, mek, m, { from, reply, args, userSettings, prefix }) => {
                             })
                         }
                     ]
-                }
+                },
+                contextInfo: contextInfo // Newsletter forward එක මෙතනටත් දැම්මා
             };
 
             // --- 🚀 MESSAGE GENERATION & RELAY ---
@@ -129,8 +130,8 @@ async (zanta, mek, m, { from, reply, args, userSettings, prefix }) => {
             lastMenuMessage.set(from, sent.key.id);
         }
     } catch (err) {
-        console.error(err);
-        reply("❌ Button Error. Please check your Baileys version.");
+        console.error("Menu Button Error:", err);
+        reply("❌ Button Menu එක සෑදීමේදී දෝෂයක් ඇති විය. කරුණාකර නැවත උත්සාහ කරන්න.");
     }
 });
 
