@@ -30,10 +30,10 @@ cmd({
     category: "main",
     filename: __filename,
 },
-async (zanta, mek, m, { from, reply, args, userSettings }) => {
+async (zanta, mek, m, { from, reply, args, userSettings, prefix }) => {
     try {
         const settings = userSettings || global.CURRENT_BOT_SETTINGS || {};
-        const finalPrefix = settings.prefix || config.DEFAULT_PREFIX || '.'; 
+        const finalPrefix = prefix || settings.prefix || config.DEFAULT_PREFIX || '.'; 
         const botName = settings.botName || config.DEFAULT_BOT_NAME || "ZANTA-MD"; 
         const ownerName = settings.ownerName || config.DEFAULT_OWNER_NAME || 'Akash Kavindu';
         const mode = (settings.workType || "Public").toUpperCase();
@@ -44,12 +44,13 @@ async (zanta, mek, m, { from, reply, args, userSettings }) => {
         const isCategorySelection = inputBody.startsWith('cat_');
         const isMainCmd = (inputBody === `${finalPrefix}menu` || inputBody === "menu");
 
+        // Command Filter
         if (!isNumber && !isCategorySelection && !isMainCmd) return;
-
         if (isNumber && !isMainCmd) {
             if (!m.quoted || lastMenuMessage.get(from) !== m.quoted.id) return;
         }
 
+        // Grouping Commands
         const groupedCommands = {};
         const customOrder = ["main", "download", "tools", "logo", "media"];
 
@@ -85,6 +86,7 @@ async (zanta, mek, m, { from, reply, args, userSettings }) => {
             }
         };
 
+        // --- Category display logic ---
         if (selectedCategory && groupedCommands[selectedCategory]) {
             let displayTitle = selectedCategory.toUpperCase();
             let emoji = { main: '🏠', download: '📥', tools: '🛠', logo: '🎨', media: '🖼' }[selectedCategory.toLowerCase()] || '📌';
@@ -100,10 +102,10 @@ async (zanta, mek, m, { from, reply, args, userSettings }) => {
             return await zanta.sendMessage(from, { text: commandList, contextInfo }, { quoted: mek }); 
         }
 
+        // --- Main Menu header ---
         let headerText = `╭━〔 ${botName} WA BOT 〕━··๏\n`;
         headerText += `┃ 👑 Owner : ${ownerName}\n┃ ⚙ Mode : ${mode}\n┃ 🔣 Prefix : ${finalPrefix}\n┃ 📚 Commands : ${commands.length}\n╰━━━━━━━━━━━━━━┈⊷\n\n`;
 
-        // --- 🖼️ IMAGE LOGIC: DB Image එක ඇත්නම් එය පෙන්වයි, නැතිනම් Default Cache Image එක පෙන්වයි ---
         let imageToDisplay;
         if (settings.botImage && settings.botImage !== "null" && settings.botImage.startsWith("http")) {
             imageToDisplay = { url: settings.botImage };
@@ -112,21 +114,53 @@ async (zanta, mek, m, { from, reply, args, userSettings }) => {
         }
 
         if (isButtonsOn) {
-            return await zanta.sendMessage(from, {
-                image: imageToDisplay,
-                caption: headerText + "ꜱᴇʟᴇᴄᴛ 👇",
-                footer: `© ZANTA-MD •`,
-                buttons: [
-                    { buttonId: "cat_main", buttonText: { displayText: "🏠 MAIN" }, type: 1 },
-                    { buttonId: "cat_download", buttonText: { displayText: "📥 DOWNLOAD" }, type: 1 },
-                    { buttonId: "cat_tools", buttonText: { displayText: "🛠 TOOLS" }, type: 1 },
-                    { buttonId: "cat_logo", buttonText: { displayText: "🎨 LOGO" }, type: 1 },
-                    { buttonId: "cat_media", buttonText: { displayText: "🖼 MEDIA" }, type: 1 }
-                ],
-                headerType: 4,
-                contextInfo
-            }, { quoted: mek });
+            // --- 🔘 NEW INTERACTIVE BUTTONS LOGIC ---
+            const buttonRows = categoryKeys.map(catKey => {
+                let title = catKey.toUpperCase();
+                let emoji = { main: '🏠', download: '📥', tools: '🛠', logo: '🎨', media: '🖼' }[catKey] || '📌';
+                return {
+                    header: "",
+                    title: `${emoji} ${title} MENU`,
+                    description: `View ${title} category commands`,
+                    id: `cat_${catKey}`
+                };
+            });
+
+            const buttons = [
+                {
+                    name: "single_select",
+                    buttonParamsJson: JSON.stringify({
+                        title: "📂 SELECT CATEGORY",
+                        sections: [{ title: "COMMAND MENU", rows: buttonRows }]
+                    })
+                },
+                {
+                    name: "quick_reply",
+                    buttonParamsJson: JSON.stringify({
+                        display_text: "👤 OWNER",
+                        id: `${finalPrefix}owner`
+                    })
+                }
+            ];
+
+            const message = {
+                interactiveMessage: {
+                    header: {
+                        title: botName,
+                        hasVideoDeterminer: false,
+                        imageMessage: (await zanta.prepareWAMessageMedia({ image: imageToDisplay }, { upload: zanta.waUploadToServer })).imageMessage
+                    },
+                    body: { text: headerText + "Please select a category from the button below." },
+                    footer: { text: `© ${botName} • 2026` },
+                    nativeFlowMessage: { buttons: buttons },
+                    contextInfo: contextInfo
+                }
+            };
+
+            return await zanta.relayMessage(from, { viewOnceMessage: { message } }, { quoted: mek });
+
         } else {
+            // --- 📝 NON-BUTTON MENU (REPLY NUMBER) ---
             let menuText = headerText + `╭━━〔 📜 MENU LIST 〕━━┈⊷\n`;
             categoryKeys.forEach((catKey, index) => {
                 let title = catKey.toUpperCase();
@@ -152,4 +186,3 @@ async (zanta, mek, m, { from, reply, args, userSettings }) => {
 });
 
 module.exports = { lastMenuMessage };
-
