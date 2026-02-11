@@ -13,9 +13,7 @@ async function preLoadAliveImage() {
         const imageUrl = config.ALIVE_IMG || "https://github.com/Akashkavindu/ZANTA_MD/blob/main/images/zanta-md.png?raw=true";
         const response = await axios.get(imageUrl, { responseType: 'arraybuffer' });
         cachedAliveImage = Buffer.from(response.data);
-        console.log("✅ [CACHE] Alive image pre-loaded successfully.");
     } catch (e) {
-        console.error("❌ [CACHE] Failed to pre-load alive image:", e.message);
         cachedAliveImage = null; 
     }
 }
@@ -34,7 +32,6 @@ async (zanta, mek, m, { from, reply, userSettings, prefix }) => {
         const settings = userSettings || global.CURRENT_BOT_SETTINGS || {};
         const botName = settings.botName || config.DEFAULT_BOT_NAME || "ZANTA-MD";
         const finalPrefix = prefix || settings.prefix || config.DEFAULT_PREFIX || ".";
-        const isButtonsOn = settings.buttons === 'true';
 
         // Placeholder replace කිරීම
         const finalMsg = aliveMsg.getAliveMessage()
@@ -56,60 +53,16 @@ async (zanta, mek, m, { from, reply, userSettings, prefix }) => {
             forwardedNewsletterMessageInfo: {
                 newsletterJid: CHANNEL_JID,
                 serverMessageId: 100,
-                newsletterName: "𝒁𝑨𝑵𝑻𝑨-𝑴𝑫 𝑶𝑭𝑭𝑰𝑪𝑰𝑨𝑳"
+                newsletterName: "𝒁𝑨𝑵𝑻𝑨-𝑴𝑫 𝑶𝑭𝑭𝑰𝑪𝑰𝑨𝑳 </>"
             }
         };
 
-        if (isButtonsOn) {
-            // --- 🔘 NEW INTERACTIVE BUTTONS LOGIC ---
-            const buttons = [
-                {
-                    name: "quick_reply",
-                    buttonParamsJson: JSON.stringify({
-                        display_text: "📜 MENU",
-                        id: `${finalPrefix}menu`
-                    })
-                },
-                {
-                    name: "quick_reply",
-                    buttonParamsJson: JSON.stringify({
-                        display_text: "⚡ PING",
-                        id: `${finalPrefix}ping`
-                    })
-                },
-                {
-                    name: "quick_reply",
-                    buttonParamsJson: JSON.stringify({
-                        display_text: "⚙️ SETTINGS",
-                        id: `${finalPrefix}settings`
-                    })
-                }
-            ];
-
-            const message = {
-                interactiveMessage: {
-                    header: {
-                        title: "",
-                        hasVideoDeterminer: false,
-                        imageMessage: (await zanta.prepareWAMessageMedia({ image: imageToDisplay }, { upload: zanta.waUploadToServer })).imageMessage
-                    },
-                    body: { text: finalMsg },
-                    footer: { text: `© ${botName} - Cyber System` },
-                    nativeFlowMessage: { buttons: buttons },
-                    contextInfo: contextInfo
-                }
-            };
-
-            return await zanta.relayMessage(from, { viewOnceMessage: { message } }, { quoted: mek });
-
-        } else {
-            // --- 🟢 BUTTONS OFF MODE (NORMAL IMAGE MSG) ---
-            return await zanta.sendMessage(from, {
-                image: imageToDisplay,
-                caption: finalMsg,
-                contextInfo: contextInfo
-            }, { quoted: mek });
-        }
+        // --- 🟢 NORMAL IMAGE MSG (STABLE FOR ALL) ---
+        return await zanta.sendMessage(from, {
+            image: imageToDisplay,
+            caption: finalMsg,
+            contextInfo: contextInfo
+        }, { quoted: mek });
 
     } catch (e) {
         console.error("[ALIVE ERROR]", e);
