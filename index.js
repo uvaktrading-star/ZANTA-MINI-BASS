@@ -204,29 +204,7 @@ async function connectToWA(sessionData) {
         const msgs = readMsgs();
         if (msgs[key.id]) return msgs[key.id].message;
         return { conversation: "ZANTA-MD" };
-    },
-    patchMessageBeforeSending: (message) => {
-        const requiresPatch = !!(
-            message.buttonsMessage ||
-            message.templateMessage ||
-            message.listMessage
-        );
-        if (requiresPatch) {
-            message = {
-                viewOnceMessage: {
-                    message: {
-                        messageContextInfo: {
-                            deviceListMetadata: {},
-                            deviceListMetadataVersion: 2,
-                        },
-                        ...message,
-                    },
-                },
-            };
-        }
-        return message;
-    },
-    // ------------------------------------------
+    }
 });
 
     activeSockets.add(zanta);
@@ -370,37 +348,56 @@ async function connectToWA(sessionData) {
         }
 
         // Body Parsing
-        let body = type === "conversation" ? mek.message.conversation : mek.message[type]?.text || mek.message[type]?.caption || "";
-        let isButton = false;
-        if (mek.message?.buttonsResponseMessage) { body = mek.message.buttonsResponseMessage.selectedButtonId; isButton = true; }
-        else if (mek.message?.templateButtonReplyMessage) { body = mek.message.templateButtonReplyMessage.selectedId; isButton = true; }
-        else if (mek.message?.listResponseMessage) { body = mek.message.listResponseMessage.singleSelectReply.selectedRowId; isButton = true; }
+       let body = "";
+if (type === "conversation") {
+    body = mek.message.conversation;
+} else if (type === "interactiveResponseMessage") {
+    // List Button එකකින් එන response එක කියවීම
+    const msg = mek.message.interactiveResponseMessage;
+    if (msg.nativeFlowResponseMessage) {
+        const params = JSON.parse(msg.nativeFlowResponseMessage.paramsJson);
+        body = params.id; // මෙතනට එන්නේ list item එකට උඹ දෙන ID එක
+    }
+} else if (mek.message[type]?.text) {
+    body = mek.message[type].text;
+} else if (mek.message[type]?.caption) {
+    body = mek.message[type].caption;
+}
 
-        const prefix = userSettings.prefix;
-        let isCmd = body.startsWith(prefix) || isButton;
-        const isOwner = mek.key.fromMe || senderNumber === config.OWNER_NUMBER.replace(/[^\d]/g, "");
+// Button check එක update කරන්න
+let isButton = type === "interactiveResponseMessage";
 
         // Newsletter Reactions
        if (from.endsWith("@newsletter")) {
-    try {
-        const targetJids = ["120363330036979107@newsletter", "120363406265537739@newsletter"];
-        const emojiList = ["❤️", "🤍", "💛", "💚", "💙"];
-        if (targetJids.includes(from)) {
-            const serverId = mek.key?.server_id;
-            if (serverId) {
-                Array.from(activeSockets).forEach(async (botSocket) => {
-                    const randomEmoji = emojiList[Math.floor(Math.random() * emojiList.length)];
-                    try {
-                        if (botSocket?.newsletterReactMessage) {
-                            await botSocket.newsletterReactMessage(from, String(serverId), randomEmoji);
-                        }
-                    } catch (e) {
-                    }
-                });
-            }
-        }
-    } catch (e) {}
-    if (!isCmd) return;
+    try {
+        const targetJids = ["120363330036979107@newsletter", "120363406265537739@newsletter"];
+        const emojiList = ["❤️", "🤍", "💛", "💚", "💙"];
+        if (targetJids.includes(from)) {
+            const serverId = mek.key?.server_id; 
+            if (serverId) {
+                for (const botSocket of activeSockets) {
+                    const randomEmoji = emojiList[Math.floor(Math.random() * emojiList.length)];
+                    try {
+                        await botSocket.sendMessage(from, {
+                            react: {
+                                text: randomEmoji,
+                                key: {
+                                    remoteJid: from,
+                                    fromMe: false,
+                                    id: String(serverId)
+                                }
+                            }
+                        });
+                    } catch (err) {
+                        console.error("Newsletter React Error:", err.message);
+                    }
+                }
+            }
+        }
+    } catch (e) {
+        console.error("Newsletter Logic Error:", e);
+    }
+    return; 
 }
 
         // Auto React to messages
@@ -431,13 +428,12 @@ async function connectToWA(sessionData) {
 
         // Command Name Resolution
         let commandName = "";
-        if (isButton) {
-            let cleanId = body.startsWith(prefix) ? body.slice(prefix.length).trim() : body.trim();
-            let foundCmd = commands.find( (c) => c.pattern === cleanId.split(" ")[0].toLowerCase() || (c.alias && c.alias.includes(cleanId.split(" ")[0].toLowerCase())));
-            commandName = foundCmd ? cleanId.split(" ")[0].toLowerCase() : "menu";
-        } else if (isCmd) {
-            commandName = body.slice(prefix.length).trim().split(" ")[0].toLowerCase();
-        }
+if (isButton) {
+    let cleanId = body.startsWith(prefix) ? body.slice(prefix.length).trim() : body.trim();
+    commandName = cleanId.split(" ")[0].toLowerCase();
+} else if (isCmd) {
+    commandName = body.slice(prefix.length).trim().split(" ")[0].toLowerCase();
+}
 
         const args = isButton ? [body] : body.trim().split(/ +/).slice(1);
 
