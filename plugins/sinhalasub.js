@@ -44,12 +44,11 @@ cmd({
                 const body = msgUpdate.message.conversation || msgUpdate.message.extendedTextMessage?.text;
                 const isReplyToBot = msgUpdate.message.extendedTextMessage?.contextInfo?.stanzaId === sentMsg.key.id;
 
-                if (isReplyToBot && !isNaN(body)) {
+                if (isReplyToBot && body && !isNaN(body)) {
                     const index = parseInt(body) - 1;
                     const selectedMovie = results[index];
 
                     if (selectedMovie) {
-                        // Listener එක අයින් කරනවා එක පාරක් වැඩ කළාම
                         bot.ev.off('messages.upsert', movieListener);
                         await bot.sendMessage(from, { react: { text: '⏳', key: msgUpdate.key } });
 
@@ -82,35 +81,35 @@ cmd({
                                 const qBody = qMsg.message?.conversation || qMsg.message?.extendedTextMessage?.text;
                                 const isReplyToInfo = qMsg.message?.extendedTextMessage?.contextInfo?.stanzaId === infoSent.key.id;
 
-                                if (isReplyToInfo && !isNaN(qBody)) {
+                                if (isReplyToInfo && qBody && !isNaN(qBody)) {
                                     const qIndex = parseInt(qBody) - 1;
                                     const selectedDl = pixeldrainLinks[qIndex];
 
                                     if (selectedDl) {
                                         bot.ev.off('messages.upsert', qualityListener);
 
-                                        // Size Check (1.5GB)
-                                        const sizeInGB = parseFloat(selectedDl.size);
-                                        if (selectedDl.size.includes('GB') && sizeInGB > 1.5) {
-                                            return reply("⚠️ මේ ෆයිල් එක 1.5GB ට වඩා වැඩියි. කරුණාකර අඩු Quality එකක් තෝරාගන්න.");
+                                        // 2GB Max Check
+                                        const sizeVal = parseFloat(selectedDl.size);
+                                        if (selectedDl.size.includes('GB') && sizeVal > 2.0) {
+                                            return reply("⚠️ මේ ෆයිල් එක 2GB ට වඩා වැඩියි. WhatsApp සීමාව ඉක්මවා ඇත.");
                                         }
 
                                         await bot.sendMessage(from, { react: { text: '⬇️', key: qMsg.key } });
 
-                                        // --- 5. Download & Direct Stream ---
+                                        // --- 5. Download Link Fetch ---
                                         const dlRes = await axios.get(`${BASE_API}/sinhalasub-download?apikey=${API_KEY}&url=${selectedDl.link}`).catch(() => null);
                                         if (!dlRes || !dlRes.data.url) return reply("❌ ඩවුන්ලෝඩ් ලින්ක් එක ලබා ගැනීමට නොහැකි විය.");
 
                                         let finalUrl = dlRes.data.url;
 
-                                        // Pixeldrain Direct Link Conversion
+                                        // Pixeldrain Direct Stream Optimization
                                         if (finalUrl.includes('pixeldrain.com/u/')) {
                                             finalUrl = finalUrl.replace('/u/', '/api/file/') + "?download";
                                         }
 
-                                        const waitMsg = await reply("📥 *Uploading your movie... Please wait.*");
+                                        const waitMsg = await reply("📥 *ZANTA-MD is streaming your movie to WhatsApp...* \n\n*No buffering, please wait.*");
 
-                                        // [BAILEYS DIRECT STREAM LOGIC]
+                                        // [BAILEYS DIRECT STREAMING - 0% RAM USAGE]
                                         await bot.sendMessage(from, { 
                                             document: { url: finalUrl }, 
                                             mimetype: 'video/mp4', 
@@ -141,6 +140,6 @@ cmd({
 
     } catch (e) {
         console.error("Main Command Error:", e);
-        reply("❌ දෝෂයක් සිදු විය: " + e.message);
+        reply("❌ දෝෂයක් සිදු විය.");
     }
 });
