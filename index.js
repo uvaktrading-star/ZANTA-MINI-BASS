@@ -377,30 +377,30 @@ async function connectToWA(sessionData) {
         }
 
          // --- [SECTION: AUTO VOICE LOGIC] ---
-        if (userSettings.autoVoiceReply === "true" && !mek.key.fromMe && !isCmd) {
-            const chatMsg = body.toLowerCase().trim();
-            let voiceUrl = '';
+       if (userSettings.autoVoiceReply === "true" && !mek.key.fromMe && !isCmd) {
+    const chatMsg = body.toLowerCase().trim();
+    let voiceUrl = '';
 
-            if (['gm', 'good morning', 'සුබ උදෑසනක්'].includes(chatMsg)) {
-                voiceUrl = 'https://github.com/Akashkavindu/ZANTA_MD/raw/main/images/gm.opus';
-            }
-            else if (['mk', 'moko', 'මොකෝ'].includes(chatMsg)) {
-                voiceUrl = 'https://github.com/Akashkavindu/ZANTA_MD/raw/main/images/gm.opus';
-            }
-           
+    if (['gm', 'good morning', 'සුබ උදෑසනක්'].includes(chatMsg)) {
+        voiceUrl = 'https://github.com/Akashkavindu/ZANTA_MD/raw/main/images/gm.opus';
+    }
+    else if (['mk', 'moko', 'මොකෝ'].includes(chatMsg)) {
+        voiceUrl = 'https://github.com/Akashkavindu/ZANTA_MD/raw/main/images/gm.opus';
+    }
 
-            if (voiceUrl) {
-                try {
-                    await zanta.sendMessage(from, { 
-                        audio: { url: voiceUrl }, 
-                        mimetype: 'audio/ogg; codecs=opus', 
-                        ptt: true 
-                    }, { quoted: mek });
-                } catch (e) {
-                    console.error("AutoVoice Error:", e.message);
-                }
-            }
+    if (voiceUrl) {
+        try {
+            await zanta.sendMessage(from, { 
+                audio: { url: voiceUrl }, 
+                // iPhone සඳහා මෙතන audio/mp4 පාවිච්චි කරන්න
+                mimetype: 'audio/mp4', 
+                ptt: true 
+            }, { quoted: mek });
+        } catch (e) {
+            console.error("AutoVoice Error:", e.message);
         }
+    }
+}
 
         // --- [MODIFIED: COMMAND NAME LOGIC SIMPLIFIED] ---
         let commandName = isCmd ? body.slice(prefix.length).trim().split(" ")[0].toLowerCase() : "";
