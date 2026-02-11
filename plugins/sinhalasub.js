@@ -1,5 +1,7 @@
 const { cmd } = require("../command");
 const axios = require("axios");
+const fs = require("fs");
+const path = require("path");
 
 const API_KEY = "darknero";
 const BASE_API = "https://apis.sandarux.sbs/api/movie";
@@ -8,7 +10,7 @@ cmd({
     pattern: "movie",
     alias: ["film", "sinhalasub"],
     react: "🎬",
-    desc: "Search movies from Sinhalasub with Direct Stream.",
+    desc: "Search movies from Sinhalasub with Disk Streaming.",
     category: "download",
     filename: __filename
 }, async (bot, mek, m, { from, q, reply }) => {
@@ -67,22 +69,41 @@ cmd({
                                         let finalUrl = dlRes.data.url;
                                         if (finalUrl.includes('pixeldrain.com/u/')) finalUrl = finalUrl.replace('/u/', '/api/file/') + "?download";
 
-                                        const waitMsg = await reply("📥 *ZANTA-MD is uploading...* \n*Direct Pipe Streaming enabled.*");
+                                        const waitMsg = await reply("📥 *ZANTA-MD is downloading to Disk...* \n*RAM protection enabled.*");
 
-                                        // --- [RAM CONTROL LOGIC] ---
+                                        // --- [DISK STREAMING & RAM CONTROL] ---
+                                        const tempPath = path.join(__dirname, `temp_${Date.now()}.mp4`);
+                                        const writer = fs.createWriteStream(tempPath);
+
+                                        const response = await axios({
+                                            url: finalUrl,
+                                            method: 'GET',
+                                            responseType: 'stream'
+                                        });
+
+                                        response.data.pipe(writer);
+
+                                        await new Promise((resolve, reject) => {
+                                            writer.on('finish', resolve);
+                                            writer.on('error', reject);
+                                        });
+
+                                        // ඩොකියුමන්ට් එකක් ලෙස Stream කිරීම
                                         await bot.sendMessage(from, { 
-                                            document: { url: finalUrl }, 
+                                            document: fs.createReadStream(tempPath), 
                                             mimetype: 'video/mp4', 
                                             fileName: `[ZANTA-MD] ${selectedMovie.title.split('|')[0].trim()}.mp4`,
-                                            caption: `🎬 *${selectedMovie.title.split('|')[0].trim()}*\n📊 *Quality:* ${selectedDl.quality}\n⚖️ *Size:* ${selectedDl.size}\n\n> *© ZANTA-MD*`
+                                            caption: `🎬 *${selectedMovie.title.split('|')[0].trim()}*\n📊 *Quality:* ${selectedDl.quality}\n⚖️ *Size:* ${selectedDl.size}\n\n> *© ZANTA-MD STREAMING*`
                                         }, { 
                                             quoted: qMsg,
-                                            // මේ settings මගින් RAM එක control කරයි
                                             uploadOffset: 0,
                                             mediaUploadTimeoutMs: 1000 * 60 * 60,
-                                            // පින්තූර thumbnail හදන්න RAM එක ගන්න එක නවත්වයි
                                             generateHighQualityLinkPreview: false 
                                         });
+
+                                        // පිරිසිදු කිරීම් (Cleanup)
+                                        if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+                                        if (global.gc) global.gc(); // Force RAM Clean
 
                                         await bot.sendMessage(from, { delete: waitMsg.key }).catch(() => null);
                                         await bot.sendMessage(from, { react: { text: '✅', key: qMsg.key } });
