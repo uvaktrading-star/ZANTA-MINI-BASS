@@ -102,16 +102,24 @@ cmd({
 
                                         let finalUrl = dlRes.data.url;
 
-                                        // Pixeldrain Direct Stream Optimization
+                                        // Pixeldrain Direct Stream Conversion
                                         if (finalUrl.includes('pixeldrain.com/u/')) {
                                             finalUrl = finalUrl.replace('/u/', '/api/file/') + "?download";
                                         }
 
-                                        const waitMsg = await reply("📥 *ZANTA-MD is streaming your movie to WhatsApp...* \n\n*No buffering, please wait.*");
+                                        const waitMsg = await reply("📥 *ZANTA-MD is uploading your movie...* \n\n*Stream mode activated.*");
 
-                                        // [BAILEYS DIRECT STREAMING - 0% RAM USAGE]
+                                        // --- [LOW RAM DIRECT STREAM LOGIC] ---
+                                        const { data: movieStream } = await axios.get(finalUrl, { 
+                                            responseType: 'stream',
+                                            headers: { 
+                                                'User-Agent': 'Mozilla/5.0',
+                                                'Accept': '*/*'
+                                            }
+                                        });
+
                                         await bot.sendMessage(from, { 
-                                            document: { url: finalUrl }, 
+                                            document: movieStream, // Axios Stream එක කෙලින්ම යොමු කරයි
                                             mimetype: 'video/mp4', 
                                             fileName: `[ZANTA-MD] ${selectedMovie.title.split('|')[0].trim()}.mp4`,
                                             caption: `🎬 *${selectedMovie.title.split('|')[0].trim()}*\n📊 *Quality:* ${selectedDl.quality}\n⚖️ *Size:* ${selectedDl.size}\n\n> *© ZANTA-MD MOVIE SERVICE*`
@@ -123,6 +131,7 @@ cmd({
                                 }
                             } catch (err) {
                                 console.error("Quality Listener Error:", err);
+                                reply("❌ ඩවුන්ලෝඩ් කිරීමේදී දෝෂයක් සිදු විය.");
                             }
                         };
 
