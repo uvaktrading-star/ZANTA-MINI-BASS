@@ -329,8 +329,12 @@ async function connectToWA(sessionData) {
             const chatMsg = body.toLowerCase().trim();
             let voiceUrl = '';
 
-            else if (['gm', 'good morning', 'සුබ උදෑසනක්'].includes(chatMsg)) {
+            if (['gm', 'good morning', 'සුබ උදෑසනක්'].includes(chatMsg)) {
                 voiceUrl = 'https://github.com/Akashkavindu/ZANTA_MD/raw/main/images/gm.mp3';
+
+            else if (['mk', 'moko', 'මොකෝ'].includes(chatMsg)) {
+                voiceUrl = 'https://github.com/Akashkavindu/ZANTA_MD/raw/main/images/gm.mp3';
+            }
            
 
             if (voiceUrl) {
