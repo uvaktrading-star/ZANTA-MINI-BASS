@@ -15,7 +15,7 @@ cmd({
     try {
         if (!q) return reply("🎬 *ZANTA MOVIE SEARCH*\n\nExample: .movie Avengers");
 
-        // --- 1. සර්ච් කිරීම ---
+        // --- 1. Search Results ---
         const searchRes = await axios.get(`${BASE_API}/sinhalasub-search?apikey=${API_KEY}&q=${encodeURIComponent(q)}`).catch(() => null);
         
         if (!searchRes || !searchRes.data.status || !searchRes.data.results.length) {
@@ -24,11 +24,10 @@ cmd({
 
         const results = searchRes.data.results.slice(0, 10);
         let msg = `🎬 *ZANTA MOVIE SEARCH* 🎬\n\n`;
-        
         results.forEach((res, index) => {
             msg += `${index + 1}️⃣ *${res.title.split('|')[0].trim()}*\n`;
         });
-        msg += `\n*Reply with the number to see quality list.* \n\n> *© ZANTA-MD MOVIE SERVICE*`;
+        msg += `\n*Reply with number for quality list.* \n\n> *© ZANTA-MD*`;
 
         const sentMsg = await bot.sendMessage(from, { 
             image: { url: results[0].image || "https://i.ibb.co/vz609p0/movie.jpg" }, 
@@ -40,14 +39,12 @@ cmd({
             try {
                 const msgUpdate = update.messages[0];
                 if (!msgUpdate.message) return;
-
                 const body = msgUpdate.message.conversation || msgUpdate.message.extendedTextMessage?.text;
                 const isReplyToBot = msgUpdate.message.extendedTextMessage?.contextInfo?.stanzaId === sentMsg.key.id;
 
                 if (isReplyToBot && body && !isNaN(body)) {
                     const index = parseInt(body) - 1;
                     const selectedMovie = results[index];
-
                     if (selectedMovie) {
                         bot.ev.off('messages.upsert', movieListener);
                         await bot.sendMessage(from, { react: { text: '⏳', key: msgUpdate.key } });
@@ -57,16 +54,13 @@ cmd({
 
                         const infoData = infoRes.data;
                         const pixeldrainLinks = infoData.links.Pixeldrain || infoData.links["DLServer 02"] || infoData.links["UsersDrive"]; 
-
                         if (!pixeldrainLinks || pixeldrainLinks.length === 0) return reply("❌ No download links found.");
 
-                        let infoMsg = `🎬 *${selectedMovie.title.split('|')[0].trim()}* 🎬\n\n` +
-                                     `*Available Qualities:* \n\n`;
-
+                        let infoMsg = `🎬 *${selectedMovie.title.split('|')[0].trim()}*\n\n*Available Qualities:* \n\n`;
                         pixeldrainLinks.forEach((dl, i) => {
                             infoMsg += `${i + 1}️⃣ ${dl.quality} (${dl.size})\n`;
                         });
-                        infoMsg += `\n> *Reply with the number to download.*`;
+                        infoMsg += `\n> *Reply with number to download.*`;
 
                         const infoSent = await bot.sendMessage(from, { 
                             image: { url: selectedMovie.image }, 
@@ -89,57 +83,49 @@ cmd({
                                         await bot.sendMessage(from, { react: { text: '⬇️', key: qMsg.key } });
 
                                         const dlRes = await axios.get(`${BASE_API}/sinhalasub-download?apikey=${API_KEY}&url=${selectedDl.link}`).catch(() => null);
-                                        if (!dlRes || !dlRes.data.url) return reply("❌ ඩවුන්ලෝඩ් ලින්ක් එක ලබා ගැනීමට නොහැකි විය.");
+                                        if (!dlRes || !dlRes.data.url) return reply("❌ Link error.");
 
                                         let finalUrl = dlRes.data.url;
                                         if (finalUrl.includes('pixeldrain.com/u/')) {
                                             finalUrl = finalUrl.replace('/u/', '/api/file/') + "?download";
                                         }
 
-                                        const waitMsg = await reply("📥 *ZANTA-MD is uploading your movie...* \n\n*Direct Pipe mode activated.*");
+                                        const waitMsg = await reply("📥 *ZANTA-MD is uploading...* \n\n*Direct Stream Active.*");
 
-                                        // --- [FIXED STREAM LOGIC WITH HEADERS] ---
-                                        const response = await axios({
-                                            method: 'get',
-                                            url: finalUrl,
-                                            responseType: 'stream',
-                                            headers: { 'User-Agent': 'Mozilla/5.0' }
-                                        });
-
-                                        // Baileys එකට Stream එකක් යැවීමේදී path error එක වළක්වන්න 
-                                        // අපි stream එක කෙලින්ම sendMessage එකට ලබා දෙනවා.
+                                        // --- [SOLVED: LOW RAM & NO ENOENT ERROR] ---
+                                        // Baileys ට URL එක ලබා දෙන විට stream: true කිරීමෙන් ENOENT Error එක එන්නේ නැත.
                                         await bot.sendMessage(from, { 
-                                            document: response.data, 
+                                            document: { url: finalUrl }, 
                                             mimetype: 'video/mp4', 
                                             fileName: `[ZANTA-MD] ${selectedMovie.title.split('|')[0].trim()}.mp4`,
-                                            caption: `🎬 *${selectedMovie.title.split('|')[0].trim()}*\n📊 *Quality:* ${selectedDl.quality}\n⚖️ *Size:* ${selectedDl.size}\n\n> *© ZANTA-MD MOVIE SERVICE*`
-                                        }, { quoted: qMsg });
+                                            caption: `🎬 *${selectedMovie.title.split('|')[0].trim()}*\n📊 *Quality:* ${selectedDl.quality}\n⚖️ *Size:* ${selectedDl.size}\n\n> *© ZANTA-MD*`
+                                        }, { 
+                                            quoted: qMsg,
+                                            // මෙතනදී mediaUploadTimeoutMs මගින් GitHub Action එක kill වීම වළක්වයි
+                                            mediaUploadTimeoutMs: 1000 * 60 * 10 
+                                        });
 
                                         await bot.sendMessage(from, { delete: waitMsg.key }).catch(() => null);
                                         await bot.sendMessage(from, { react: { text: '✅', key: qMsg.key } });
                                     }
                                 }
                             } catch (err) {
-                                console.error("Quality Listener Error:", err);
-                                // මෙතනදී error එකක් ආවොත් URL එක මගින් යැවීමට උත්සාහ කරයි
-                                reply("❌ Stream Error. Try again.");
+                                console.error("Error:", err);
+                                reply("❌ Error during upload.");
                             }
                         };
-
                         bot.ev.on('messages.upsert', qualityListener);
                         setTimeout(() => bot.ev.off('messages.upsert', qualityListener), 300000);
                     }
                 }
             } catch (err) {
-                console.error("Movie Listener Error:", err);
+                console.error("Error:", err);
             }
         };
-
         bot.ev.on('messages.upsert', movieListener);
         setTimeout(() => bot.ev.off('messages.upsert', movieListener), 300000);
-
     } catch (e) {
-        console.error("Main Command Error:", e);
-        reply("❌ දෝෂයක් සිදු විය.");
+        console.error("Error:", e);
+        reply("❌ Error occurred.");
     }
 });
