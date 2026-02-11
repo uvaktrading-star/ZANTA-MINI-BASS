@@ -96,13 +96,13 @@ async (zanta, mek, m, { from, reply, args, userSettings, prefix }) => {
         menuText += `*┃* 📚 *𝐂𝐦𝐝𝐬 :* ${commands.length}\n`;
         menuText += `*╰━━━━━━━━━━━━━━┈⊷*\n\n`;
         
-        menuText += `┌───⊷ *📑 𝕃𝕀𝕊𝕋𝕊* ⊷───\n`;
+        menuText += `╭━━〔 📜 MENU LIST 〕━━┈⊷\n`;
         categoryKeys.forEach((catKey, index) => {
             let title = catKey.charAt(0).toUpperCase() + catKey.slice(1);
             let emoji = { main: '🏠', download: '📥', tools: '🛠️', logo: '🎨', media: '🖼️' }[catKey] || '📌';
-            menuText += `│ *${index + 1}* ◦ ${emoji} *${title}*\n`;
+            menuText += `┃ *${index + 1}* ◦ ${emoji} *${title}*\n`;
         });
-        menuText += `└──────────────┈⊷\n\n`;
+        menuText += `╰━━━━━━━━━━━━━━┈⊷\n\n`;
         
         menuText += `_💡 Reply with a number to view commands._\n\n`;
         menuText += `> *© ${botName} • 𝟚𝟘𝟚𝟞*`;
@@ -123,4 +123,5 @@ async (zanta, mek, m, { from, reply, args, userSettings, prefix }) => {
 });
 
 module.exports = { lastMenuMessage };
+
 
