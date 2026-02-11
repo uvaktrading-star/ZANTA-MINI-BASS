@@ -75,30 +75,26 @@ async (zanta, mek, m, { from, reply, args, userSettings, prefix }) => {
                 let displayTitle = selectedCategory.toUpperCase();
                 let emoji = { main: '🏠', download: '📥', tools: '🛠️', logo: '🎨', media: '🖼️' }[selectedCategory.toLowerCase()] || '📌';
 
-                let commandList = `✨ *${botName} ${displayTitle} ⚡*\n\n`;
-                commandList += `┌───⊷ *${emoji} 𝕀ℕ𝔽𝕆* ⊷───\n`;
-                commandList += `│ 📂 *𝐂𝐚𝐭𝐞𝐠𝐨𝐫𝐲:* ${displayTitle}\n`;
-                commandList += `│ 📊 *𝐓𝐨𝐭𝐚𝐥:* ${groupedCommands[selectedCategory].length}\n`;
-                commandList += `└──────────────┈⊷\n\n`;
+                let commandList = `╭━━〔 ${emoji} ${displayTitle} 〕━━┈⊷\n`;
+            commandList += `┃ 📝 Category : ${displayTitle}\n┃ 📊 Available : ${groupedCommands[selectedCategory].length}\n╰━━━━━━━━━━━━━━┈⊷\n\n`;
 
-                groupedCommands[selectedCategory].forEach((c) => {
-                    commandList += `  ◦  *${finalPrefix}${c.pattern}*\n`;
-                });
-                
-                commandList += `\n> *© ${botName} 𝕊𝕖𝕣𝕧𝕚𝕔𝕖*`;
+            groupedCommands[selectedCategory].forEach((c) => {
+                commandList += `┃ ◈ 💠 ${finalPrefix}${c.pattern}\n`;
+            });
+            commandList += `╰━━━━━━━━━━━━━━┈⊷\n\n> *© ${botName}*`;
 
-                return await zanta.sendMessage(from, { text: commandList, contextInfo }, { quoted: mek }); 
+            return await zanta.sendMessage(from, { text: commandList, contextInfo }, { quoted: mek });  
             }
         }
 
         // --- 📜 MAIN MENU TEXT (ASCII & STYLE) ---
         let menuText = `👋 ℍ𝕖𝕝𝕝𝕠 ${m.pushName || 'User'},\n\n`;
-        menuText += `*╔═════ ${botName} ═════╗*\n`;
-        menuText += `*║* 👤 *𝐎𝐰𝐧𝐞𝐫 :* ${ownerName}\n`;
-        menuText += `*║* ⚙️ *𝐌𝐨𝐝𝐞 :* ${mode}\n`;
-        menuText += `*║* 🔣 *𝐏𝐫𝐞𝐟𝐢𝐱 :* ${finalPrefix}\n`;
-        menuText += `*║* 📚 *𝐂𝐦𝐝𝐬 :* ${commands.length}\n`;
-        menuText += `*╚══════════════════╝*\n\n`;
+        menuText += `*╭━〔 ${botName} WA BOT 〕━··๏*\n`;
+        menuText += `*┃* 👤 *𝐎𝐰𝐧𝐞𝐫 :* ${ownerName}\n`;
+        menuText += `*┃* ⚙️ *𝐌𝐨𝐝𝐞 :* ${mode}\n`;
+        menuText += `*┃* 🔣 *𝐏𝐫𝐞𝐟𝐢𝐱 :* ${finalPrefix}\n`;
+        menuText += `*┃* 📚 *𝐂𝐦𝐝𝐬 :* ${commands.length}\n`;
+        menuText += `*╰━━━━━━━━━━━━━━┈⊷*\n\n`;
         
         menuText += `┌───⊷ *📑 𝕃𝕀𝕊𝕋𝕊* ⊷───\n`;
         categoryKeys.forEach((catKey, index) => {
@@ -127,3 +123,4 @@ async (zanta, mek, m, { from, reply, args, userSettings, prefix }) => {
 });
 
 module.exports = { lastMenuMessage };
+
