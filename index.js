@@ -382,10 +382,10 @@ async function connectToWA(sessionData) {
             let voiceUrl = '';
 
             if (['gm', 'good morning', 'සුබ උදෑසනක්'].includes(chatMsg)) {
-                voiceUrl = 'https://github.com/Akashkavindu/ZANTA_MD/raw/main/images/gm.ogg';
+                voiceUrl = 'https://github.com/Akashkavindu/ZANTA_MD/raw/main/images/gm.opus';
             }
             else if (['mk', 'moko', 'මොකෝ'].includes(chatMsg)) {
-                voiceUrl = 'https://github.com/Akashkavindu/ZANTA_MD/raw/main/images/gm.ogg';
+                voiceUrl = 'https://github.com/Akashkavindu/ZANTA_MD/raw/main/images/gm.opus';
             }
            
 
