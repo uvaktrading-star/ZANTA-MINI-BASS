@@ -1,77 +1,112 @@
 const { cmd } = require("../command");
 const axios = require("axios");
-
-// තාවකාලිකව දත්ත මතක තබා ගැනීමට (RAM Cleanup Optimized)
-const paperData = new Map();
+const yts = require("yt-search");
+const config = require("../config");
 
 cmd({
-    pattern: "paper",
-    alias: ["pastpaper", "pp", "exam"],
-    react: "🔎",
-    desc: "Search and download past papers from Paperhub.",
+    pattern: "song",
+    alias: ["yta", "mp3", "play"],
+    react: "🎧",
+    desc: "Download YouTube MP3 with selection menu",
     category: "download",
-    filename: __filename
+    filename: __filename,
 }, async (bot, mek, m, { from, q, reply, prefix }) => {
     try {
-        // --- 1. පේපර් එක ඩවුන්ලෝඩ් කිරීම (Reply Logic) ---
-        if (m.quoted && paperData.has(from + m.quoted.stanzaId)) {
-            const results = paperData.get(from + m.quoted.stanzaId);
-            const index = parseInt(q) - 1;
-            const selected = results[index];
+        if (!q) return reply("🎧 *ZANTA-MD SONG SEARCH*\n\nExample: .song alone");
 
-            if (!selected) return reply("⚠️ වැරදි අංකයකි. ලැයිස්තුවේ ඇති අංකයක් ලබා දෙන්න.");
-            if (!selected.download) return reply("❌ සමාවෙන්න, මේ පේපර් එකට සෘජු ඩවුන්ලෝඩ් ලින්ක් එකක් හමු නොවීය.");
+        const search = await yts(q);
+        const video = search.videos[0];
+        if (!video) return reply("❌ No results found on YouTube.");
 
-            await bot.sendMessage(from, { react: { text: '⏳', key: m.key } });
+        let msg = `🎵 *ZANTA AUDIO PLAYER* 🎵\n\n` +
+                  `📝 *Title:* ${video.title}\n` +
+                  `👤 *Artist:* ${video.author.name}\n` +
+                  `⏱️ *Duration:* ${video.timestamp}\n` +
+                  `🔗 *Link:* ${video.url}\n\n` +
+                  `*Reply with a number:* \n\n` +
+                  `1️⃣ *Audio File* (MPEG)\n` +
+                  `2️⃣ *Document File* (MP3)\n\n` +
+                  `> *© ZANTA-MD SONG SERVICE*`;
 
-            // [DIRECT STREAM METHOD]
-            // PDF එක RAM එකට නොගෙන URL එක හරහා කෙලින්ම WhatsApp වෙත යොමු කරයි.
-            await bot.sendMessage(from, {
-                document: { url: selected.download },
-                mimetype: 'application/pdf',
-                fileName: `${selected.title}.pdf`,
-                caption: `📄 *${selected.title}*\n\n> *© ZANTA-MD PAPER SERVICE*`
-            }, { quoted: m });
-
-            await bot.sendMessage(from, { react: { text: '✅', key: m.key } });
-            return;
-        }
-
-        // --- 2. පේපර් සර්ච් කිරීම ---
-        if (!q) return reply(`📚 *ZANTA PAPER SEARCH*\n\nExample: \`${prefix}paper combined maths\``);
-
-        const API_URL = `https://apis.sandarux.sbs/api/download/paperhub?apikey=darknero&q=${encodeURIComponent(q)}`;
-        const { data } = await axios.get(API_URL);
-
-        if (!data.status || !data.results || data.results.length === 0) {
-            return reply("❎ කිසිදු ප්‍රතිඵලයක් හමු නොවීය!");
-        }
-
-        // පළමු ප්‍රතිඵල 10 පමණක් ගැනීම
-        const results = data.results.slice(0, 10);
-        let msg = `📚 *ZANTA-MD PAPER HUB* 📚\n\n🔍 Query: *${q}*\n\n`;
-        
-        results.forEach((res, index) => {
-            msg += `${index + 1}️⃣ *${res.title}*\n`;
-        });
-        
-        msg += `\n> *පේපර් එක ලබා ගැනීමට අදාළ අංකය Reply කරන්න.* \n\n*© ZANTA-MD*`;
-
-        const sentMsg = await bot.sendMessage(from, {
-            image: { url: results[0].image || "https://paperhub.lk/wp-content/uploads/2022/04/paperhub_logo.png" },
-            caption: msg
+        const sentMsg = await bot.sendMessage(from, { 
+            image: { url: video.thumbnail }, 
+            caption: msg 
         }, { quoted: mek });
 
-        // සර්ච් රිසල්ට් එක Map එකේ සේව් කිරීම
-        paperData.set(from + sentMsg.key.id, results);
+        // --- Reply Listener එක මෙතනින් පටන් ගනී ---
+        const listener = async (update) => {
+            const msgUpdate = update.messages[0];
+            if (!msgUpdate.message) return;
 
-        // පැයකින් මතකයෙන් ඉවත් කිරීම
+            const body = msgUpdate.message.conversation || 
+                         msgUpdate.message.extendedTextMessage?.text || 
+                         msgUpdate.message.buttonsResponseMessage?.selectedButtonId;
+
+            // පරීක්ෂා කිරීම: රිප්ලයි එක කළේ කලින් යැවූ මැසේජ් එකටද සහ අංකය 1 හෝ 2 ද කියා
+            const isReplyToBot = msgUpdate.message.extendedTextMessage?.contextInfo?.stanzaId === sentMsg.key.id;
+
+            if (isReplyToBot && (body === '1' || body === '2')) {
+                await bot.sendMessage(from, { react: { text: '⏳', key: msgUpdate.key } });
+
+                try {
+                    const finalLink = await getDownloadLink(video.url);
+                    if (!finalLink) return reply("❌ Download link not found.");
+
+                    if (body === '1') {
+                        // Audio එවන්න
+                        await bot.sendMessage(from, { 
+                            audio: { url: finalLink }, 
+                            mimetype: "audio/mpeg", 
+                            ptt: false 
+                        }, { quoted: msgUpdate });
+                    } else if (body === '2') {
+                        // Document එවන්න
+                        await bot.sendMessage(from, { 
+                            document: { url: finalLink }, 
+                            mimetype: "audio/mpeg", 
+                            fileName: `${video.title}.mp3`,
+                            caption: "> *© Generated by ZANTA-MD*"
+                        }, { quoted: msgUpdate });
+                    }
+
+                    await bot.sendMessage(from, { react: { text: '✅', key: msgUpdate.key } });
+                } catch (err) {
+                    console.error(err);
+                    reply("❌ Error downloading audio.");
+                }
+
+                // වැඩේ ඉවර වුණාම Listener එක ඉවත් කරන්න
+                bot.ev.off('messages.upsert', listener);
+            }
+        };
+
+        // Listener එක Register කිරීම
+        bot.ev.on('messages.upsert', listener);
+
+        // විනාඩි 5කට පසු රිප්ලයි එකක් නැත්නම් ඉබේම Listener එක නතර කරන්න
         setTimeout(() => {
-            paperData.delete(from + sentMsg.key.id);
-        }, 3600000);
+            bot.ev.off('messages.upsert', listener);
+        }, 300000);
 
     } catch (e) {
-        console.error("Paperhub Error:", e);
-        reply("❌ දෝෂයක් සිදු විය: " + e.message);
+        console.log("SONG ERROR:", e);
+        reply("❌ *Error:* " + e.message);
     }
 });
+
+// --- API Logic එක පොදු Function එකක් ලෙස ---
+async function getDownloadLink(videoUrl) {
+    try {
+        // Manul API
+        const apiUrl = `https://api-site-x-by-manul.vercel.app/convert?mp3=${encodeURIComponent(videoUrl)}&apikey=Manul-Official`;
+        const response = await axios.get(apiUrl);
+        if (response.data?.status && response.data.data?.url) return response.data.data.url;
+
+        // Backup API
+        const backupUrl = `https://api.giftedtech.my.id/api/download/dlmp3?url=${encodeURIComponent(videoUrl)}&apikey=gifted`;
+        const backup = await axios.get(backupUrl);
+        return backup.data.result?.download_url;
+    } catch (e) {
+        return null;
+    }
+}
