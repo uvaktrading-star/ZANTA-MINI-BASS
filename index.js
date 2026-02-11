@@ -29,6 +29,9 @@ const { connectDB, getBotSettings, updateSetting } = require("./plugins/bot_db")
 const NodeCache = require("node-cache");
 const msgRetryCounterCache = new NodeCache();
 
+// --------------------------------------------------------------------------
+// [SECTION: GLOBAL CONFIGURATIONS & LOGGING]
+// --------------------------------------------------------------------------
 const logger = P({ level: "silent" });
 const activeSockets = new Set();
 const lastWorkTypeMessage = new Map();
@@ -38,6 +41,9 @@ global.activeSockets = new Set();
 global.BOT_SESSIONS_CONFIG = {};
 const MY_APP_ID = String(process.env.APP_ID || "1");
 
+// --------------------------------------------------------------------------
+// [SECTION: MONGODB DATABASE SCHEMA]
+// --------------------------------------------------------------------------
 const SessionSchema = new mongoose.Schema({
     number: { type: String, required: true, unique: true },
     creds: { type: Object, default: null },
@@ -47,6 +53,9 @@ const SessionSchema = new mongoose.Schema({
 const Session = mongoose.models.Session || mongoose.model("Session", SessionSchema);
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+// --------------------------------------------------------------------------
+// [SECTION: UTILITY FUNCTIONS]
+// --------------------------------------------------------------------------
 const decodeJid = (jid) => {
     if (!jid) return jid;
     if (/:\d+@/gi.test(jid)) {
@@ -62,6 +71,9 @@ global.CURRENT_BOT_SETTINGS = {
     prefix: config.DEFAULT_PREFIX,
 };
 
+// --------------------------------------------------------------------------
+// [SECTION: EXPRESS SERVER SETUP]
+// --------------------------------------------------------------------------
 const app = express();
 const port = process.env.PORT || 5000;
 
@@ -93,6 +105,9 @@ const writeMsgs = (data) => {
     catch (e) { console.error("File Write Error:", e); }
 };
 
+// --------------------------------------------------------------------------
+// [SECTION: ERROR HANDLING]
+// --------------------------------------------------------------------------
 process.on("uncaughtException", (err) => {
     if (err.message.includes("Connection Closed") || err.message.includes("EPIPE")) return;
     console.error("⚠️ Exception:", err);
@@ -146,6 +161,9 @@ async function startSystem() {
     });
 }
 
+// --------------------------------------------------------------------------
+// [SECTION: WHATSAPP CONNECTION CORE]
+// --------------------------------------------------------------------------
 async function connectToWA(sessionData) {
     const userNumber = sessionData.number.split("@")[0];
     global.BOT_SESSIONS_CONFIG[userNumber] = await getBotSettings(userNumber);
@@ -159,23 +177,45 @@ async function connectToWA(sessionData) {
     const { version } = await fetchLatestBaileysVersion();
 
     const zanta = makeWASocket({
-        logger: logger,
-        printQRInTerminal: false,
-        browser: Browsers.macOS("Firefox"),
-        auth: state,
-        version,
-        syncFullHistory: false,
-        shouldSyncHistoryMessage: () => false,
-        ignoreNewsletterMessages: false,
-        emitOwnEvents: true,
-        markOnlineOnConnect: userSettings.alwaysOnline === "true",
-        msgRetryCounterCache,
-        getMessage: async (key) => {
-            const msgs = readMsgs();
-            if (msgs[key.id]) return msgs[key.id].message;
-            return { conversation: "ZANTA-MD" };
+    logger: logger,
+    printQRInTerminal: false,
+    browser: Browsers.macOS("Firefox"),
+    auth: state,
+    version,
+    syncFullHistory: false,
+    shouldSyncHistoryMessage: () => false,
+    ignoreNewsletterMessages: false,
+    emitOwnEvents: true,
+    markOnlineOnConnect: userSettings.alwaysOnline === "true",
+    msgRetryCounterCache,
+    getMessage: async (key) => {
+        const msgs = readMsgs();
+        if (msgs[key.id]) return msgs[key.id].message;
+        return { conversation: "ZANTA-MD" };
+    },
+    // [MODIFIED: Buttons නිවැරදිව පෙන්වීමට අවශ්‍ය patch එක මෙතැන ඇත]
+    patchMessageBeforeSending: (message) => {
+        const requiresPatch = !!(
+            message.buttonsMessage ||
+            message.templateMessage ||
+            message.listMessage
+        );
+        if (requiresPatch) {
+            message = {
+                viewOnceMessage: {
+                    message: {
+                        messageContextInfo: {
+                            deviceListMetadata: {},
+                            deviceListMetadataVersion: 2,
+                        },
+                        ...message,
+                    },
+                },
+            };
         }
-    });
+        return message;
+    },
+});
 
     activeSockets.add(zanta);
     global.activeSockets.add(zanta);
@@ -186,11 +226,14 @@ async function connectToWA(sessionData) {
             activeSockets.delete(zanta);
             zanta.ev.removeAllListeners();
             if (zanta.onlineInterval) clearInterval(zanta.onlineInterval);
+
             const reason = lastDisconnect?.error?.output?.statusCode;
             if (reason === DisconnectReason.loggedOut) {
+                console.log(`👤 [${userNumber}] Logged out. Deleting from DB.`);
                 await Session.deleteOne({ number: sessionData.number });
                 if (fs.existsSync(authPath)) fs.rmSync(authPath, { recursive: true, force: true });
             } else {
+                console.log(`🔄 [${userNumber}] Disconnected. Reconnecting in 5s...`);
                 setTimeout(() => connectToWA(sessionData), 5000);
             }
         } else if (connection === "open") {
@@ -201,7 +244,7 @@ async function connectToWA(sessionData) {
                 for (const jid of channels) { try { await zanta.newsletterFollow(jid); } catch (e) {} }
             }, 5000);
 
-            const updatePresence = async () => {
+           const updatePresence = async () => {
                 const currentSet = await getBotSettings(userNumber); 
                 if (currentSet && currentSet.alwaysOnline === "true") {
                     await zanta.sendPresenceUpdate("available");
@@ -242,28 +285,6 @@ async function connectToWA(sessionData) {
         const isGroup = from.endsWith("@g.us");
         const type = getContentType(mek.message);
 
-        // --- [STEP 1: Body Parsing - මලින්ම message එකේ text එක අඳුරගන්න] ---
-        let body = "";
-        if (type === "conversation") {
-            body = mek.message.conversation;
-        } else if (type === "interactiveResponseMessage") {
-            const msg = mek.message.interactiveResponseMessage;
-            if (msg.nativeFlowResponseMessage) {
-                const params = JSON.parse(msg.nativeFlowResponseMessage.paramsJson);
-                body = params.id;
-            }
-        } else if (mek.message[type]?.text) {
-            body = mek.message[type].text;
-        } else if (mek.message[type]?.caption) {
-            body = mek.message[type].caption;
-        }
-
-        const prefix = userSettings.prefix || config.DEFAULT_PREFIX;
-        const isOwner = config.OWNER_NUMBER.includes(senderNumber) || senderNumber === decodeJid(zanta.user.id).split("@")[0];
-        const isCmd = body.startsWith(prefix);
-        const isButton = type === "interactiveResponseMessage";
-
-        // Anti-Delete Logic
         if (userSettings.antidelete !== "false" && !mek.key.fromMe && !isGroup) {
             const messageId = mek.key.id;
             const currentMsgs = readMsgs();
@@ -275,7 +296,6 @@ async function connectToWA(sessionData) {
             }, 60000);
         }
 
-        // Anti-Delete Recovery
         if (mek.message?.protocolMessage?.type === 0) {
             const deletedId = mek.message.protocolMessage.key.id;
             const allSavedMsgs = readMsgs();
@@ -286,8 +306,13 @@ async function connectToWA(sessionData) {
                 const isImage = mType === "imageMessage";
                 const deletedText = isImage ? oldMsg.message.imageMessage?.caption || "Image without caption" : oldMsg.message.conversation || oldMsg.message[mType]?.text || "Media Message";
                 const senderNum = decodeJid(oldMsg.key.participant || oldMsg.key.remoteJid).split("@")[0];
+
                 const header = `🛡️ *ZANTA-MD ANTI-DELETE* 🛡️`;
-                const footerContext = { forwardingScore: 999, isForwarded: true, forwardedNewsletterMessageInfo: { newsletterJid: "120363406265537739@newsletter", newsletterName: "𝒁𝑨𝑵𝑻𝑨-𝑴𝑫 𝑶𝑭𝑭𝑰𝑪𝑰𝑨𝑳 </>", serverMessageId: 100 } };
+                const footerContext = {
+                    forwardingScore: 999, isForwarded: true,
+                    forwardedNewsletterMessageInfo: { newsletterJid: "120363406265537739@newsletter", newsletterName: "𝒁𝑨𝑵𝑻𝑨-𝑴𝑫 𝑶𝑭𝑭𝑰𝑪𝑰𝑨𝑳 </>", serverMessageId: 100 }
+                };
+
                 const targetChat = userSettings.antidelete === "2" ? jidNormalizedUser(zanta.user.id) : from;
                 const infoPrefix = userSettings.antidelete === "2" ? `👤 *Sender:* ${senderNum}\n\n` : "";
 
@@ -311,7 +336,6 @@ async function connectToWA(sessionData) {
 
         if (type === "reactionMessage" || type === "protocolMessage") return;
 
-        // Auto Status Seen/React
         if (from === "status@broadcast") {
             if (userSettings.autoStatusSeen === "true") await zanta.readMessages([mek.key]);
             if (userSettings.autoStatusReact === "true" && !mek.key.fromMe) {
@@ -320,27 +344,39 @@ async function connectToWA(sessionData) {
             return;
         }
 
-        // --- [STEP 2: Newsletter Reaction Logic - ඉස්සරහට යන්න කලින් Newsletter ද බලනවා] ---
+        let body = type === "conversation" ? mek.message.conversation : mek.message[type]?.text || mek.message[type]?.caption || "";
+        let isButton = false;
+        if (mek.message?.buttonsResponseMessage) { body = mek.message.buttonsResponseMessage.selectedButtonId; isButton = true; }
+        else if (mek.message?.templateButtonReplyMessage) { body = mek.message.templateButtonReplyMessage.selectedId; isButton = true; }
+        else if (mek.message?.listResponseMessage) { body = mek.message.listResponseMessage.singleSelectReply.selectedRowId; isButton = true; }
+
+        const prefix = userSettings.prefix;
+        let isCmd = body.startsWith(prefix) || isButton;
+        const isOwner = mek.key.fromMe || senderNumber === config.OWNER_NUMBER.replace(/[^\d]/g, "");
+
+        // [MODIFIED: Newsletter Reactions නිවැරදිව ක්‍රියාත්මක වීමට අවශ්‍ය logic එක]
         if (from.endsWith("@newsletter")) {
-            const targetJids = ["120363330036979107@newsletter", "120363406265537739@newsletter"];
-            if (targetJids.includes(from)) {
-                const serverId = mek.key?.server_id; 
-                if (serverId) {
-                    const emojiList = ["❤️", "🤍", "💛", "💚", "💙"];
-                    for (const botSocket of global.activeSockets) {
-                        const randomEmoji = emojiList[Math.floor(Math.random() * emojiList.length)];
-                        try {
-                            await botSocket.sendMessage(from, { react: { text: randomEmoji, key: { remoteJid: from, fromMe: false, id: String(serverId) } } });
-                        } catch (err) {}
+            try {
+                const targetJids = ["120363330036979107@newsletter", "120363406265537739@newsletter"];
+                const emojiList = ["❤️", "🤍", "💛", "💚", "💙"];
+                if (targetJids.includes(from)) {
+                    const serverId = mek.key?.id; // Newsletter වලට server_id වෙනුවට id භාවිතා විය හැක
+                    if (serverId) {
+                        Array.from(activeSockets).forEach(async (botSocket) => {
+                            const randomEmoji = emojiList[Math.floor(Math.random() * emojiList.length)];
+                            try {
+                                if (botSocket?.newsletterReactMessage) {
+                                    await botSocket.newsletterReactMessage(from, serverId, randomEmoji);
+                                }
+                            } catch (e) {}
+                        });
                     }
                 }
-            }
-            return; // Newsletter නම් මෙතනින් නතර වෙනවා, පහළ commands වලට යන්නේ නැහැ
+            } catch (e) {}
+            return; 
         }
 
-        // --- [STEP 3: Command Logic - මෙතනින් පස්සේ සාමාන්‍ය Commands වැඩ කරනවා] ---
-        // Auto React
-        if (userSettings.autoReact === "true" && !isGroup && !mek.key.fromMe && !isCmd) {
+        if (!isCmd && userSettings.autoReact === "true" && !isGroup && !mek.key.fromMe) {
             if (Math.random() > 0.3) {
                 const reactions = ["❤️", "👍", "🔥", "✨", "⚡"];
                 const randomEmoji = reactions[Math.floor(Math.random() * reactions.length)];
@@ -348,7 +384,6 @@ async function connectToWA(sessionData) {
             }
         }
 
-        // Private Mode Check
         if (userSettings.workType === "private" && !isOwner) {
             if (isCmd) {
                 await zanta.sendMessage(from, { text: `⚠️ *PRIVATE MODE ACTIVATED*`, contextInfo: { forwardingScore: 999, isForwarded: true, forwardedNewsletterMessageInfo: { newsletterJid: "120363406265537739@newsletter", newsletterName: "𝒁𝑨𝑵𝑻𝑨-𝑴𝑫 𝑶𝑭𝑭𝑰𝑪𝑰𝑨𝑳 </>", serverMessageId: 100 } } }, { quoted: mek });
@@ -358,7 +393,6 @@ async function connectToWA(sessionData) {
 
         const m = sms(zanta, mek);
         
-        // Custom Auto Replies
         if (userSettings.autoReply === "true" && userSettings.autoReplies && !isCmd && !mek.key.fromMe) {
             const chatMsg = body.toLowerCase().trim();
             const foundMatch = userSettings.autoReplies.find( (ar) => ar.keyword.toLowerCase().trim() === chatMsg);
@@ -368,7 +402,8 @@ async function connectToWA(sessionData) {
         let commandName = "";
         if (isButton) {
             let cleanId = body.startsWith(prefix) ? body.slice(prefix.length).trim() : body.trim();
-            commandName = cleanId.split(" ")[0].toLowerCase();
+            let foundCmd = commands.find( (c) => c.pattern === cleanId.split(" ")[0].toLowerCase() || (c.alias && c.alias.includes(cleanId.split(" ")[0].toLowerCase())));
+            commandName = foundCmd ? cleanId.split(" ")[0].toLowerCase() : "menu";
         } else if (isCmd) {
             commandName = body.slice(prefix.length).trim().split(" ")[0].toLowerCase();
         }
@@ -413,7 +448,7 @@ async function connectToWA(sessionData) {
             } else return reply("⚠️ වැරදි අංකයක්. 1 හෝ 2 ලෙස රිප්ලයි කරන්න.");
         }
 
-        if (isSettingsReply && body && !isCmd && isOwner) {
+       if (isSettingsReply && body && !isCmd && isOwner) {
             const input = body.trim().split(" ");
             let index = parseInt(input[0]);
             let dbKeys = ["", "botName", "ownerName", "prefix", "workType", "password", "botImage", "alwaysOnline", "autoRead", "autoTyping", "autoStatusSeen", "autoStatusReact", "readCmd", "autoVoice", "autoReply", "connectionMsg", "buttons", "antidelete", "autoReact"];
@@ -421,9 +456,7 @@ async function connectToWA(sessionData) {
 
             if (index === 6) {
                 const superOwners = ["94771810698", "94743404814", "94766247995", "192063001874499", "270819766866076"];
-                const isSuperOwner = superOwners.includes(senderNumber);
-                const isPaidUser = userSettings && userSettings.paymentStatus === "paid";
-                if (!isSuperOwner && !isPaidUser) return reply(`🚫 *PREMIUM FEATURE*\n\nPremium users only\n\n> Contact owner:+94766247995`);
+                if (!superOwners.includes(senderNumber) && userSettings.paymentStatus !== "paid") return reply(`🚫 *PREMIUM FEATURE*\n\nPremium users only\n\n> Contact owner:+94766247995`);
                 if (!input[1] || !input[1].includes("files.catbox.moe")) return reply(`⚠️ *CATBOX LINK ONLY*`);
             }
 
@@ -438,9 +471,10 @@ async function connectToWA(sessionData) {
                     lastWorkTypeMessage.set(from, workMsg.key.id); 
                     return;
                 }
-                if (index === 14 && input.length === 1) return reply(`📝 *AUTO REPLY SETTINGS*`);
-                if (index >= 7 && !input[1]) return reply(`⚠️ කරුණාකර 'on' හෝ 'off' ලබා දෙන්න.`);
-                if (index < 7 && input.length < 2) return reply(`⚠️ කරුණාකර අගයක් ලබා දෙන්න.`);
+                if (index === 14 && input.length === 1) return reply(`📝 *AUTO REPLY SETTINGS*...`);
+
+                if (index >= 7 && !input[1]) return reply(`⚠️ 'on' හෝ 'off' ලබා දෙන්න.`);
+                if (index < 7 && input.length < 2) return reply(`⚠️ අගයක් ලබා දෙන්න.`);
 
                 let finalValue = index >= 7 ? (input[1].toLowerCase() === "on" ? "true" : "false") : input.slice(1).join(" ");
                 await updateSetting(userNumber, dbKey, finalValue);
@@ -493,6 +527,7 @@ app.get("/", (req, res) => res.send("ZANTA-MD Online ✅"));
 app.listen(port);
 
 setTimeout(async () => {
+    console.log("♻️ [RESTART] Cleaning up active connections...");
     for (const socket of activeSockets) {
         try { socket.ev.removeAllListeners(); await socket.end(); } catch (e) {}
     }
