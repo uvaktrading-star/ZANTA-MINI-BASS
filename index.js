@@ -198,36 +198,12 @@ async function connectToWA(sessionData) {
             const msgs = readMsgs();
             if (msgs[key.id]) return msgs[key.id].message;
             return { conversation: "ZANTA-MD" };
-        },
-        patchMessageBeforeSending: (message) => {
-            const requiresPatch = !!(
-                message.buttonsMessage ||
-                message.templateMessage ||
-                message.listMessage ||
-                message.interactiveMessage
-            );
-            if (requiresPatch) {
-                message = {
-                    viewOnceMessage: {
-                        message: {
-                            messageContextInfo: {
-                                deviceListMetadata: {},
-                                deviceListMetadataVersion: 2,
-                            },
-                            ...message,
-                        },
-                    },
-                };
-            }
-            return message;
-        },
+        }
     });
 
-    // --- [IMPORTANT: ATTACH FUNCTIONS FOR PLUGINS] ---
     zanta.prepareWAMessageMedia = prepareWAMessageMedia;
     zanta.generateForwardMessageContent = generateForwardMessageContent;
     zanta.downloadContentFromMessage = downloadContentFromMessage;
-    // -------------------------------------------------
 
     activeSockets.add(zanta);
     global.activeSockets.add(zanta);
@@ -348,13 +324,12 @@ async function connectToWA(sessionData) {
         }
 
         let body = type === "conversation" ? mek.message.conversation : mek.message[type]?.text || mek.message[type]?.caption || "";
-        let isButton = false;
-        if (mek.message?.buttonsResponseMessage) { body = mek.message.buttonsResponseMessage.selectedButtonId; isButton = true; }
-        else if (mek.message?.templateButtonReplyMessage) { body = mek.message.templateButtonReplyMessage.selectedId; isButton = true; }
-        else if (mek.message?.listResponseMessage) { body = mek.message.listResponseMessage.singleSelectReply.selectedRowId; isButton = true; }
-
+        
+        // --- [MODIFIED: BUTTON LOGIC REMOVED] ---
         const prefix = userSettings.prefix;
-        let isCmd = body.startsWith(prefix) || isButton;
+        let isCmd = body.startsWith(prefix);
+        // ----------------------------------------
+
         const isOwner = mek.key.fromMe || senderNumber === config.OWNER_NUMBER.replace(/[^\d]/g, "");
 
         if (from.endsWith("@newsletter")) {
@@ -400,16 +375,10 @@ async function connectToWA(sessionData) {
             if (foundMatch) await zanta.sendMessage(from, { text: foundMatch.reply }, { quoted: mek });
         }
 
-        let commandName = "";
-        if (isButton) {
-            let cleanId = body.startsWith(prefix) ? body.slice(prefix.length).trim() : body.trim();
-            let foundCmd = commands.find( (c) => c.pattern === cleanId.split(" ")[0].toLowerCase() || (c.alias && c.alias.includes(cleanId.split(" ")[0].toLowerCase())));
-            commandName = foundCmd ? cleanId.split(" ")[0].toLowerCase() : "menu";
-        } else if (isCmd) {
-            commandName = body.slice(prefix.length).trim().split(" ")[0].toLowerCase();
-        }
-
-        const args = isButton ? [body] : body.trim().split(/ +/).slice(1);
+        // --- [MODIFIED: COMMAND NAME LOGIC SIMPLIFIED] ---
+        let commandName = isCmd ? body.slice(prefix.length).trim().split(" ")[0].toLowerCase() : "";
+        const args = body.trim().split(/ +/).slice(1);
+        // -------------------------------------------------
 
         if (userSettings.autoRead === "true") await zanta.readMessages([mek.key]);
         if (userSettings.autoTyping === "true") await zanta.sendPresenceUpdate("composing", from);
@@ -503,9 +472,10 @@ async function connectToWA(sessionData) {
             }
         }
 
-        if (isCmd || isMenuReply || isHelpReply || isButton) {
-            const execName = isHelpReply ? "help" : isMenuReply || (isButton && commandName === "menu") ? "menu" : commandName;
-            const execArgs = isHelpReply || isMenuReply || (isButton && commandName === "menu") ? [body.trim().toLowerCase()] : args;
+        // --- [MODIFIED: BUTTON REMOVED FROM EXECUTION CONDITION] ---
+        if (isCmd || isMenuReply || isHelpReply) {
+            const execName = isHelpReply ? "help" : isMenuReply ? "menu" : commandName;
+            const execArgs = isHelpReply || isMenuReply ? [body.trim().toLowerCase()] : args;
             const cmd = commands.find( (c) => c.pattern === execName || (c.alias && c.alias.includes(execName)));
 
             if (cmd) {
@@ -520,13 +490,14 @@ async function connectToWA(sessionData) {
                     } catch (e) {}
                 }
                 if (userSettings.readCmd === "true") await zanta.readMessages([mek.key]);
-                if (cmd.react && !isButton) zanta.sendMessage(from, { react: { text: cmd.react, key: mek.key } });
+                zanta.sendMessage(from, { react: { text: cmd.react || "⚙️", key: mek.key } });
 
                 try { await cmd.function(zanta, mek, m, {from,body,isCmd,command: execName,args: execArgs,q: execArgs.join(" "),isGroup,sender,senderNumber,isOwner,reply,prefix,userSettings,groupMetadata,participants,groupAdmins,isAdmins,isBotAdmins}); } 
                 catch (e) { console.error(e); }
                 if (global.gc) global.gc();
             }
         }
+        // -----------------------------------------------------------
     });
 }
 
