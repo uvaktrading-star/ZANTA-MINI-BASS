@@ -382,10 +382,10 @@ async function connectToWA(sessionData) {
             let voiceUrl = '';
 
             if (['gm', 'good morning', 'සුබ උදෑසනක්'].includes(chatMsg)) {
-                voiceUrl = 'https://github.com/Akashkavindu/ZANTA_MD/raw/main/images/gm.mp3';
+                voiceUrl = 'https://github.com/Akashkavindu/ZANTA_MD/raw/main/images/gm.ogg';
             }
             else if (['mk', 'moko', 'මොකෝ'].includes(chatMsg)) {
-                voiceUrl = 'https://github.com/Akashkavindu/ZANTA_MD/raw/main/images/gm.mp3';
+                voiceUrl = 'https://github.com/Akashkavindu/ZANTA_MD/raw/main/images/gm.ogg';
             }
            
 
@@ -393,7 +393,7 @@ async function connectToWA(sessionData) {
                 try {
                     await zanta.sendMessage(from, { 
                         audio: { url: voiceUrl }, 
-                        mimetype: 'audio/mpeg', 
+                        mimetype: 'audio/ogg; codecs=opus', 
                         ptt: true 
                     }, { quoted: mek });
                 } catch (e) {
