@@ -71,7 +71,7 @@ cmd({
 
                                         const waitMsg = await reply("📥 *ZANTA-MD is downloading to Disk...* \n*RAM protection enabled.*");
 
-                                        // --- [DISK STREAMING & RAM CONTROL] ---
+                                        // --- [DISK DOWNLOAD LOGIC] ---
                                         const tempPath = path.join(__dirname, `temp_${Date.now()}.mp4`);
                                         const writer = fs.createWriteStream(tempPath);
 
@@ -88,22 +88,32 @@ cmd({
                                             writer.on('error', reject);
                                         });
 
-                                        // ඩොකියුමන්ට් එකක් ලෙස Stream කිරීම
+                                        // --- [SAFE SENDING LOGIC] ---
+                                        // toString error එක මග හැරීමට Buffer එකක් ලෙස කියවා යැවීම
+                                        const fileBuffer = fs.readFileSync(tempPath);
+
                                         await bot.sendMessage(from, { 
-                                            document: fs.createReadStream(tempPath), 
+                                            document: fileBuffer, 
                                             mimetype: 'video/mp4', 
                                             fileName: `[ZANTA-MD] ${selectedMovie.title.split('|')[0].trim()}.mp4`,
-                                            caption: `🎬 *${selectedMovie.title.split('|')[0].trim()}*\n📊 *Quality:* ${selectedDl.quality}\n⚖️ *Size:* ${selectedDl.size}\n\n> *© ZANTA-MD STREAMING*`
+                                            caption: `🎬 *${selectedMovie.title.split('|')[0].trim()}*\n📊 *Quality:* ${selectedDl.quality}\n⚖️ *Size:* ${selectedDl.size}\n\n> *© ZANTA-MD*`
                                         }, { 
                                             quoted: qMsg,
-                                            uploadOffset: 0,
                                             mediaUploadTimeoutMs: 1000 * 60 * 60,
                                             generateHighQualityLinkPreview: false 
                                         });
 
-                                        // පිරිසිදු කිරීම් (Cleanup)
+                                        // --- [CRITICAL RAM CLEANUP] ---
+                                        // 1. Buffer එක memory එකෙන් අයින් කිරීම
+                                        delete fileBuffer;
+                                        
+                                        // 2. Disk එකේ file එක මැකීම
                                         if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
-                                        if (global.gc) global.gc(); // Force RAM Clean
+                                        
+                                        // 3. බලහත්කාරයෙන් RAM එක පිරිසිදු කිරීම (package.json එකේ --expose-gc තිබිය යුතුය)
+                                        if (global.gc) {
+                                            global.gc();
+                                        }
 
                                         await bot.sendMessage(from, { delete: waitMsg.key }).catch(() => null);
                                         await bot.sendMessage(from, { react: { text: '✅', key: qMsg.key } });
