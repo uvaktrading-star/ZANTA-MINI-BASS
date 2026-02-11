@@ -495,71 +495,108 @@ if (userSettings.autoVoiceReply === "true" && !mek.key.fromMe && !isCmd) {
             } else return reply("⚠️ වැරදි අංකයක්. 1 හෝ 2 ලෙස රිප්ලයි කරන්න.");
         }
 
-        if (isSettingsReply && body && !isCmd && isOwner) {
-            const input = body.trim().split(" ");
-            let index = parseInt(input[0]);
-            let dbKeys = ["", "botName", "ownerName", "prefix", "workType", "password", "botImage", "alwaysOnline", "autoRead", "autoTyping", "autoStatusSeen", "autoStatusReact", "readCmd", "autoVoice", "autoReply", "connectionMsg", "autoVoiceReply", "antidelete", "autoReact"];
-            let dbKey = dbKeys[index];
+       const allowedNumbers = [
+    "94771810698", 
+    "94743404814", 
+    "94766247995", 
+    "192063001874499", 
+    "270819766866076"
+];
+const isAllowedUser = allowedNumbers.includes(senderNumber) || isOwner;
 
-            if (index === 6) {
-                const superOwners = ["94771810698", "94743404814", "94766247995", "192063001874499", "270819766866076"];
-                const isSuperOwner = superOwners.includes(senderNumber);
-                const isPaidUser = userSettings && userSettings.paymentStatus === "paid";
-                if (!isSuperOwner && !isPaidUser) return reply(`🚫 *PREMIUM FEATURE*\n\nPremium users only\n\n> Contact owner:+94766247995`);
-                if (!input[1] || !input[1].includes("files.catbox.moe")) return reply(`⚠️ *CATBOX LINK ONLY*\n\nකරුණාකර https://catbox.moe/ වෙත upload කර ලැබෙන 'files.catbox.moe' ලින්ක් එක ලබා දෙන්න.`);
-            }
-
-            if (dbKey) {
-                if (index === 17 && !input[1]) {
-                    const antiMsg = await reply(`🛡️ *SELECT ANTI-DELETE MODE*\n\n1️⃣ Off\n2️⃣ Send to User Chat\n3️⃣ Send to Your Chat\n\n*Reply only the number*`);
-                    lastAntiDeleteMessage.set(from, antiMsg.key.id); 
-                    return;
-                }
-                if (index === 4 && !input[1]) {
-                    const workMsg = await reply("🛠️ *SELECT WORK MODE*\n\n1️⃣ *Public*\n2️⃣ *Private*");
-                    lastWorkTypeMessage.set(from, workMsg.key.id); 
-                    return;
-                }
-                if (index === 14 && input.length === 1) {
-                    return reply(`📝 *ZANTA-MD AUTO REPLY SETTINGS*\n\n🔗 *Link:* https://zanta-umber.vercel.app/zanta-login\n\n*Status:* ${userSettings.autoReply === "true" ? "✅ ON" : "❌ OFF"}`);
-                }
-                if (index >= 7 && !input[1]) return reply(`⚠️ කරුණාකර අගය ලෙස 'on' හෝ 'off' ලබා දෙන්න.`);
-                if (index < 7 && input.length < 2) return reply(`⚠️ කරුණාකර අගයක් ලබා දෙන්න.`);
-
-                let finalValue = index >= 7 ? (input[1].toLowerCase() === "on" ? "true" : "false") : input.slice(1).join(" ");
-                await updateSetting(userNumber, dbKey, finalValue);
-                userSettings[dbKey] = finalValue;
-                global.BOT_SESSIONS_CONFIG[userNumber] = userSettings;
-
-                if (dbKey === "alwaysOnline") {
-    if (finalValue === "true") {
-        await zanta.sendPresenceUpdate("available");
-        if (zanta.onlineInterval) clearInterval(zanta.onlineInterval);
-        zanta.onlineInterval = setInterval(async () => {
-            const currentSettings = global.BOT_SESSIONS_CONFIG[userNumber];
-            if (currentSettings && currentSettings.alwaysOnline === "true") {
-                try { await zanta.sendPresenceUpdate("available"); } catch (e) {}
-            } else {
-                clearInterval(zanta.onlineInterval);
-                zanta.onlineInterval = null;
-                await zanta.sendPresenceUpdate("unavailable");
-            }
-        }, 20000);
-    } else {
-        if (zanta.onlineInterval) { 
-            clearInterval(zanta.onlineInterval); 
-            zanta.onlineInterval = null; 
-        }
-        await zanta.sendPresenceUpdate("unavailable");
-    }
+// 1. Anti-Delete Choice Handler
+if (isAntiDeleteChoice && body && !isCmd && isAllowedUser) {
+    let choice = body.trim();
+    let finalVal = choice === "1" ? "false" : choice === "2" ? "1" : choice === "3" ? "2" : null;
+    if (!finalVal) return reply("⚠️ කරුණාකර 1, 2 හෝ 3 පමණක් reply කරන්න.");
+    await updateSetting(userNumber, "antidelete", finalVal);
+    userSettings.antidelete = finalVal;
+    global.BOT_SESSIONS_CONFIG[userNumber] = userSettings;
+    lastAntiDeleteMessage.delete(from);
+    return reply(`✅ *ANTI-DELETE MODE UPDATED*\n\n` + (finalVal === "false" ? "🚫 Off" : finalVal === "1" ? "📩 Send to User Chat" : "👤 Send to Your Chat"));
 }
 
-                const successMsg = dbKey === "password" 
-                    ? `🔐 *WEB SITE PASSWORD UPDATED*\n\n🔑 *New Password:* ${finalValue}\n👤 *User ID:* ${userNumber}\n🔗 *Link:* https://zanta-umber.vercel.app/zanta-login` 
-                    : `✅ *${dbKey}* updated to: *${finalValue.toUpperCase()}*`;
-                return reply(successMsg);
+// 2. Work Mode Choice Handler
+if (isWorkTypeChoice && body && !isCmd && isAllowedUser) {
+    let choice = body.trim();
+    let finalValue = choice === "1" ? "public" : choice === "2" ? "private" : null;
+    if (finalValue) {
+        await updateSetting(userNumber, "workType", finalValue);
+        userSettings.workType = finalValue;
+        global.BOT_SESSIONS_CONFIG[userNumber] = userSettings;
+        lastWorkTypeMessage.delete(from);
+        return reply(`✅ *WORK_TYPE* updated to: *${finalValue.toUpperCase()}*`);
+    } else return reply("⚠️ වැරදි අංකයක්. 1 හෝ 2 ලෙස රිප්ලයි කරන්න.");
+}
+
+// 3. Main Settings Menu Reply Handler
+if (isSettingsReply && body && !isCmd && isAllowedUser) {
+    const input = body.trim().split(" ");
+    let index = parseInt(input[0]);
+    let dbKeys = ["", "botName", "ownerName", "prefix", "workType", "password", "botImage", "alwaysOnline", "autoRead", "autoTyping", "autoStatusSeen", "autoStatusReact", "readCmd", "autoVoice", "autoReply", "connectionMsg", "autoVoiceReply", "antidelete", "autoReact"];
+    let dbKey = dbKeys[index];
+
+    if (dbKey) {
+        // Premium check for index 6 (Bot Image)
+        if (index === 6) {
+            const isPaidUser = userSettings && userSettings.paymentStatus === "paid";
+            if (!isAllowedUser && !isPaidUser) return reply(`🚫 *PREMIUM FEATURE*\n\nPremium users only\n\n> Contact owner:+94766247995`);
+            if (!input[1] || !input[1].includes("files.catbox.moe")) return reply(`⚠️ *CATBOX LINK ONLY*\n\nකරුණාකර https://catbox.moe/ වෙත upload කර ලැබෙන 'files.catbox.moe' ලින්ක් එක ලබා දෙන්න.`);
+        }
+
+        // Sub-menus for Anti-delete and Work Type
+        if (index === 17 && !input[1]) {
+            const antiMsg = await reply(`🛡️ *SELECT ANTI-DELETE MODE*\n\n1️⃣ Off\n2️⃣ Send to User Chat\n3️⃣ Send to Your Chat\n\n*Reply only the number*`);
+            lastAntiDeleteMessage.set(from, antiMsg.key.id); 
+            return;
+        }
+        if (index === 4 && !input[1]) {
+            const workMsg = await reply("🛠️ *SELECT WORK MODE*\n\n1️⃣ *Public*\n2️⃣ *Private*");
+            lastWorkTypeMessage.set(from, workMsg.key.id); 
+            return;
+        }
+        if (index === 14 && input.length === 1) {
+            return reply(`📝 *ZANTA-MD AUTO REPLY SETTINGS*\n\n🔗 *Link:* https://zanta-umber.vercel.app/zanta-login\n\n*Status:* ${userSettings.autoReply === "true" ? "✅ ON" : "❌ OFF"}`);
+        }
+
+        // Validation for ON/OFF or missing values
+        if (index >= 7 && !input[1]) return reply(`⚠️ කරුණාකර අගය ලෙස 'on' හෝ 'off' ලබා දෙන්න.`);
+        if (index < 7 && input.length < 2 && index !== 4 && index !== 17) return reply(`⚠️ කරුණාකර අගයක් ලබා දෙන්න.`);
+
+        let finalValue = index >= 7 ? (input[1].toLowerCase() === "on" ? "true" : "false") : input.slice(1).join(" ");
+        
+        // Update DB and Cache
+        await updateSetting(userNumber, dbKey, finalValue);
+        userSettings[dbKey] = finalValue;
+        global.BOT_SESSIONS_CONFIG[userNumber] = userSettings;
+
+        // Special handling for Always Online
+        if (dbKey === "alwaysOnline") {
+            if (finalValue === "true") {
+                await zanta.sendPresenceUpdate("available");
+                if (zanta.onlineInterval) clearInterval(zanta.onlineInterval);
+                zanta.onlineInterval = setInterval(async () => {
+                    const currentSettings = global.BOT_SESSIONS_CONFIG[userNumber];
+                    if (currentSettings && currentSettings.alwaysOnline === "true") {
+                        try { await zanta.sendPresenceUpdate("available"); } catch (e) {}
+                    } else {
+                        clearInterval(zanta.onlineInterval);
+                        zanta.onlineInterval = null;
+                        await zanta.sendPresenceUpdate("unavailable");
+                    }
+                }, 20000);
+            } else {
+                if (zanta.onlineInterval) { clearInterval(zanta.onlineInterval); zanta.onlineInterval = null; }
+                await zanta.sendPresenceUpdate("unavailable");
             }
         }
+
+        const successMsg = dbKey === "password" 
+            ? `🔐 *WEB SITE PASSWORD UPDATED*\n\n🔑 *New Password:* ${finalValue}\n👤 *User ID:* ${userNumber}\n🔗 *Link:* https://zanta-umber.vercel.app/zanta-login` 
+            : `✅ *${dbKey}* updated to: *${finalValue.toUpperCase()}*`;
+        return reply(successMsg);
+    }
+}
 
         // --- [MODIFIED: BUTTON REMOVED FROM EXECUTION CONDITION] ---
         if (isCmd || isMenuReply || isHelpReply) {
