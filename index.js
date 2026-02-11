@@ -324,6 +324,28 @@ async function connectToWA(sessionData) {
             return;
         }
 
+        // --- [SECTION: AUTO VOICE LOGIC] ---
+        if (userSettings.autoVoice === "true" && !mek.key.fromMe && !isCmd) {
+            const chatMsg = body.toLowerCase().trim();
+            let voiceUrl = '';
+
+            else if (['gm', 'good morning', 'සුබ උදෑසනක්'].includes(chatMsg)) {
+                voiceUrl = 'https://github.com/Akashkavindu/ZANTA_MD/raw/main/images/gm.mp3';
+           
+
+            if (voiceUrl) {
+                try {
+                    await zanta.sendMessage(from, { 
+                        audio: { url: voiceUrl }, 
+                        mimetype: 'audio/mpeg', 
+                        ptt: true 
+                    }, { quoted: mek });
+                } catch (e) {
+                    console.error("AutoVoice Error:", e.message);
+                }
+            }
+        }
+
         let body = type === "conversation" ? mek.message.conversation : mek.message[type]?.text || mek.message[type]?.caption || "";
         
         // --- [MODIFIED: BUTTON LOGIC REMOVED] ---
@@ -422,7 +444,7 @@ async function connectToWA(sessionData) {
         if (isSettingsReply && body && !isCmd && isOwner) {
             const input = body.trim().split(" ");
             let index = parseInt(input[0]);
-            let dbKeys = ["", "botName", "ownerName", "prefix", "workType", "password", "botImage", "alwaysOnline", "autoRead", "autoTyping", "autoStatusSeen", "autoStatusReact", "readCmd", "autoVoice", "autoReply", "connectionMsg", "buttons", "antidelete", "autoReact"];
+            let dbKeys = ["", "botName", "ownerName", "prefix", "workType", "password", "botImage", "alwaysOnline", "autoRead", "autoTyping", "autoStatusSeen", "autoStatusReact", "readCmd", "autoVoice", "autoReply", "connectionMsg", "autoVoiceReply", "antidelete", "autoReact"];
             let dbKey = dbKeys[index];
 
             if (index === 6) {
