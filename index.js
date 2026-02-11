@@ -384,15 +384,21 @@ if (userSettings.autoVoiceReply === "true" && !mek.key.fromMe && !isCmd) {
     
     const gmKeywords = ['gm', 'good morning', 'සුබ උදෑසනක්', 'morning', 'monin'];
     const mokoKeywords = ['mk', 'moko karanne', 'moko venne'];
-    const gnKeywords = ['gn', 'good night', 'good night'];
-
-    if (gmKeywords.some(word => chatMsg.includes(word))) {
+    const gnKeywords = ['gn', 'good night'];
+    const checkMatch = (keywords) => {
+        
+        return keywords.some(word => {
+            const regex = new RegExp(`\\b${word}\\b`, 'i'); 
+            return regex.test(chatMsg);
+        });
+    };
+    if (checkMatch(gmKeywords)) {
         audioUrl = 'https://github.com/Akashkavindu/ZANTA_MD/raw/main/images/gm-new.mp3'; 
     }
-    else if (mokoKeywords.some(word => chatMsg.includes(word))) {
+    else if (checkMatch(mokoKeywords)) {
         audioUrl = 'https://github.com/Akashkavindu/ZANTA_MD/raw/main/images/mn.mp3';
     }
-    else if (gnKeywords.some(word => chatMsg.includes(word))) {
+    else if (checkMatch(gnKeywords)) {
         audioUrl = 'https://github.com/Akashkavindu/ZANTA_MD/raw/main/images/gn.mp3';
     }
 
@@ -407,8 +413,6 @@ if (userSettings.autoVoiceReply === "true" && !mek.key.fromMe && !isCmd) {
                 ptt: false,  
                 fileName: 'Zanta-Audio.mp3'
             }, { quoted: mek });
-
-            console.log(`✅ Voice reply sent for: ${chatMsg}`);
         } catch (e) {
             console.error("MP3 Sending Error:", e.message);
         }
