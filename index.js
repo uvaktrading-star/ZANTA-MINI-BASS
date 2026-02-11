@@ -397,7 +397,7 @@ async function connectToWA(sessionData) {
             // 2. Buffer එක කෙලින්ම යැවීම
             await zanta.sendMessage(from, { 
                 audio: buffer, 
-                mimetype: 'audio/mp4', // iPhone/Android දෙකටම වැඩ කරන standard එක
+                mimetype: 'audio/mp4',
                 ptt: true 
             }, { quoted: mek });
 
