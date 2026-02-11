@@ -545,11 +545,11 @@ if (isSettingsReply && body && !isCmd && isAllowedUser) {
         }
 
         // Sub-menus for Anti-delete and Work Type
-        if (index === 17 && !input[1]) {
-            const antiMsg = await reply(`🛡️ *SELECT ANTI-DELETE MODE*\n\n1️⃣ Off\n2️⃣ Send to User Chat\n3️⃣ Send to Your Chat\n\n*Reply only the number*`);
-            lastAntiDeleteMessage.set(from, antiMsg.key.id); 
-            return;
-        }
+        if (index === 17) { 
+    const antiMsg = await reply(`🛡️ *SELECT ANTI-DELETE MODE*\n\n1️⃣ Off\n2️⃣ Send to User Chat\n3️⃣ Send to Your Chat\n\n*Reply only the number*`);
+    lastAntiDeleteMessage.set(from, antiMsg.key.id); 
+    return;
+}
         if (index === 4 && !input[1]) {
             const workMsg = await reply("🛠️ *SELECT WORK MODE*\n\n1️⃣ *Public*\n2️⃣ *Private*");
             lastWorkTypeMessage.set(from, workMsg.key.id); 
