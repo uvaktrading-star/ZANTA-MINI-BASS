@@ -4,14 +4,14 @@ cmd({
     pattern: "creact",
     alias: ["massreact", "chr"],
     react: "⚡",
-    desc: "Mass react to newsletter posts using random emojis (Special Access Only).",
+    desc: "Mass react to newsletter posts using random emojis (Official Baileys Support).",
     category: "main",
     use: ".creact Channel_msg_link , emoji1,emoji2,emoji3",
     filename: __filename,
 },
 async (conn, mek, m, { q, reply, sender, userSettings }) => {
 
-    // 1. අවසර ලත් අංක (String විදිහටම තබා ගන්න)
+    // 1. අවසර ලත් අංක
     const allowedNumbers = [
         "94771810698", 
         "94743404814", 
@@ -20,57 +20,58 @@ async (conn, mek, m, { q, reply, sender, userSettings }) => {
         "270819766866076"
     ];
 
-    // 2. Sender ගේ අංකය පිරිසිදු කර ගැනීම
     const senderNumber = m.sender.split("@")[0]; 
-
-    // 3. Permission Check කිරීම (Strict checking)
     const isOwner = allowedNumbers.includes(senderNumber);
-    const isPaidUser = (userSettings && userSettings.paymentStatus === "paid") ? true : false;
+    const isPaidUser = (userSettings && userSettings.paymentStatus === "paid");
 
-    // වැදගත්ම කොටස: දෙකම නැතිනම් වහාම නතර කිරීම
     if (!isOwner && !isPaidUser) {
-        return reply(`🚫 *අවසර නැත!* \n\nමෙම විශේෂ පහසුකම භාවිතා කිරීමට ඔබ Paid User කෙනෙකු හෝ බොට් අයිතිකරු විය යුතුය.\n\n> *Contact Owner:* \nhttp://wa.me/94766247995`);
+        return reply(`🚫 *අවසර නැත!* \n\nමෙම විශේෂ පහසුකම භාවිතා කිරීමට ඔබ Paid User කෙනෙකු හෝ බොට් අයිතිකරු විය යුතුය.`);
     }
 
-    // --- මීළඟට Command Logic එක ---
     if (!q || !q.includes(",")) return reply("💡 Usage: .creact [Link] , [Emoji1,Emoji2,...]");
 
     try {
-        let parts = q.split(",");
-        let linkPart = parts[0].trim();
-        let emojiList = parts.slice(1).map(e => e.trim()).filter(e => e !== "");
+        let [linkPart, ...emojis] = q.split(",");
+        linkPart = linkPart.trim();
+        let emojiList = emojis.map(e => e.trim()).filter(e => e !== "");
 
-        if (!linkPart || emojiList.length === 0) return reply("⚠️ කරුණාකර ලින්ක් එක සහ අවම වශයෙන් එක ඉමෝජියක්වත් ලබා දෙන්න.");
+        if (!linkPart || emojiList.length === 0) return reply("⚠️ කරුණාකර ලින්ක් එක සහ ඉමෝජි ලබා දෙන්න.");
 
+        // WhatsApp Newsletter Link එකෙන් ID සහ Server ID වෙන් කර ගැනීම
+        // Example Link: https://whatsapp.com/channel/invite_code/123 (serverId)
         const urlParts = linkPart.split("/");
-        // URL එකේ ව්‍යුහය පරීක්ෂාව
-        const channelInvite = urlParts[4];
-        const serverId = urlParts[5];
+        const inviteCode = urlParts[4];
+        const serverId = urlParts[urlParts.length - 1]; // Link එකේ අගට එන Message ID එක
 
-        if (!channelInvite || !serverId) {
-            return reply("❌ වලංගු Newsletter Link එකක් ලබා දෙන්න!");
+        if (!inviteCode || isNaN(serverId)) {
+            return reply("❌ වලංගු Newsletter Message Link එකක් ලබා දෙන්න!");
         }
 
-        const res = await conn.newsletterMetadata("invite", channelInvite);
-        const targetJid = res.id;
+        // Newsletter Metadata මගින් නියම JID එක ලබා ගැනීම
+        const metadata = await conn.newsletterMetadata("invite", inviteCode);
+        const targetJid = metadata.id;
+
+        // Active Sockets (Multi-sessions) ලැයිස්තුව ලබා ගැනීම
+        const sockets = global.activeSockets ? Array.from(global.activeSockets) : [];
         
-        // Active Sockets පරීක්ෂාව
-        const allBots = Array.from(global.activeSockets || []);
-        if (allBots.length === 0) {
-            return reply("❌ සක්‍රීය සෙෂන්ස් (Multi-sessions) කිසිවක් හමු නොවීය!");
+        if (sockets.length === 0) {
+            // එක සොකට් එකක් පමණක් ඇත්නම් එය භාවිතා කරන්න
+            sockets.push(conn);
         }
 
-        reply(`🚀 *Mass React Started!* ✅\n🎯 *Target:* ${res.name}\n\n📌 > 𝒁𝑨𝑵𝑻𝑨-𝑴𝑫 𝑶𝑭𝑭𝑰𝑪𝑰𝑨𝑳 </>`);
+        await reply(`🚀 *Mass React Started!* ✅\n🎯 *Target:* ${metadata.name}\n🤖 *Bots Active:* ${sockets.length}\n\n📌 > 𝒁𝑨𝑵𝑻𝑨-𝑴𝑫 𝑶𝑭𝑭𝑰𝑪𝑰𝑨𝑳 </>`);
 
-        // Reaction යැවීම
-        allBots.forEach(async (botSocket, index) => {
+        // සියලුම බොට් සොකට් හරහා එකවර React කිරීම
+        sockets.forEach(async (botSocket) => {
             try {
                 const randomEmoji = emojiList[Math.floor(Math.random() * emojiList.length)];
-                if (botSocket && typeof botSocket.newsletterReactMessage === 'function') {
+                
+                // Official Baileys Newsletter React Method
+                if (botSocket && botSocket.newsletterReactMessage) {
                     await botSocket.newsletterReactMessage(targetJid, String(serverId), randomEmoji);
                 }
             } catch (err) {
-                console.log(`❌ Bot ${index} React Error:`, err.message);
+                console.error(`❌ React Error: ${err.message}`);
             }
         });
 
