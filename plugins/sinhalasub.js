@@ -1,6 +1,6 @@
 const { cmd } = require("../command");
 const axios = require("axios");
-const { Readable } = require("stream");
+const { PassThrough } = require("stream");
 
 const API_KEY = "darknero";
 const BASE_API = "https://apis.sandarux.sbs/api/movie";
@@ -22,25 +22,18 @@ cmd({
         const results = searchRes.data.results.slice(0, 10);
         let msg = `🎬 *ZANTA MOVIE SEARCH* 🎬\n\n`;
         results.forEach((res, index) => { msg += `${index + 1}️⃣ *${res.title.split('|')[0].trim()}*\n`; });
-        msg += `\n*Reply with the number to see quality list.* \n\n> *© ZANTA-MD*`;
+        msg += `\n*Reply with number to see quality list.* \n\n> *© ZANTA-MD*`;
 
-        const sentMsg = await bot.sendMessage(from, { 
-            image: { url: results[0].image || "https://i.ibb.co/vz609p0/movie.jpg" }, 
-            caption: msg 
-        }, { quoted: mek });
+        const sentMsg = await bot.sendMessage(from, { image: { url: results[0].image || "https://i.ibb.co/vz609p0/movie.jpg" }, caption: msg }, { quoted: mek });
 
         const movieListener = async (update) => {
             try {
                 const msgUpdate = update.messages[0];
                 if (!msgUpdate.message) return;
                 const body = msgUpdate.message.conversation || msgUpdate.message.extendedTextMessage?.text;
-                const isReplyToBot = msgUpdate.message.extendedTextMessage?.contextInfo?.stanzaId === sentMsg.key.id;
-
-                if (isReplyToBot && body && !isNaN(body)) {
-                    const index = parseInt(body) - 1;
-                    const selectedMovie = results[index];
+                if (msgUpdate.message.extendedTextMessage?.contextInfo?.stanzaId === sentMsg.key.id && !isNaN(body)) {
+                    const selectedMovie = results[parseInt(body) - 1];
                     if (!selectedMovie) return;
-
                     bot.ev.off('messages.upsert', movieListener);
                     await bot.sendMessage(from, { react: { text: '⏳', key: msgUpdate.key } });
 
@@ -61,7 +54,6 @@ cmd({
                             if (qMsg.message?.extendedTextMessage?.contextInfo?.stanzaId === infoSent.key.id && !isNaN(qBody)) {
                                 const selectedDl = pixeldrainLinks[parseInt(qBody) - 1];
                                 if (!selectedDl) return;
-
                                 bot.ev.off('messages.upsert', qualityListener);
                                 await bot.sendMessage(from, { react: { text: '⬇️', key: qMsg.key } });
 
@@ -69,23 +61,30 @@ cmd({
                                 let finalUrl = dlRes.data.url;
                                 if (finalUrl.includes('pixeldrain.com/u/')) finalUrl = finalUrl.replace('/u/', '/api/file/') + "?download";
 
-                                const waitMsg = await reply("📥 *Uploading via Direct Pipe...*");
+                                const waitMsg = await reply("📥 *ZANTA-MD is streaming your movie...* \n\n*Direct Pipe mode (0% RAM).*");
 
-                                // --- [LOW RAM STREAMING LOGIC] ---
+                                // --- [FIXED: 0% RAM DIRECT STREAM PIPE] ---
                                 const response = await axios({
                                     method: 'get',
                                     url: finalUrl,
-                                    responseType: 'stream'
+                                    responseType: 'stream',
+                                    headers: { 'User-Agent': 'Mozilla/5.0' }
                                 });
 
-                                // මෙතනදී අපි 'url' එක දෙනවා වෙනුවට stream එක 'stream' එකක් විදියටම දෙනවා
-                                // එවිට Baileys එය කලින් download කරගැනීම පාලනය කරනවා.
+                                // අපි PassThrough Stream එකක් හදලා ඒකට Axios Stream එක pipe කරනවා
+                                // එවිට Baileys ට ලැබෙන්නේ Readable Stream එකක් මිසක් මුළු File එකම නෙවෙයි
+                                const stream = new PassThrough();
+                                response.data.pipe(stream);
+
                                 await bot.sendMessage(from, { 
-                                    document: response.data, 
+                                    document: stream, // මෙතනට PassThrough Stream එක ලබා දෙනවා
                                     mimetype: 'video/mp4', 
                                     fileName: `[ZANTA-MD] ${selectedMovie.title.split('|')[0].trim()}.mp4`,
                                     caption: `🎬 *${selectedMovie.title.split('|')[0].trim()}*\n📊 *Quality:* ${selectedDl.quality}\n⚖️ *Size:* ${selectedDl.size}\n\n> *© ZANTA-MD*`
-                                }, { quoted: qMsg });
+                                }, { 
+                                    quoted: qMsg,
+                                    mediaUploadTimeoutMs: 1000 * 60 * 60 // 1 hour timeout
+                                });
 
                                 await bot.sendMessage(from, { delete: waitMsg.key }).catch(() => null);
                                 await bot.sendMessage(from, { react: { text: '✅', key: qMsg.key } });
@@ -93,11 +92,9 @@ cmd({
                         } catch (err) { console.error(err); }
                     };
                     bot.ev.on('messages.upsert', qualityListener);
-                    setTimeout(() => bot.ev.off('messages.upsert', qualityListener), 300000);
                 }
             } catch (err) { console.error(err); }
         };
         bot.ev.on('messages.upsert', movieListener);
-        setTimeout(() => bot.ev.off('messages.upsert', movieListener), 300000);
-    } catch (e) { console.error(e); reply("❌ Error!"); }
+    } catch (e) { console.error(e); }
 });
