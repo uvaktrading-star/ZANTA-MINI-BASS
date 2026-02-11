@@ -284,36 +284,58 @@ async function connectToWA(sessionData) {
         }
 
         if (mek.message?.protocolMessage?.type === 0) {
-            const deletedId = mek.message.protocolMessage.key.id;
-            const allSavedMsgs = readMsgs();
-            const oldMsg = allSavedMsgs[deletedId];
-            if (oldMsg && userSettings.antidelete !== "false") {
-                const mType = getContentType(oldMsg.message);
-                const isImage = mType === "imageMessage";
-                const deletedText = isImage ? oldMsg.message.imageMessage?.caption || "Image without caption" : oldMsg.message.conversation || oldMsg.message[mType]?.text || "Media Message";
-                const senderNum = decodeJid(oldMsg.key.participant || oldMsg.key.remoteJid).split("@")[0];
-                const header = `🛡️ *ZANTA-MD ANTI-DELETE* 🛡️`;
-                const footerContext = { forwardingScore: 999, isForwarded: true, forwardedNewsletterMessageInfo: { newsletterJid: "120363406265537739@newsletter", newsletterName: "𝒁𝑨𝑵𝑻𝑨-𝑴𝑫 𝑶𝑭𝑭𝑰𝑪𝑰𝑨𝑳 </>", serverMessageId: 100 } };
-                const targetChat = userSettings.antidelete === "2" ? jidNormalizedUser(zanta.user.id) : from;
-                const infoPrefix = userSettings.antidelete === "2" ? `👤 *Sender:* ${senderNum}\n\n` : "";
+    const deletedId = mek.message.protocolMessage.key.id;
+    const allSavedMsgs = readMsgs();
+    const oldMsg = allSavedMsgs[deletedId];
 
-                if (isImage) {
-                    try {
-                        const buffer = await downloadContentFromMessage(oldMsg.message.imageMessage, "image");
-                        let chunks = Buffer.alloc(0);
-                        for await (const chunk of buffer) { chunks = Buffer.concat([chunks, chunk]); }
-                        await zanta.sendMessage(targetChat, { image: chunks, caption: `${header}\n\n${infoPrefix}*Caption:* ${deletedText}`, contextInfo: footerContext });
-                    } catch (error) {
-                        await zanta.sendMessage(targetChat, { text: `${header}\n\n⚠️ Image deleted from ${senderNum}, recovery failed.` });
-                    }
-                } else {
-                    await zanta.sendMessage(targetChat, { text: `${header}\n\n${infoPrefix}*Message:* ${deletedText}`, contextInfo: footerContext });
-                }
-                delete allSavedMsgs[deletedId];
-                writeMsgs(allSavedMsgs);
+    if (oldMsg && userSettings.antidelete !== "false") {
+        const mType = getContentType(oldMsg.message);
+        const isImage = mType === "imageMessage";
+        const deletedText = isImage ? oldMsg.message.imageMessage?.caption || "Image without caption" : oldMsg.message.conversation || oldMsg.message[mType]?.text || "Media Message";
+        
+        const pushName = oldMsg.pushName || "Unknown User";
+        const rawSender = oldMsg.key.participant || oldMsg.key.remoteJid;
+        const senderNum = decodeJid(rawSender).split("@")[0].split(":")[0];
+
+        const header = `🛡️ *ZANTA-MD ANTI-DELETE* 🛡️`;
+        const footerContext = { 
+            forwardingScore: 999, 
+            isForwarded: true, 
+            forwardedNewsletterMessageInfo: { 
+                newsletterJid: "120363406265537739@newsletter", 
+                newsletterName: "𝒁𝑨𝑵𝑻𝑨-𝑴𝑫 𝑶𝑭𝑭𝑰𝑪𝑰𝑨𝑳 </>", 
+                serverMessageId: 100 
+            } 
+        };
+
+        const targetChat = userSettings.antidelete === "2" ? jidNormalizedUser(zanta.user.id) : from;
+        
+        const infoPrefix = `👤 *Sender:* ${pushName}\n🔢 *ID:* ${senderNum}\n\n`;
+
+        if (isImage) {
+            try {
+                const buffer = await downloadContentFromMessage(oldMsg.message.imageMessage, "image");
+                let chunks = Buffer.alloc(0);
+                for await (const chunk of buffer) { chunks = Buffer.concat([chunks, chunk]); }
+                await zanta.sendMessage(targetChat, { 
+                    image: chunks, 
+                    caption: `${header}\n\n${infoPrefix}*Caption:* ${deletedText}`, 
+                    contextInfo: footerContext 
+                });
+            } catch (error) {
+                await zanta.sendMessage(targetChat, { text: `${header}\n\n⚠️ Image deleted by ${pushName}, recovery failed.` });
             }
-            return;
+        } else {
+            await zanta.sendMessage(targetChat, { 
+                text: `${header}\n\n${infoPrefix}*Message:* ${deletedText}`, 
+                contextInfo: footerContext 
+            });
         }
+        delete allSavedMsgs[deletedId];
+        writeMsgs(allSavedMsgs);
+    }
+    return;
+}
 
         if (type === "reactionMessage" || type === "protocolMessage") return;
 
