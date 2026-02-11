@@ -355,26 +355,7 @@ async function connectToWA(sessionData) {
         const isOwner = mek.key.fromMe || senderNumber === config.OWNER_NUMBER.replace(/[^\d]/g, "");
 
         // [MODIFIED: Newsletter Reactions නිවැරදිව ක්‍රියාත්මක වීමට අවශ්‍ය logic එක]
-        if (from.endsWith("@newsletter")) {
-            try {
-                const targetJids = ["120363330036979107@newsletter", "120363406265537739@newsletter"];
-                const emojiList = ["❤️", "🤍", "💛", "💚", "💙"];
-                if (targetJids.includes(from)) {
-                    const serverId = mek.key?.id; // Newsletter වලට server_id වෙනුවට id භාවිතා විය හැක
-                    if (serverId) {
-                        Array.from(activeSockets).forEach(async (botSocket) => {
-                            const randomEmoji = emojiList[Math.floor(Math.random() * emojiList.length)];
-                            try {
-                                if (botSocket?.newsletterReactMessage) {
-                                    await botSocket.newsletterReactMessage(from, serverId, randomEmoji);
-                                }
-                            } catch (e) {}
-                        });
-                    }
-                }
-            } catch (e) {}
-            return; 
-        }
+        
 
         if (!isCmd && userSettings.autoReact === "true" && !isGroup && !mek.key.fromMe) {
             if (Math.random() > 0.3) {
