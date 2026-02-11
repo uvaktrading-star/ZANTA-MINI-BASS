@@ -232,31 +232,30 @@ async function connectToWA(sessionData) {
             }, 5000);
 
             const startPresenceInterval = () => {
-        if (zanta.onlineInterval) clearInterval(zanta.onlineInterval);
-        
-        zanta.onlineInterval = setInterval(async () => {
-            // Memory එකෙන් අලුත්ම settings ගන්නවා
-            const currentSettings = global.BOT_SESSIONS_CONFIG[userNumber];
+            if (zanta.onlineInterval) clearInterval(zanta.onlineInterval);
             
-            if (currentSettings && currentSettings.alwaysOnline === "true") {
-                try { 
-                    await zanta.sendPresenceUpdate("available"); 
-                } catch (e) { 
-                    console.error("Presence Error:", e.message); 
+            zanta.onlineInterval = setInterval(async () => {
+                const currentSettings = global.BOT_SESSIONS_CONFIG[userNumber];
+                
+                if (currentSettings && currentSettings.alwaysOnline === "true") {
+                    try { 
+                        if (zanta.ws.isOpen) {
+                            await zanta.sendPresenceUpdate("available");
+                        }
+                    } catch (e) { 
+                        console.error(`[Presence Error] ${userNumber}:`, e.message); 
+                    }
+                } else {
+                    try { await zanta.sendPresenceUpdate("unavailable"); } catch (e) {}
+                    clearInterval(zanta.onlineInterval);
+                    zanta.onlineInterval = null;
                 }
-            } else {
-                // User settings 'off' කළොත් loop එක නවත්තන්න
-                clearInterval(zanta.onlineInterval);
-                zanta.onlineInterval = null;
-                await zanta.sendPresenceUpdate("unavailable");
-            }
-        }, 20000); // Baileys වලට වඩාත්ම සුදුසු කාලය
-    };
+            }, 60000); // විනාඩියකට වරක් යැවීම වඩාත් ආරක්ෂිතයි (Stability)
+        };
 
-    if (userSettings.alwaysOnline === "true") {
-        await zanta.sendPresenceUpdate("available");
-        startPresenceInterval();
-    }
+        if (userSettings && userSettings.alwaysOnline === "true") {
+            try { await zanta.sendPresenceUpdate("available"); } catch (e) {}
+            startPresenceInterval();
 
             if (userSettings.connectionMsg === "true") {
                 await zanta.sendMessage(decodeJid(zanta.user.id), {
@@ -570,26 +569,29 @@ if (isSettingsReply && body && !isCmd && isAllowedUser) {
         userSettings[dbKey] = finalValue;
         global.BOT_SESSIONS_CONFIG[userNumber] = userSettings;
 
-        // Special handling for Always Online
         if (dbKey === "alwaysOnline") {
-            if (finalValue === "true") {
-                await zanta.sendPresenceUpdate("available");
-                if (zanta.onlineInterval) clearInterval(zanta.onlineInterval);
-                zanta.onlineInterval = setInterval(async () => {
-                    const currentSettings = global.BOT_SESSIONS_CONFIG[userNumber];
-                    if (currentSettings && currentSettings.alwaysOnline === "true") {
-                        try { await zanta.sendPresenceUpdate("available"); } catch (e) {}
-                    } else {
-                        clearInterval(zanta.onlineInterval);
-                        zanta.onlineInterval = null;
-                        await zanta.sendPresenceUpdate("unavailable");
-                    }
-                }, 20000);
+    if (finalValue === "true") {
+        await zanta.sendPresenceUpdate("available");
+        
+        if (zanta.onlineInterval) clearInterval(zanta.onlineInterval);
+        
+        zanta.onlineInterval = setInterval(async () => {
+            const currentSettings = global.BOT_SESSIONS_CONFIG[userNumber];
+            if (currentSettings && currentSettings.alwaysOnline === "true") {
+                try { if (zanta.ws.isOpen) await zanta.sendPresenceUpdate("available"); } catch (e) {}
             } else {
-                if (zanta.onlineInterval) { clearInterval(zanta.onlineInterval); zanta.onlineInterval = null; }
-                await zanta.sendPresenceUpdate("unavailable");
+                clearInterval(zanta.onlineInterval);
+                zanta.onlineInterval = null;
             }
+        }, 60000);
+    } else {
+        if (zanta.onlineInterval) {
+            clearInterval(zanta.onlineInterval);
+            zanta.onlineInterval = null;
         }
+        await zanta.sendPresenceUpdate("unavailable");
+    }
+}
 
         const successMsg = dbKey === "password" 
             ? `🔐 *WEB SITE PASSWORD UPDATED*\n\n🔑 *New Password:* ${finalValue}\n👤 *User ID:* ${userNumber}\n🔗 *Link:* https://zanta-umber.vercel.app/zanta-login` 
