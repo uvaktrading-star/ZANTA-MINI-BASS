@@ -377,36 +377,34 @@ async function connectToWA(sessionData) {
             if (foundMatch) await zanta.sendMessage(from, { text: foundMatch.reply }, { quoted: mek });
         }
 
-         // --- [SECTION: AUTO VOICE LOGIC] ---
-      const axios = require('axios'); // මේක උඩින්ම තියෙන්න ඕනේ
-
-// ... (අනිත් code කොටස්)
-
+        // auto voice reply
 if (userSettings.autoVoiceReply === "true" && !mek.key.fromMe && !isCmd) {
     const chatMsg = body.toLowerCase().trim();
     let audioUrl = '';
+    
+    const gmKeywords = ['gm', 'good morning', 'සුබ උදෑසනක්', 'morning', 'monin'];
+    const mokoKeywords = ['mk', 'moko karanne', 'moko venne'];
 
-    if (['gm', 'good morning', 'සුබ උදෑසනක්'].includes(chatMsg)) {
-        // මෙතනට ඔයාගේ original .mp3 ලින්ක් එක දෙන්න
+    if (gmKeywords.some(word => chatMsg.includes(word))) {
         audioUrl = 'https://github.com/Akashkavindu/ZANTA_MD/raw/main/images/gm.mp3'; 
     }
-    else if (['mk', 'moko', 'මොකෝ'].includes(chatMsg)) {
+    else if (mokoKeywords.some(word => chatMsg.includes(word))) {
         audioUrl = 'https://github.com/Akashkavindu/ZANTA_MD/raw/main/images/gm.mp3';
     }
 
     if (audioUrl) {
         try {
-            // 1. MP3 එක Buffer එකක් ලෙස download කරගැනීම
             const response = await axios.get(audioUrl, { responseType: 'arraybuffer' });
             const buffer = Buffer.from(response.data, 'utf-8');
-
-            // 2. MP3 එක සාමාන්‍ය Audio file එකක් ලෙස යැවීම
+            
             await zanta.sendMessage(from, { 
                 audio: buffer, 
-                mimetype: 'audio/mpeg', // MP3 සඳහා නිවැරදි mimetype එක
-                ptt: false,             // මෙතන false දාන්න (එතකොට audio file එකක් ලෙස යන්නේ)
+                mimetype: 'audio/mpeg', 
+                ptt: false,  
                 fileName: 'Zanta-Audio.mp3'
             }, { quoted: mek });
+
+            console.log(`✅ Voice reply sent for: ${chatMsg}`);
         } catch (e) {
             console.error("MP3 Sending Error:", e.message);
         }
