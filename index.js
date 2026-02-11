@@ -117,6 +117,9 @@ process.on("unhandledRejection", (reason) => {
     if (reason?.message?.includes("Connection Closed") || reason?.message?.includes("Unexpected end")) return;
 });
 
+// --------------------------------------------------------------------------
+// [SECTION: PLUGIN LOADER]
+// --------------------------------------------------------------------------
 async function loadPlugins() {
     const pluginsPath = path.join(__dirname, "plugins");
     fs.readdirSync(pluginsPath).forEach((plugin) => {
@@ -128,6 +131,9 @@ async function loadPlugins() {
     console.log(`✨ Loaded: ${commands.length} Commands`);
 }
 
+// --------------------------------------------------------------------------
+// [SECTION: SYSTEM STARTUP]
+// --------------------------------------------------------------------------
 async function startSystem() {
     await connectDB();
     await loadPlugins();
@@ -177,45 +183,50 @@ async function connectToWA(sessionData) {
     const { version } = await fetchLatestBaileysVersion();
 
     const zanta = makeWASocket({
-    logger: logger,
-    printQRInTerminal: false,
-    browser: Browsers.macOS("Firefox"),
-    auth: state,
-    version,
-    syncFullHistory: false,
-    shouldSyncHistoryMessage: () => false,
-    ignoreNewsletterMessages: false,
-    emitOwnEvents: true,
-    markOnlineOnConnect: userSettings.alwaysOnline === "true",
-    msgRetryCounterCache,
-    getMessage: async (key) => {
-        const msgs = readMsgs();
-        if (msgs[key.id]) return msgs[key.id].message;
-        return { conversation: "ZANTA-MD" };
-    },
-    // [MODIFIED: Buttons නිවැරදිව පෙන්වීමට අවශ්‍ය patch එක මෙතැන ඇත]
-    patchMessageBeforeSending: (message) => {
-        const requiresPatch = !!(
-            message.buttonsMessage ||
-            message.templateMessage ||
-            message.listMessage
-        );
-        if (requiresPatch) {
-            message = {
-                viewOnceMessage: {
-                    message: {
-                        messageContextInfo: {
-                            deviceListMetadata: {},
-                            deviceListMetadataVersion: 2,
+        logger: logger,
+        printQRInTerminal: false,
+        browser: Browsers.macOS("Firefox"),
+        auth: state,
+        version,
+        syncFullHistory: false,
+        shouldSyncHistoryMessage: () => false,
+        ignoreNewsletterMessages: false,
+        emitOwnEvents: true,
+        markOnlineOnConnect: userSettings.alwaysOnline === "true",
+        msgRetryCounterCache,
+        getMessage: async (key) => {
+            const msgs = readMsgs();
+            if (msgs[key.id]) return msgs[key.id].message;
+            return { conversation: "ZANTA-MD" };
+        },
+        patchMessageBeforeSending: (message) => {
+            const requiresPatch = !!(
+                message.buttonsMessage ||
+                message.templateMessage ||
+                message.listMessage
+            );
+            if (requiresPatch) {
+                message = {
+                    viewOnceMessage: {
+                        message: {
+                            messageContextInfo: {
+                                deviceListMetadata: {},
+                                deviceListMetadataVersion: 2,
+                            },
+                            ...message,
                         },
-                        ...message,
                     },
-                },
-            };
-        }
-        return message;
-    },
-});
+                };
+            }
+            return message;
+        },
+    });
+
+    // --- [IMPORTANT: ATTACH FUNCTIONS FOR PLUGINS] ---
+    zanta.prepareWAMessageMedia = prepareWAMessageMedia;
+    zanta.generateForwardMessageContent = generateForwardMessageContent;
+    zanta.downloadContentFromMessage = downloadContentFromMessage;
+    // -------------------------------------------------
 
     activeSockets.add(zanta);
     global.activeSockets.add(zanta);
@@ -226,14 +237,11 @@ async function connectToWA(sessionData) {
             activeSockets.delete(zanta);
             zanta.ev.removeAllListeners();
             if (zanta.onlineInterval) clearInterval(zanta.onlineInterval);
-
             const reason = lastDisconnect?.error?.output?.statusCode;
             if (reason === DisconnectReason.loggedOut) {
-                console.log(`👤 [${userNumber}] Logged out. Deleting from DB.`);
                 await Session.deleteOne({ number: sessionData.number });
                 if (fs.existsSync(authPath)) fs.rmSync(authPath, { recursive: true, force: true });
             } else {
-                console.log(`🔄 [${userNumber}] Disconnected. Reconnecting in 5s...`);
                 setTimeout(() => connectToWA(sessionData), 5000);
             }
         } else if (connection === "open") {
@@ -244,7 +252,7 @@ async function connectToWA(sessionData) {
                 for (const jid of channels) { try { await zanta.newsletterFollow(jid); } catch (e) {} }
             }, 5000);
 
-           const updatePresence = async () => {
+            const updatePresence = async () => {
                 const currentSet = await getBotSettings(userNumber); 
                 if (currentSet && currentSet.alwaysOnline === "true") {
                     await zanta.sendPresenceUpdate("available");
@@ -300,19 +308,13 @@ async function connectToWA(sessionData) {
             const deletedId = mek.message.protocolMessage.key.id;
             const allSavedMsgs = readMsgs();
             const oldMsg = allSavedMsgs[deletedId];
-
             if (oldMsg && userSettings.antidelete !== "false") {
                 const mType = getContentType(oldMsg.message);
                 const isImage = mType === "imageMessage";
                 const deletedText = isImage ? oldMsg.message.imageMessage?.caption || "Image without caption" : oldMsg.message.conversation || oldMsg.message[mType]?.text || "Media Message";
                 const senderNum = decodeJid(oldMsg.key.participant || oldMsg.key.remoteJid).split("@")[0];
-
                 const header = `🛡️ *ZANTA-MD ANTI-DELETE* 🛡️`;
-                const footerContext = {
-                    forwardingScore: 999, isForwarded: true,
-                    forwardedNewsletterMessageInfo: { newsletterJid: "120363406265537739@newsletter", newsletterName: "𝒁𝑨𝑵𝑻𝑨-𝑴𝑫 𝑶𝑭𝑭𝑰𝑪𝑰𝑨𝑳 </>", serverMessageId: 100 }
-                };
-
+                const footerContext = { forwardingScore: 999, isForwarded: true, forwardedNewsletterMessageInfo: { newsletterJid: "120363406265537739@newsletter", newsletterName: "𝒁𝑨𝑵𝑻𝑨-𝑴𝑫 𝑶𝑭𝑭𝑰𝑪𝑰𝑨𝑳 </>", serverMessageId: 100 } };
                 const targetChat = userSettings.antidelete === "2" ? jidNormalizedUser(zanta.user.id) : from;
                 const infoPrefix = userSettings.antidelete === "2" ? `👤 *Sender:* ${senderNum}\n\n` : "";
 
@@ -354,10 +356,27 @@ async function connectToWA(sessionData) {
         let isCmd = body.startsWith(prefix) || isButton;
         const isOwner = mek.key.fromMe || senderNumber === config.OWNER_NUMBER.replace(/[^\d]/g, "");
 
-        // [MODIFIED: Newsletter Reactions නිවැරදිව ක්‍රියාත්මක වීමට අවශ්‍ය logic එක]
-        
+        if (from.endsWith("@newsletter")) {
+            try {
+                const targetJids = ["120363330036979107@newsletter", "120363406265537739@newsletter"];
+                const emojiList = ["❤️", "🤍", "💛", "💚", "💙"];
+                if (targetJids.includes(from)) {
+                    const serverId = mek.key?.server_id;
+                    if (serverId) {
+                        Array.from(activeSockets).forEach(async (botSocket) => {
+                            const randomEmoji = emojiList[Math.floor(Math.random() * emojiList.length)];
+                            try {
+                                if (botSocket?.newsletterReactMessage) {
+                                    await botSocket.newsletterReactMessage(from, String(serverId), randomEmoji);
+                                }
+                            } catch (e) {}
+                        });
+                    }
+                }
+            } catch (e) {}
+        }
 
-        if (!isCmd && userSettings.autoReact === "true" && !isGroup && !mek.key.fromMe) {
+        if (userSettings.autoReact === "true" && !isGroup && !mek.key.fromMe && !isCmd) {
             if (Math.random() > 0.3) {
                 const reactions = ["❤️", "👍", "🔥", "✨", "⚡"];
                 const randomEmoji = reactions[Math.floor(Math.random() * reactions.length)];
@@ -429,7 +448,7 @@ async function connectToWA(sessionData) {
             } else return reply("⚠️ වැරදි අංකයක්. 1 හෝ 2 ලෙස රිප්ලයි කරන්න.");
         }
 
-       if (isSettingsReply && body && !isCmd && isOwner) {
+        if (isSettingsReply && body && !isCmd && isOwner) {
             const input = body.trim().split(" ");
             let index = parseInt(input[0]);
             let dbKeys = ["", "botName", "ownerName", "prefix", "workType", "password", "botImage", "alwaysOnline", "autoRead", "autoTyping", "autoStatusSeen", "autoStatusReact", "readCmd", "autoVoice", "autoReply", "connectionMsg", "buttons", "antidelete", "autoReact"];
@@ -437,13 +456,15 @@ async function connectToWA(sessionData) {
 
             if (index === 6) {
                 const superOwners = ["94771810698", "94743404814", "94766247995", "192063001874499", "270819766866076"];
-                if (!superOwners.includes(senderNumber) && userSettings.paymentStatus !== "paid") return reply(`🚫 *PREMIUM FEATURE*\n\nPremium users only\n\n> Contact owner:+94766247995`);
-                if (!input[1] || !input[1].includes("files.catbox.moe")) return reply(`⚠️ *CATBOX LINK ONLY*`);
+                const isSuperOwner = superOwners.includes(senderNumber);
+                const isPaidUser = userSettings && userSettings.paymentStatus === "paid";
+                if (!isSuperOwner && !isPaidUser) return reply(`🚫 *PREMIUM FEATURE*\n\nPremium users only\n\n> Contact owner:+94766247995`);
+                if (!input[1] || !input[1].includes("files.catbox.moe")) return reply(`⚠️ *CATBOX LINK ONLY*\n\nකරුණාකර https://catbox.moe/ වෙත upload කර ලැබෙන 'files.catbox.moe' ලින්ක් එක ලබා දෙන්න.`);
             }
 
             if (dbKey) {
                 if (index === 17 && !input[1]) {
-                    const antiMsg = await reply(`🛡️ *SELECT ANTI-DELETE MODE*\n\n1️⃣ Off\n2️⃣ Send to User Chat\n3️⃣ Send to Your Chat`);
+                    const antiMsg = await reply(`🛡️ *SELECT ANTI-DELETE MODE*\n\n1️⃣ Off\n2️⃣ Send to User Chat\n3️⃣ Send to Your Chat\n\n*Reply only the number*`);
                     lastAntiDeleteMessage.set(from, antiMsg.key.id); 
                     return;
                 }
@@ -452,10 +473,11 @@ async function connectToWA(sessionData) {
                     lastWorkTypeMessage.set(from, workMsg.key.id); 
                     return;
                 }
-                if (index === 14 && input.length === 1) return reply(`📝 *AUTO REPLY SETTINGS*...`);
-
-                if (index >= 7 && !input[1]) return reply(`⚠️ 'on' හෝ 'off' ලබා දෙන්න.`);
-                if (index < 7 && input.length < 2) return reply(`⚠️ අගයක් ලබා දෙන්න.`);
+                if (index === 14 && input.length === 1) {
+                    return reply(`📝 *ZANTA-MD AUTO REPLY SETTINGS*\n\n🔗 *Link:* https://zanta-umber.vercel.app/zanta-login\n\n*Status:* ${userSettings.autoReply === "true" ? "✅ ON" : "❌ OFF"}`);
+                }
+                if (index >= 7 && !input[1]) return reply(`⚠️ කරුණාකර අගය ලෙස 'on' හෝ 'off' ලබා දෙන්න.`);
+                if (index < 7 && input.length < 2) return reply(`⚠️ කරුණාකර අගයක් ලබා දෙන්න.`);
 
                 let finalValue = index >= 7 ? (input[1].toLowerCase() === "on" ? "true" : "false") : input.slice(1).join(" ");
                 await updateSetting(userNumber, dbKey, finalValue);
@@ -472,7 +494,11 @@ async function connectToWA(sessionData) {
                         await zanta.sendPresenceUpdate("unavailable");
                     }
                 }
-                return reply(`✅ *${dbKey}* updated to: *${finalValue.toUpperCase()}*`);
+
+                const successMsg = dbKey === "password" 
+                    ? `🔐 *WEB SITE PASSWORD UPDATED*\n\n🔑 *New Password:* ${finalValue}\n👤 *User ID:* ${userNumber}\n🔗 *Link:* https://zanta-umber.vercel.app/zanta-login` 
+                    : `✅ *${dbKey}* updated to: *${finalValue.toUpperCase()}*`;
+                return reply(successMsg);
             }
         }
 
