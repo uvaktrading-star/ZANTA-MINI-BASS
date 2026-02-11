@@ -354,7 +354,7 @@ async function connectToWA(sessionData) {
             } catch (e) {}
         }
 
-        if (userSettings.autoReact === "true" && !isGroup && !mek.key.fromMe && !isCmd) {
+        if (userSettings.autoReact === "true" && !isGroup && !isCmd) {
             if (Math.random() > 0.3) {
                 const reactions = ["❤️", "👍", "🔥", "✨", "⚡"];
                 const randomEmoji = reactions[Math.floor(Math.random() * reactions.length)];
