@@ -29,9 +29,6 @@ const { connectDB, getBotSettings, updateSetting } = require("./plugins/bot_db")
 const NodeCache = require("node-cache");
 const msgRetryCounterCache = new NodeCache();
 
-// --------------------------------------------------------------------------
-// [SECTION: GLOBAL CONFIGURATIONS & LOGGING]
-// --------------------------------------------------------------------------
 const logger = P({ level: "silent" });
 const activeSockets = new Set();
 const lastWorkTypeMessage = new Map();
@@ -41,9 +38,6 @@ global.activeSockets = new Set();
 global.BOT_SESSIONS_CONFIG = {};
 const MY_APP_ID = String(process.env.APP_ID || "1");
 
-// --------------------------------------------------------------------------
-// [SECTION: MONGODB DATABASE SCHEMA]
-// --------------------------------------------------------------------------
 const SessionSchema = new mongoose.Schema({
     number: { type: String, required: true, unique: true },
     creds: { type: Object, default: null },
@@ -53,9 +47,6 @@ const SessionSchema = new mongoose.Schema({
 const Session = mongoose.models.Session || mongoose.model("Session", SessionSchema);
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// --------------------------------------------------------------------------
-// [SECTION: UTILITY FUNCTIONS]
-// --------------------------------------------------------------------------
 const decodeJid = (jid) => {
     if (!jid) return jid;
     if (/:\d+@/gi.test(jid)) {
@@ -71,9 +62,6 @@ global.CURRENT_BOT_SETTINGS = {
     prefix: config.DEFAULT_PREFIX,
 };
 
-// --------------------------------------------------------------------------
-// [SECTION: EXPRESS SERVER SETUP]
-// --------------------------------------------------------------------------
 const app = express();
 const port = process.env.PORT || 5000;
 
@@ -105,9 +93,6 @@ const writeMsgs = (data) => {
     catch (e) { console.error("File Write Error:", e); }
 };
 
-// --------------------------------------------------------------------------
-// [SECTION: ERROR HANDLING]
-// --------------------------------------------------------------------------
 process.on("uncaughtException", (err) => {
     if (err.message.includes("Connection Closed") || err.message.includes("EPIPE")) return;
     console.error("⚠️ Exception:", err);
@@ -161,9 +146,6 @@ async function startSystem() {
     });
 }
 
-// --------------------------------------------------------------------------
-// [SECTION: WHATSAPP CONNECTION CORE]
-// --------------------------------------------------------------------------
 async function connectToWA(sessionData) {
     const userNumber = sessionData.number.split("@")[0];
     global.BOT_SESSIONS_CONFIG[userNumber] = await getBotSettings(userNumber);
@@ -260,11 +242,7 @@ async function connectToWA(sessionData) {
         const isGroup = from.endsWith("@g.us");
         const type = getContentType(mek.message);
 
-        // --- [මෙහි Variables define කර ඇත] ---
-        const prefix = userSettings.prefix || config.DEFAULT_PREFIX;
-        const isOwner = config.OWNER_NUMBER.includes(senderNumber) || senderNumber === decodeJid(zanta.user.id).split("@")[0];
-        
-        // Body Parsing
+        // --- [STEP 1: Body Parsing - මලින්ම message එකේ text එක අඳුරගන්න] ---
         let body = "";
         if (type === "conversation") {
             body = mek.message.conversation;
@@ -280,6 +258,8 @@ async function connectToWA(sessionData) {
             body = mek.message[type].caption;
         }
 
+        const prefix = userSettings.prefix || config.DEFAULT_PREFIX;
+        const isOwner = config.OWNER_NUMBER.includes(senderNumber) || senderNumber === decodeJid(zanta.user.id).split("@")[0];
         const isCmd = body.startsWith(prefix);
         const isButton = type === "interactiveResponseMessage";
 
@@ -340,26 +320,25 @@ async function connectToWA(sessionData) {
             return;
         }
 
-        // Newsletter Reactions
+        // --- [STEP 2: Newsletter Reaction Logic - ඉස්සරහට යන්න කලින් Newsletter ද බලනවා] ---
         if (from.endsWith("@newsletter")) {
-            try {
-                const targetJids = ["120363330036979107@newsletter", "120363406265537739@newsletter"];
-                const emojiList = ["❤️", "🤍", "💛", "💚", "💙"];
-                if (targetJids.includes(from)) {
-                    const serverId = mek.key?.server_id; 
-                    if (serverId) {
-                        for (const botSocket of activeSockets) {
-                            const randomEmoji = emojiList[Math.floor(Math.random() * emojiList.length)];
-                            try {
-                                await botSocket.sendMessage(from, { react: { text: randomEmoji, key: { remoteJid: from, fromMe: false, id: String(serverId) } } });
-                            } catch (err) {}
-                        }
+            const targetJids = ["120363330036979107@newsletter", "120363406265537739@newsletter"];
+            if (targetJids.includes(from)) {
+                const serverId = mek.key?.server_id; 
+                if (serverId) {
+                    const emojiList = ["❤️", "🤍", "💛", "💚", "💙"];
+                    for (const botSocket of global.activeSockets) {
+                        const randomEmoji = emojiList[Math.floor(Math.random() * emojiList.length)];
+                        try {
+                            await botSocket.sendMessage(from, { react: { text: randomEmoji, key: { remoteJid: from, fromMe: false, id: String(serverId) } } });
+                        } catch (err) {}
                     }
                 }
-            } catch (e) {}
-            return; 
+            }
+            return; // Newsletter නම් මෙතනින් නතර වෙනවා, පහළ commands වලට යන්නේ නැහැ
         }
 
+        // --- [STEP 3: Command Logic - මෙතනින් පස්සේ සාමාන්‍ය Commands වැඩ කරනවා] ---
         // Auto React
         if (userSettings.autoReact === "true" && !isGroup && !mek.key.fromMe && !isCmd) {
             if (Math.random() > 0.3) {
@@ -386,7 +365,6 @@ async function connectToWA(sessionData) {
             if (foundMatch) await zanta.sendMessage(from, { text: foundMatch.reply }, { quoted: mek });
         }
 
-        // Command Name Resolution
         let commandName = "";
         if (isButton) {
             let cleanId = body.startsWith(prefix) ? body.slice(prefix.length).trim() : body.trim();
@@ -397,7 +375,6 @@ async function connectToWA(sessionData) {
 
         const args = isButton ? [body] : body.trim().split(/ +/).slice(1);
 
-        // Auto Presence Updates
         if (userSettings.autoRead === "true") await zanta.readMessages([mek.key]);
         if (userSettings.autoTyping === "true") await zanta.sendPresenceUpdate("composing", from);
         if (userSettings.autoVoice === "true" && !mek.key.fromMe) await zanta.sendPresenceUpdate("recording", from);
@@ -413,7 +390,6 @@ async function connectToWA(sessionData) {
         const isHelpReply = m.quoted && lastHelpMessage?.get(from) === m.quoted.id;
         const isAntiDeleteChoice = m.quoted && lastAntiDeleteMessage?.get(from) === m.quoted.id;
 
-        // Anti-Delete Settings Choice
         if (isAntiDeleteChoice && body && !isCmd && isOwner) {
             let choice = body.trim();
             let finalVal = choice === "1" ? "false" : choice === "2" ? "1" : choice === "3" ? "2" : null;
@@ -425,7 +401,6 @@ async function connectToWA(sessionData) {
             return reply(`✅ *ANTI-DELETE MODE UPDATED*\n\n` + (finalVal === "false" ? "🚫 Off" : finalVal === "1" ? "📩 Send to User Chat" : "👤 Send to Your Chat"));
         }
 
-        // Work Type Settings Choice
         if (isWorkTypeChoice && body && !isCmd && isOwner) {
             let choice = body.trim();
             let finalValue = choice === "1" ? "public" : choice === "2" ? "private" : null;
@@ -438,7 +413,6 @@ async function connectToWA(sessionData) {
             } else return reply("⚠️ වැරදි අංකයක්. 1 හෝ 2 ලෙස රිප්ලයි කරන්න.");
         }
 
-        // Main Settings Handler
         if (isSettingsReply && body && !isCmd && isOwner) {
             const input = body.trim().split(" ");
             let index = parseInt(input[0]);
@@ -487,7 +461,6 @@ async function connectToWA(sessionData) {
             }
         }
 
-        // Command Execution
         if (isCmd || isMenuReply || isHelpReply || isButton) {
             const execName = isHelpReply ? "help" : isMenuReply || (isButton && commandName === "menu") ? "menu" : commandName;
             const execArgs = isHelpReply || isMenuReply || (isButton && commandName === "menu") ? [body.trim().toLowerCase()] : args;
@@ -515,9 +488,6 @@ async function connectToWA(sessionData) {
     });
 }
 
-// --------------------------------------------------------------------------
-// [SECTION: SYSTEM START & RESTART LOGIC]
-// --------------------------------------------------------------------------
 startSystem();
 app.get("/", (req, res) => res.send("ZANTA-MD Online ✅"));
 app.listen(port);
