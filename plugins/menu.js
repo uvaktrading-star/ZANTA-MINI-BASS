@@ -114,7 +114,7 @@ async (zanta, mek, m, { from, reply, args, userSettings, prefix }) => {
         }
 
         if (isButtonsOn) {
-            // --- 🔘 NEW INTERACTIVE BUTTONS LOGIC ---
+            // --- 🔘 INTERACTIVE BUTTONS LOGIC ---
             const buttonRows = categoryKeys.map(catKey => {
                 let title = catKey.toUpperCase();
                 let emoji = { main: '🏠', download: '📥', tools: '🛠', logo: '🎨', media: '🖼' }[catKey] || '📌';
@@ -143,11 +143,12 @@ async (zanta, mek, m, { from, reply, args, userSettings, prefix }) => {
                 }
             ];
 
-            const message = {
+            const messageContent = {
                 interactiveMessage: {
                     header: {
                         title: botName,
                         hasVideoDeterminer: false,
+                        // prepareWAMessageMedia භාවිතා කර image එක සකසයි
                         imageMessage: (await zanta.prepareWAMessageMedia({ image: imageToDisplay }, { upload: zanta.waUploadToServer })).imageMessage
                     },
                     body: { text: headerText + "Please select a category from the button below." },
@@ -157,7 +158,15 @@ async (zanta, mek, m, { from, reply, args, userSettings, prefix }) => {
                 }
             };
 
-            return await zanta.relayMessage(from, { viewOnceMessage: { message } }, { quoted: mek });
+            // relayMessage එක නිවැරදිව generateWAMessageFromContent සමඟ භාවිතා කිරීම
+            const { generateWAMessageFromContent } = require("@whiskeysockets/baileys");
+            const msg = generateWAMessageFromContent(from, {
+                viewOnceMessage: {
+                    message: messageContent
+                }
+            }, { userJid: zanta.user.id, quoted: mek });
+
+            return await zanta.relayMessage(from, msg.message, { messageId: msg.key.id });
 
         } else {
             // --- 📝 NON-BUTTON MENU (REPLY NUMBER) ---
