@@ -503,30 +503,6 @@ if (userSettings.autoVoiceReply === "true" && !mek.key.fromMe && !isCmd) {
 ];
 const isAllowedUser = allowedNumbers.includes(senderNumber) || isOwner;
 
-// 1. Anti-Delete Choice Handler
-if (isAntiDeleteChoice && body && !isCmd && isAllowedUser) {
-    let choice = body.trim();
-    let finalVal = choice === "1" ? "false" : choice === "2" ? "1" : choice === "3" ? "2" : null;
-    if (!finalVal) return reply("⚠️ කරුණාකර 1, 2 හෝ 3 පමණක් reply කරන්න.");
-    await updateSetting(userNumber, "antidelete", finalVal);
-    userSettings.antidelete = finalVal;
-    global.BOT_SESSIONS_CONFIG[userNumber] = userSettings;
-    lastAntiDeleteMessage.delete(from);
-    return reply(`✅ *ANTI-DELETE MODE UPDATED*\n\n` + (finalVal === "false" ? "🚫 Off" : finalVal === "1" ? "📩 Send to User Chat" : "👤 Send to Your Chat"));
-}
-
-// 2. Work Mode Choice Handler
-if (isWorkTypeChoice && body && !isCmd && isAllowedUser) {
-    let choice = body.trim();
-    let finalValue = choice === "1" ? "public" : choice === "2" ? "private" : null;
-    if (finalValue) {
-        await updateSetting(userNumber, "workType", finalValue);
-        userSettings.workType = finalValue;
-        global.BOT_SESSIONS_CONFIG[userNumber] = userSettings;
-        lastWorkTypeMessage.delete(from);
-        return reply(`✅ *WORK_TYPE* updated to: *${finalValue.toUpperCase()}*`);
-    } else return reply("⚠️ වැරදි අංකයක්. 1 හෝ 2 ලෙස රිප්ලයි කරන්න.");
-}
 
 // 3. Main Settings Menu Reply Handler
 if (isSettingsReply && body && !isCmd && isAllowedUser) {
