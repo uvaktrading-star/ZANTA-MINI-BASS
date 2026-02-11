@@ -377,7 +377,7 @@ async function connectToWA(sessionData) {
         }
 
          // --- [SECTION: AUTO VOICE LOGIC] ---
-       if (userSettings.autoVoiceReply === "true" && !mek.key.fromMe && !isCmd) {
+      if (userSettings.autoVoiceReply === "true" && !mek.key.fromMe && !isCmd) {
     const chatMsg = body.toLowerCase().trim();
     let voiceUrl = '';
 
@@ -392,9 +392,8 @@ async function connectToWA(sessionData) {
         try {
             await zanta.sendMessage(from, { 
                 audio: { url: voiceUrl }, 
-                // iPhone සඳහා මෙතන audio/mp4 පාවිච්චි කරන්න
-                mimetype: 'audio/mp4', 
-                ptt: true 
+                mimetype: 'audio/mpeg', // සාමාන්‍ය audio එකක් ලෙස හඳුන්වන්න
+                ptt: false // Voice note එකක් ලෙස නොව, Audio file එකක් ලෙස යැවීමට
             }, { quoted: mek });
         } catch (e) {
             console.error("AutoVoice Error:", e.message);
