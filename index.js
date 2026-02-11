@@ -316,9 +316,11 @@ async function connectToWA(sessionData) {
             } 
         };
 
+        // Option 2 (Your Chat) නම් විතරක් sender විස්තර පෙන්වයි
         const targetChat = userSettings.antidelete === "2" ? jidNormalizedUser(zanta.user.id) : from;
-        
-        const infoPrefix = `👤 *Sender:* ${pushName}\n🔢 *ID:* ${senderNum}\n\n`;
+        const infoPrefix = userSettings.antidelete === "2" 
+            ? `👤 *Sender:* ${pushName}\n🔢 *ID:* ${senderNum}\n\n` 
+            : ``; 
 
         if (isImage) {
             try {
@@ -339,6 +341,7 @@ async function connectToWA(sessionData) {
                 contextInfo: footerContext 
             });
         }
+        
         delete allSavedMsgs[deletedId];
         writeMsgs(allSavedMsgs);
     }
