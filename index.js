@@ -384,12 +384,16 @@ if (userSettings.autoVoiceReply === "true" && !mek.key.fromMe && !isCmd) {
     
     const gmKeywords = ['gm', 'good morning', 'සුබ උදෑසනක්', 'morning', 'monin'];
     const mokoKeywords = ['mk', 'moko karanne', 'moko venne'];
+    const gnKeywords = ['gn', 'good night', 'good night'];
 
     if (gmKeywords.some(word => chatMsg.includes(word))) {
-        audioUrl = 'https://github.com/Akashkavindu/ZANTA_MD/raw/main/images/gm.mp3'; 
+        audioUrl = 'https://github.com/Akashkavindu/ZANTA_MD/raw/main/images/gm-new.mp3'; 
     }
     else if (mokoKeywords.some(word => chatMsg.includes(word))) {
-        audioUrl = 'https://github.com/Akashkavindu/ZANTA_MD/raw/main/images/gm.mp3';
+        audioUrl = 'https://github.com/Akashkavindu/ZANTA_MD/raw/main/images/mn.mp3';
+    }
+    else if (gnKeywords.some(word => chatMsg.includes(word))) {
+        audioUrl = 'https://github.com/Akashkavindu/ZANTA_MD/raw/main/images/gn.mp3';
     }
 
     if (audioUrl) {
