@@ -2,7 +2,7 @@ const { cmd } = require("../command");
 const { updateSetting } = require("./bot_db");
 const config = require("../config");
 
-// Default Image Link (බොට්ගේ Default රූපය)
+// Default Image Link
 const DEFAULT_IMG = "https://github.com/Akashkavindu/ZANTA_MD/blob/main/images/zanta-md.png?raw=true";
 
 const lastSettingsMessage = new Map();
@@ -16,10 +16,25 @@ cmd({
     filename: __filename,
 }, async (zanta, mek, m, { from, reply, sender, isOwner, prefix, userSettings }) => {
 
-    // --- 🛡️ Access Control ---
-    if (!isOwner) return reply("⚠️ *මෙම Dashboard එක භාවිතා කළ හැක්කේ බොට් අයිතිකරුට පමණි!*");
+    // --- 🛡️ Access Control Setup ---
+    // මෙහි ඇති අංක වලට සහ Bot Owner ට පමණක් Dashboard එක විවෘත වේ.
+    const allowedNumbers = [
+        "94771810698", 
+        "94743404814", 
+        "94766247995", 
+        "192063001874499", 
+        "270819766866076"
+    ];
 
-    const settings = userSettings || global.CURRENT_BOT_SETTINGS || {};
+    const senderNumber = sender.split("@")[0].replace(/[^\d]/g, "");
+    const isAllowed = allowedNumbers.includes(senderNumber) || isOwner;
+
+    if (!isAllowed) {
+        return reply("🚫 *අවසර නැත!* \n\nමෙම Dashboard එක භාවිතා කළ හැක්කේ බොට් අයිතිකරුට හෝ විශේෂ අවසර ලත් පරිශීලකයින්ට පමණි.");
+    }
+
+    // --- 📊 Settings Configuration ---
+    const settings = userSettings || global.BOT_SESSIONS_CONFIG[senderNumber] || {};
     const botName = settings.botName || config.DEFAULT_BOT_NAME || "ZANTA-MD";
     const ownerName = settings.ownerName || config.DEFAULT_OWNER_NAME || "Owner";
     const botPrefix = settings.prefix || prefix || ".";
@@ -59,7 +74,7 @@ cmd({
     statusText += `13. 🎙️ *Recording Status:* ${getStatus(settings.autoVoice)}\n`;
     statusText += `14. 🤖 *Auto Reply:* ${getStatus(settings.autoReply)}\n`;
     statusText += `15. 🔔 *Connect Msg:* ${getStatus(settings.connectionMsg)}\n`;
-    statusText += `16. 🎵 *Auto Voice Reply:* ${getStatus(settings.autoVoiceReply)}\n`; // 🆕 මෙතැන වෙනස් කළා
+    statusText += `16. 🎵 *Auto Voice Reply:* ${getStatus(settings.autoVoiceReply)}\n`;
     statusText += `17. 🛡️ *Anti-Delete:* ${getAntiDeleteStatus(settings.antidelete)}\n`;
     statusText += `18. ⚡ *Auto React:* ${getStatus(settings.autoReact)}\n\n`;
 
@@ -77,7 +92,7 @@ cmd({
 
     lastSettingsMessage.set(from, sentMsg.key.id);
 
-    // RAM Cleanup
+    // Memory Cleanup
     setTimeout(() => {
         if (lastSettingsMessage.get(from) === sentMsg.key.id) {
             lastSettingsMessage.delete(from);
