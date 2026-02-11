@@ -10,7 +10,6 @@ let cachedAliveImage = null;
 
 async function preLoadAliveImage() {
     try {
-        // මෙතනදී config එකේ තියෙන default image එක cache කරගන්නවා
         const imageUrl = config.ALIVE_IMG || "https://github.com/Akashkavindu/ZANTA_MD/blob/main/images/zanta-md.png?raw=true";
         const response = await axios.get(imageUrl, { responseType: 'arraybuffer' });
         cachedAliveImage = Buffer.from(response.data);
@@ -30,65 +29,85 @@ cmd({
     category: "main",
     filename: __filename
 },
-async (zanta, mek, m, { from, reply, userSettings }) => {
+async (zanta, mek, m, { from, reply, userSettings, prefix }) => {
     try {
         const settings = userSettings || global.CURRENT_BOT_SETTINGS || {};
         const botName = settings.botName || config.DEFAULT_BOT_NAME || "ZANTA-MD";
-        const prefix = settings.prefix || config.DEFAULT_PREFIX || ".";
+        const finalPrefix = prefix || settings.prefix || config.DEFAULT_PREFIX || ".";
         const isButtonsOn = settings.buttons === 'true';
 
         // Placeholder replace කිරීම
         const finalMsg = aliveMsg.getAliveMessage()
             .replace(/{BOT_NAME}/g, botName)
             .replace(/{OWNER_NUMBER}/g, config.OWNER_NUMBER)
-            .replace(/{PREFIX}/g, prefix);
+            .replace(/{PREFIX}/g, finalPrefix);
 
-        // --- 🖼️ IMAGE LOGIC: DB එකේ තියෙන එක මුලින් බලනවා, නැතිනම් Cache/Config පාවිච්චි කරනවා ---
+        // --- 🖼️ IMAGE LOGIC ---
         let imageToDisplay;
         if (settings.botImage && settings.botImage !== "null" && settings.botImage.startsWith("http")) {
             imageToDisplay = { url: settings.botImage };
         } else {
-            imageToDisplay = cachedAliveImage || { url: config.ALIVE_IMG };
+            imageToDisplay = cachedAliveImage || { url: config.ALIVE_IMG || "https://github.com/Akashkavindu/ZANTA_MD/blob/main/images/zanta-md.png?raw=true" };
         }
 
+        const contextInfo = {
+            forwardingScore: 999,
+            isForwarded: true,
+            forwardedNewsletterMessageInfo: {
+                newsletterJid: CHANNEL_JID,
+                serverMessageId: 100,
+                newsletterName: "𝒁𝑨𝑵𝑻𝑨-𝑴𝑫 𝑶𝑭𝑭𝑰𝑪𝑰𝑨𝑳"
+            }
+        };
+
         if (isButtonsOn) {
-            // --- 🔵 BUTTONS ON MODE ---
-            return await zanta.sendMessage(from, {
-                image: imageToDisplay, 
-                caption: finalMsg,
-                footer: `© ${botName} - Cyber System`,
-                buttons: [
-                    { buttonId: prefix + "ping", buttonText: { displayText: "⚡ PING" }, type: 1 },
-                    { buttonId: prefix + "menu", buttonText: { displayText: "📜 MENU" }, type: 1 },
-                    { buttonId: prefix + "settings", buttonText: { displayText: "⚙️ SETTINGS" }, type: 1 },
-                    { buttonId: prefix + "help", buttonText: { displayText: "📞 HELP" }, type: 1 }
-                ],
-                headerType: 4, 
-                contextInfo: {
-                    forwardingScore: 999,
-                    isForwarded: true,
-                    forwardedNewsletterMessageInfo: {
-                        newsletterJid: CHANNEL_JID,
-                        serverMessageId: 100,
-                        newsletterName: "𝒁𝑨𝑵𝑻𝑨-𝑴𝑫 𝑶𝑭𝑭𝑰𝑪𝑰𝑨𝑳"
-                    }
+            // --- 🔘 NEW INTERACTIVE BUTTONS LOGIC ---
+            const buttons = [
+                {
+                    name: "quick_reply",
+                    buttonParamsJson: JSON.stringify({
+                        display_text: "📜 MENU",
+                        id: `${finalPrefix}menu`
+                    })
+                },
+                {
+                    name: "quick_reply",
+                    buttonParamsJson: JSON.stringify({
+                        display_text: "⚡ PING",
+                        id: `${finalPrefix}ping`
+                    })
+                },
+                {
+                    name: "quick_reply",
+                    buttonParamsJson: JSON.stringify({
+                        display_text: "⚙️ SETTINGS",
+                        id: `${finalPrefix}settings`
+                    })
                 }
-            }, { quoted: mek });
+            ];
+
+            const message = {
+                interactiveMessage: {
+                    header: {
+                        title: "",
+                        hasVideoDeterminer: false,
+                        imageMessage: (await zanta.prepareWAMessageMedia({ image: imageToDisplay }, { upload: zanta.waUploadToServer })).imageMessage
+                    },
+                    body: { text: finalMsg },
+                    footer: { text: `© ${botName} - Cyber System` },
+                    nativeFlowMessage: { buttons: buttons },
+                    contextInfo: contextInfo
+                }
+            };
+
+            return await zanta.relayMessage(from, { viewOnceMessage: { message } }, { quoted: mek });
 
         } else {
-            // --- 🟢 BUTTONS OFF MODE ---
+            // --- 🟢 BUTTONS OFF MODE (NORMAL IMAGE MSG) ---
             return await zanta.sendMessage(from, {
                 image: imageToDisplay,
                 caption: finalMsg,
-                contextInfo: {
-                    forwardingScore: 999,
-                    isForwarded: true,
-                    forwardedNewsletterMessageInfo: {
-                        newsletterJid: CHANNEL_JID,
-                        serverMessageId: 100,
-                        newsletterName: "𝒁𝑨𝑵𝑻𝑨-𝑴𝑫 𝑶𝑭𝑭𝑰𝑪𝑰𝑨𝑳"
-                    }
-                }
+                contextInfo: contextInfo
             }, { quoted: mek });
         }
 
