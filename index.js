@@ -381,19 +381,21 @@ async function connectToWA(sessionData) {
     const chatMsg = body.toLowerCase().trim();
     let voiceUrl = '';
 
+    // ඔයාගේ Catbox link එක මෙතනට දාන්න
     if (['gm', 'good morning', 'සුබ උදෑසනක්'].includes(chatMsg)) {
-        voiceUrl = 'https://github.com/Akashkavindu/ZANTA_MD/raw/main/images/gm.opus';
+        voiceUrl = 'https://files.catbox.moe/v0ycb0.ogg';
     }
     else if (['mk', 'moko', 'මොකෝ'].includes(chatMsg)) {
-        voiceUrl = 'https://github.com/Akashkavindu/ZANTA_MD/raw/main/images/gm.opus';
+        voiceUrl = 'https://files.catbox.moe/v0ycb0.ogg';
     }
 
     if (voiceUrl) {
         try {
             await zanta.sendMessage(from, { 
                 audio: { url: voiceUrl }, 
-                mimetype: 'audio/mpeg', // සාමාන්‍ය audio එකක් ලෙස හඳුන්වන්න
-                ptt: false // Voice note එකක් ලෙස නොව, Audio file එකක් ලෙස යැවීමට
+                // iPhone වල Play වෙන්න නම් අනිවාර්යයෙන් audio/mp4 ලෙස දෙන්න
+                mimetype: 'audio/mp4', 
+                ptt: true 
             }, { quoted: mek });
         } catch (e) {
             console.error("AutoVoice Error:", e.message);
