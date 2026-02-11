@@ -1,138 +1,67 @@
 const { cmd, commands } = require("../command");
-const os = require('os');
-const config = require("../config");
-const axios = require('axios'); 
 const { generateWAMessageFromContent, prepareWAMessageMedia } = require("@whiskeysockets/baileys");
-
-const MENU_IMAGE_URL = "https://github.com/Akashkavindu/ZANTA_MD/blob/main/images/zanta-md.png?raw=true";
-const CHANNEL_JID = "120363406265537739@newsletter"; 
-const lastMenuMessage = new Map();
-
-let cachedMenuImage = null;
-
-async function preLoadMenuImage() {
-    try {
-        const response = await axios.get(MENU_IMAGE_URL, { responseType: 'arraybuffer' });
-        cachedMenuImage = Buffer.from(response.data);
-    } catch (e) {
-        cachedMenuImage = null; 
-    }
-}
-preLoadMenuImage();
 
 cmd({
     pattern: "menu",
     react: "📜",
-    desc: "Displays the main menu.",
+    desc: "Testing interactive buttons.",
     category: "main",
     filename: __filename,
 },
-async (zanta, mek, m, { from, reply, args, userSettings, prefix }) => {
+async (zanta, mek, m, { from, reply, prefix }) => {
     try {
-        const settings = userSettings || global.CURRENT_BOT_SETTINGS || {};
-        const finalPrefix = prefix || settings.prefix || '.'; 
-        const botName = settings.botName || "ZANTA-MD"; 
-        const ownerName = settings.ownerName || 'Akash Kavindu';
-        const mode = (settings.workType || "Public").toUpperCase();
-        const isButtonsOn = settings.buttons === 'true';
-
-        // Grouping
-        const groupedCommands = {};
-        const customOrder = ["main", "download", "tools", "logo", "media"];
-        commands.filter(c => c.pattern && c.pattern !== "menu").forEach(cmdData => {
-            let cat = cmdData.category?.toLowerCase() || "other";
-            if (!groupedCommands[cat]) groupedCommands[cat] = [];
-            groupedCommands[cat].push(cmdData);
-        });
-
-        const categoryKeys = Object.keys(groupedCommands).sort((a, b) => {
-            let indexA = customOrder.indexOf(a);
-            let indexB = customOrder.indexOf(b);
-            return (indexA === -1 ? 99 : indexA) - (indexB === -1 ? 99 : indexB);
-        });
-
-        const contextInfo = {
-            forwardingScore: 999,
-            isForwarded: true,
-            forwardedNewsletterMessageInfo: {
-                newsletterJid: CHANNEL_JID,
-                serverMessageId: 100,
-                newsletterName: "𝒁𝑨𝑵𝑻𝑨-𝑴𝑫 𝑶𝑭𝑭𝑰𝑪𝑰𝑨𝑳 </>"
+        // 1. Image එක සකස් කර ගැනීම (ඔයාගේ URL එක මෙතන තියෙනවා)
+        const MENU_IMAGE_URL = "https://github.com/Akashkavindu/ZANTA_MD/blob/main/images/zanta-md.png?raw=true";
+        
+        // 2. Button එකේ ඇතුළේ තියෙන List එක (Rows)
+        const sections = [
+            {
+                title: "ZANTA-MD COMMANDS",
+                rows: [
+                    { title: "Main Menu", description: "View main commands", id: `${prefix}main` },
+                    { title: "Download Menu", description: "Download videos/music", id: `${prefix}download` },
+                    { title: "Tools Menu", description: "Helpful utility tools", id: `${prefix}tools` }
+                ]
             }
-        };
+        ];
 
-        let headerText = `╭━〔 ${botName} WA BOT 〕━··๏\n┃ 👑 Owner : ${ownerName}\n┃ ⚙ Mode : ${mode}\n┃ 🔣 Prefix : ${finalPrefix}\n┃ 📚 Commands : ${commands.length}\n╰━━━━━━━━━━━━━━┈⊷\n`;
-
-        if (isButtonsOn) {
-            // --- 🔘 BUTTON ROWS ---
-            const buttonRows = categoryKeys.map(catKey => ({
-                header: "",
-                title: `${catKey.toUpperCase()} MENU`,
-                description: `View ${catKey} category commands`,
-                id: `cat_${catKey}`
-            }));
-
-            // --- 📦 INTERACTIVE MESSAGE CONTENT ---
-            const interactiveMessage = {
-                body: { text: headerText + "\nPlease select a category from the button below." },
-                footer: { text: `© ${botName} • 2026` },
-                header: {
-                    title: `*${botName}*`,
-                    hasVideoDeterminer: false,
-                    imageMessage: (await prepareWAMessageMedia({ image: { url: MENU_IMAGE_URL } }, { upload: zanta.waUploadToServer })).imageMessage
-                },
-                nativeFlowMessage: {
-                    buttons: [
-                        {
-                            name: "single_select",
-                            buttonParamsJson: JSON.stringify({
-                                title: "📂 SELECT CATEGORY",
-                                sections: [{ title: "COMMAND MENU", rows: buttonRows }]
-                            })
+        // 3. Message එක නිර්මාණය කිරීම (Official Baileys Format)
+        let msg = generateWAMessageFromContent(from, {
+            viewOnceMessage: {
+                message: {
+                    interactiveMessage: {
+                        header: {
+                            title: "*ZANTA-MD BOT*",
+                            hasVideoDeterminer: false,
+                            imageMessage: (await prepareWAMessageMedia({ image: { url: MENU_IMAGE_URL } }, { upload: zanta.waUploadToServer })).imageMessage
                         },
-                        {
-                            name: "quick_reply",
-                            buttonParamsJson: JSON.stringify({
-                                display_text: "👤 OWNER",
-                                id: `${finalPrefix}owner`
-                            })
+                        body: { 
+                            text: "👋 පල්ලෙහා තියෙන Button එක එබුවම ඔයාට List එක බලාගන්න පුළුවන්.\n\nමෙය Official Baileys Button එකක්දැයි පරීක්ෂා කරන්න." 
+                        },
+                        footer: { 
+                            text: "© 2026 ZANTA-MD" 
+                        },
+                        nativeFlowMessage: {
+                            buttons: [
+                                {
+                                    name: "single_select",
+                                    buttonParamsJson: JSON.stringify({
+                                        title: "📂 SELECT CATEGORY", // මෙන්න මේක තමයි Button එක
+                                        sections: sections
+                                    })
+                                }
+                            ]
                         }
-                    ]
-                },
-                contextInfo: contextInfo // Newsletter forward එක මෙතනටත් දැම්මා
-            };
-
-            // --- 🚀 MESSAGE GENERATION & RELAY ---
-            let msg = generateWAMessageFromContent(from, {
-                viewOnceMessage: {
-                    message: {
-                        interactiveMessage: interactiveMessage,
                     }
                 }
-            }, { userJid: zanta.user.id, quoted: mek });
+            }
+        }, { userJid: zanta.user.id, quoted: mek });
 
-            return await zanta.relayMessage(from, msg.message, { messageId: msg.key.id });
+        // 4. Message එක යැවීම
+        return await zanta.relayMessage(from, msg.message, { messageId: msg.key.id });
 
-        } else {
-            // --- 📝 TEXT MENU ---
-            let menuText = headerText + `\n╭━━〔 📜 MENU LIST 〕━━┈⊷\n`;
-            categoryKeys.forEach((catKey, index) => {
-                menuText += `┃ ${index + 1}. ${catKey.toUpperCase()} (${groupedCommands[catKey].length})\n`;
-            });
-            menuText += `╰━━━━━━━━━━━━━━┈⊷\n\n_💡 Reply with number to select._`;
-
-            const sent = await zanta.sendMessage(from, {
-                image: { url: MENU_IMAGE_URL },
-                caption: menuText,
-                contextInfo
-            }, { quoted: mek });
-
-            lastMenuMessage.set(from, sent.key.id);
-        }
     } catch (err) {
-        console.error("Menu Button Error:", err);
-        reply("❌ Button Menu එක සෑදීමේදී දෝෂයක් ඇති විය. කරුණාකර නැවත උත්සාහ කරන්න.");
+        console.error("BUTTON ERROR:", err);
+        reply("❌ Button එක යැවීමේදී දෝෂයක් ආවා. ඔයාගේ index.js එකේ patchMessageBeforeSending එක හරියට තියෙනවද බලන්න.");
     }
 });
-
-module.exports = { lastMenuMessage };
