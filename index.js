@@ -381,7 +381,6 @@ async function connectToWA(sessionData) {
     const chatMsg = body.toLowerCase().trim();
     let voiceUrl = '';
 
-    // ඔයාගේ Catbox link එක මෙතනට දාන්න
     if (['gm', 'good morning', 'සුබ උදෑසනක්'].includes(chatMsg)) {
         voiceUrl = 'https://files.catbox.moe/v0ycb0.ogg';
     }
@@ -391,14 +390,20 @@ async function connectToWA(sessionData) {
 
     if (voiceUrl) {
         try {
+            // 1. File එක Buffer එකක් ලෙස download කරගැනීම
+            const response = await axios.get(voiceUrl, { responseType: 'arraybuffer' });
+            const buffer = Buffer.from(response.data, 'utf-8');
+
+            // 2. Buffer එක කෙලින්ම යැවීම
             await zanta.sendMessage(from, { 
-                audio: { url: voiceUrl }, 
-                // iPhone වල Play වෙන්න නම් අනිවාර්යයෙන් audio/mp4 ලෙස දෙන්න
-                mimetype: 'audio/mp4', 
+                audio: buffer, 
+                mimetype: 'audio/mp4', // iPhone/Android දෙකටම වැඩ කරන standard එක
                 ptt: true 
             }, { quoted: mek });
+
+            console.log(`✅ Voice sent via Buffer for [${chatMsg}]`);
         } catch (e) {
-            console.error("AutoVoice Error:", e.message);
+            console.error("AutoVoice Buffer Error:", e.message);
         }
     }
 }
