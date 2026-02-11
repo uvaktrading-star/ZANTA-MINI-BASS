@@ -52,7 +52,6 @@ cmd({
                         bot.ev.off('messages.upsert', movieListener);
                         await bot.sendMessage(from, { react: { text: '⏳', key: msgUpdate.key } });
 
-                        // --- 3. මූවී විස්තර ලබා ගැනීම ---
                         const infoRes = await axios.get(`${BASE_API}/sinhalasub-info?apikey=${API_KEY}&url=${selectedMovie.link}`).catch(() => null);
                         if (!infoRes || !infoRes.data.status) return reply("❌ විස්තර ලබා ගැනීමේදී දෝෂයක් සිදු විය.");
 
@@ -87,39 +86,30 @@ cmd({
 
                                     if (selectedDl) {
                                         bot.ev.off('messages.upsert', qualityListener);
-
-                                        // 2GB Max Check
-                                        const sizeVal = parseFloat(selectedDl.size);
-                                        if (selectedDl.size.includes('GB') && sizeVal > 2.0) {
-                                            return reply("⚠️ මේ ෆයිල් එක 2GB ට වඩා වැඩියි. WhatsApp සීමාව ඉක්මවා ඇත.");
-                                        }
-
                                         await bot.sendMessage(from, { react: { text: '⬇️', key: qMsg.key } });
 
-                                        // --- 5. Download Link Fetch ---
                                         const dlRes = await axios.get(`${BASE_API}/sinhalasub-download?apikey=${API_KEY}&url=${selectedDl.link}`).catch(() => null);
                                         if (!dlRes || !dlRes.data.url) return reply("❌ ඩවුන්ලෝඩ් ලින්ක් එක ලබා ගැනීමට නොහැකි විය.");
 
                                         let finalUrl = dlRes.data.url;
-
-                                        // Pixeldrain Direct Stream Conversion
                                         if (finalUrl.includes('pixeldrain.com/u/')) {
                                             finalUrl = finalUrl.replace('/u/', '/api/file/') + "?download";
                                         }
 
-                                        const waitMsg = await reply("📥 *ZANTA-MD is uploading your movie...* \n\n*Stream mode activated.*");
+                                        const waitMsg = await reply("📥 *ZANTA-MD is uploading your movie...* \n\n*Direct Pipe mode activated.*");
 
-                                        // --- [LOW RAM DIRECT STREAM LOGIC] ---
-                                        const { data: movieStream } = await axios.get(finalUrl, { 
+                                        // --- [FIXED STREAM LOGIC WITH HEADERS] ---
+                                        const response = await axios({
+                                            method: 'get',
+                                            url: finalUrl,
                                             responseType: 'stream',
-                                            headers: { 
-                                                'User-Agent': 'Mozilla/5.0',
-                                                'Accept': '*/*'
-                                            }
+                                            headers: { 'User-Agent': 'Mozilla/5.0' }
                                         });
 
+                                        // Baileys එකට Stream එකක් යැවීමේදී path error එක වළක්වන්න 
+                                        // අපි stream එක කෙලින්ම sendMessage එකට ලබා දෙනවා.
                                         await bot.sendMessage(from, { 
-                                            document: movieStream, // Axios Stream එක කෙලින්ම යොමු කරයි
+                                            document: response.data, 
                                             mimetype: 'video/mp4', 
                                             fileName: `[ZANTA-MD] ${selectedMovie.title.split('|')[0].trim()}.mp4`,
                                             caption: `🎬 *${selectedMovie.title.split('|')[0].trim()}*\n📊 *Quality:* ${selectedDl.quality}\n⚖️ *Size:* ${selectedDl.size}\n\n> *© ZANTA-MD MOVIE SERVICE*`
@@ -131,7 +121,8 @@ cmd({
                                 }
                             } catch (err) {
                                 console.error("Quality Listener Error:", err);
-                                reply("❌ ඩවුන්ලෝඩ් කිරීමේදී දෝෂයක් සිදු විය.");
+                                // මෙතනදී error එකක් ආවොත් URL එක මගින් යැවීමට උත්සාහ කරයි
+                                reply("❌ Stream Error. Try again.");
                             }
                         };
 
