@@ -185,6 +185,7 @@ async function connectToWA(sessionData) {
     const zanta = makeWASocket({
         logger: logger,
         printQRInTerminal: false,
+        maxMediaCacheSize: 10000000,
         browser: Browsers.macOS("Firefox"),
         auth: state,
         version,
