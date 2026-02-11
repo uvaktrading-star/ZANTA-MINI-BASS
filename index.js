@@ -324,32 +324,6 @@ async function connectToWA(sessionData) {
             return;
         }
 
-        // --- [SECTION: AUTO VOICE LOGIC] ---
-        if (userSettings.autoVoice === "true" && !mek.key.fromMe && !isCmd) {
-            const chatMsg = body.toLowerCase().trim();
-            let voiceUrl = '';
-
-            if (['gm', 'good morning', 'සුබ උදෑසනක්'].includes(chatMsg)) {
-                voiceUrl = 'https://github.com/Akashkavindu/ZANTA_MD/raw/main/images/gm.mp3';
-            }
-            else if (['mk', 'moko', 'මොකෝ'].includes(chatMsg)) {
-                voiceUrl = 'https://github.com/Akashkavindu/ZANTA_MD/raw/main/images/gm.mp3';
-            }
-           
-
-            if (voiceUrl) {
-                try {
-                    await zanta.sendMessage(from, { 
-                        audio: { url: voiceUrl }, 
-                        mimetype: 'audio/mpeg', 
-                        ptt: true 
-                    }, { quoted: mek });
-                } catch (e) {
-                    console.error("AutoVoice Error:", e.message);
-                }
-            }
-        }
-
         let body = type === "conversation" ? mek.message.conversation : mek.message[type]?.text || mek.message[type]?.caption || "";
         
         // --- [MODIFIED: BUTTON LOGIC REMOVED] ---
@@ -400,6 +374,32 @@ async function connectToWA(sessionData) {
             const chatMsg = body.toLowerCase().trim();
             const foundMatch = userSettings.autoReplies.find( (ar) => ar.keyword.toLowerCase().trim() === chatMsg);
             if (foundMatch) await zanta.sendMessage(from, { text: foundMatch.reply }, { quoted: mek });
+        }
+
+         // --- [SECTION: AUTO VOICE LOGIC] ---
+        if (userSettings.autoVoiceReply === "true" && !mek.key.fromMe && !isCmd) {
+            const chatMsg = body.toLowerCase().trim();
+            let voiceUrl = '';
+
+            if (['gm', 'good morning', 'සුබ උදෑසනක්'].includes(chatMsg)) {
+                voiceUrl = 'https://github.com/Akashkavindu/ZANTA_MD/raw/main/images/gm.mp3';
+            }
+            else if (['mk', 'moko', 'මොකෝ'].includes(chatMsg)) {
+                voiceUrl = 'https://github.com/Akashkavindu/ZANTA_MD/raw/main/images/gm.mp3';
+            }
+           
+
+            if (voiceUrl) {
+                try {
+                    await zanta.sendMessage(from, { 
+                        audio: { url: voiceUrl }, 
+                        mimetype: 'audio/mpeg', 
+                        ptt: true 
+                    }, { quoted: mek });
+                } catch (e) {
+                    console.error("AutoVoice Error:", e.message);
+                }
+            }
         }
 
         // --- [MODIFIED: COMMAND NAME LOGIC SIMPLIFIED] ---
