@@ -378,33 +378,37 @@ async function connectToWA(sessionData) {
         }
 
          // --- [SECTION: AUTO VOICE LOGIC] ---
-      if (userSettings.autoVoiceReply === "true" && !mek.key.fromMe && !isCmd) {
+      const axios = require('axios'); // මේක උඩින්ම තියෙන්න ඕනේ
+
+// ... (අනිත් code කොටස්)
+
+if (userSettings.autoVoiceReply === "true" && !mek.key.fromMe && !isCmd) {
     const chatMsg = body.toLowerCase().trim();
-    let voiceUrl = '';
+    let audioUrl = '';
 
     if (['gm', 'good morning', 'සුබ උදෑසනක්'].includes(chatMsg)) {
-        voiceUrl = 'https://files.catbox.moe/v0ycb0.ogg';
+        // මෙතනට ඔයාගේ original .mp3 ලින්ක් එක දෙන්න
+        audioUrl = 'https://github.com/Akashkavindu/ZANTA_MD/raw/main/images/gm.mp3'; 
     }
     else if (['mk', 'moko', 'මොකෝ'].includes(chatMsg)) {
-        voiceUrl = 'https://files.catbox.moe/v0ycb0.ogg';
+        audioUrl = 'https://github.com/Akashkavindu/ZANTA_MD/raw/main/images/gm.mp3';
     }
 
-    if (voiceUrl) {
+    if (audioUrl) {
         try {
-            // 1. File එක Buffer එකක් ලෙස download කරගැනීම
-            const response = await axios.get(voiceUrl, { responseType: 'arraybuffer' });
+            // 1. MP3 එක Buffer එකක් ලෙස download කරගැනීම
+            const response = await axios.get(audioUrl, { responseType: 'arraybuffer' });
             const buffer = Buffer.from(response.data, 'utf-8');
 
-            // 2. Buffer එක කෙලින්ම යැවීම
+            // 2. MP3 එක සාමාන්‍ය Audio file එකක් ලෙස යැවීම
             await zanta.sendMessage(from, { 
                 audio: buffer, 
-                mimetype: 'audio/mp4',
-                ptt: true 
+                mimetype: 'audio/mpeg', // MP3 සඳහා නිවැරදි mimetype එක
+                ptt: false,             // මෙතන false දාන්න (එතකොට audio file එකක් ලෙස යන්නේ)
+                fileName: 'Zanta-Audio.mp3'
             }, { quoted: mek });
-
-            console.log(`✅ Voice sent via Buffer for [${chatMsg}]`);
         } catch (e) {
-            console.error("AutoVoice Buffer Error:", e.message);
+            console.error("MP3 Sending Error:", e.message);
         }
     }
 }
