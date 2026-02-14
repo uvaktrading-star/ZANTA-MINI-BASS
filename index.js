@@ -539,7 +539,7 @@ const isAllowedUser = allowedNumbers.includes(senderNumber) || isOwner;
 if (isSettingsReply && body && !isCmd && isAllowedUser) {
     const input = body.trim().split(" ");
     let index = parseInt(input[0]);
-    let dbKeys = ["", "botName", "ownerName", "prefix", "workType", "password", "botImage", "alwaysOnline", "autoRead", "autoTyping", "autoStatusSeen", "autoStatusReact", "readCmd", "autoVoice", "autoReply", "connectionMsg", "autoVoiceReply", "antidelete", "autoReact"];
+    let dbKeys = ["", "botName", "ownerName", "prefix", "workType", "password", "botImage", "alwaysOnline", "autoRead", "autoTyping", "autoStatusSeen", "autoStatusReact", "readCmd", "autoVoice", "autoReply", "connectionMsg", "buttons", "autoVoiceReply", "antidelete", "autoReact"];
     let dbKey = dbKeys[index];
 
     if (dbKey) {
@@ -551,7 +551,7 @@ if (isSettingsReply && body && !isCmd && isAllowedUser) {
         }
 
         // Sub-menus for Anti-delete and Work Type
-        if (index === 17) { 
+        if (index === 18) { 
     const antiMsg = await reply(`🛡️ *SELECT ANTI-DELETE MODE*\n\n1️⃣ Off\n2️⃣ Send to User Chat\n3️⃣ Send to Your Chat\n\n*Reply only the number*`);
     lastAntiDeleteMessage.set(from, antiMsg.key.id); 
     return;
