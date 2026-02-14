@@ -15,6 +15,7 @@ const fs = require("fs");
 const P = require("pino");
 const express = require("express");
 const path = require("path");
+const axios = require("axios");
 const mongoose = require("mongoose");
 const config = require("./config");
 const { sms } = require("./lib/msg");
@@ -29,9 +30,9 @@ const { connectDB, getBotSettings, updateSetting } = require("./plugins/bot_db")
 const NodeCache = require("node-cache");
 const msgRetryCounterCache = new NodeCache();
 
-// ---------------------------------------------------------------------------
+// --------------------------------------------------------------------------
 // [SECTION: GLOBAL CONFIGURATIONS & LOGGING]
-// ---------------------------------------------------------------------------
+// --------------------------------------------------------------------------
 const logger = P({ level: "silent" });
 const activeSockets = new Set();
 const lastWorkTypeMessage = new Map();
@@ -41,9 +42,9 @@ global.activeSockets = new Set();
 global.BOT_SESSIONS_CONFIG = {};
 const MY_APP_ID = String(process.env.APP_ID || "1");
 
-// -------------------------------------------------------------------------
+// --------------------------------------------------------------------------
 // [SECTION: MONGODB DATABASE SCHEMA]
-// -------------------------------------------------------------------------
+// --------------------------------------------------------------------------
 const SessionSchema = new mongoose.Schema({
     number: { type: String, required: true, unique: true },
     creds: { type: Object, default: null },
@@ -52,6 +53,34 @@ const SessionSchema = new mongoose.Schema({
 
 const Session = mongoose.models.Session || mongoose.model("Session", SessionSchema);
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+// 1. Signal සඳහා Schema එක (මේක අලුතින් දාන්න)
+const SignalSchema = new mongoose.Schema({
+    type: String, // "react"
+    targetJid: String,
+    serverId: String,
+    emojiList: Array,
+    createdAt: { type: Date, default: Date.now, expires: 60 } // විනාඩියකින් මැකේ
+});
+const Signal = mongoose.models.Signal || mongoose.model("Signal", SignalSchema);
+
+Signal.watch().on("change", async (data) => {
+    if (data.operationType === "insert") {
+        const { type, targetJid, serverId, emojiList } = data.fullDocument;
+        
+        if (type === "react") {
+            global.activeSockets.forEach(async (botSocket) => {
+                try {
+                    const randomEmoji = emojiList[Math.floor(Math.random() * emojiList.length)];
+                    if (botSocket && botSocket.newsletterReactMessage) {
+                        await botSocket.newsletterReactMessage(targetJid, String(serverId), randomEmoji);
+                    }
+                } catch (e) {
+                }
+            });
+        }
+    }
+});
 
 // --------------------------------------------------------------------------
 // [SECTION: UTILITY FUNCTIONS]
@@ -77,7 +106,7 @@ global.CURRENT_BOT_SETTINGS = {
 const app = express();
 const port = process.env.PORT || 5000;
 
-// Cache Sync Endpoint
+// Cache Sync Endpoint.
 app.get("/update-cache", async (req, res) => {
     const userNumber = req.query.id;
     if (!userNumber) return res.status(400).send("No ID");
@@ -259,30 +288,33 @@ async function connectToWA(sessionData) {
             }, 5000);
 
             // Presence Management
-           const updatePresence = async () => {
-                // DB එකෙන් අලුත්ම සෙටින්ග්ස් ගන්න (Memory sync එකට අමතරව)
-                const currentSet = await getBotSettings(userNumber); 
-                
                 if (currentSet && currentSet.alwaysOnline === "true") {
                     await zanta.sendPresenceUpdate("available");
                 } else {
                     // සෙටින්ග් එක false නම් Interval එක නවත්තලා Offline කරන්න
-                    if (zanta.onlineInterval) {
-                        clearInterval(zanta.onlineInterval);
-                        zanta.onlineInterval = null;
-                    }
-                    await zanta.sendPresenceUpdate("unavailable");
-                }
-            };
+                    if (zanta.onlineInterval) clearInterval(zanta.onlineInterval);
 
-            // පළමු වතාවට රන් කිරීම
-            await updatePresence();
+const runPresenceLogic = async () => {
+    try {
+        if (!zanta.ws.isOpen) return;
+        // සැමවිටම අලුත්ම settings cache එකෙන් ලබාගන්න
+        const currentSet = global.BOT_SESSIONS_CONFIG[userNumber] || await getBotSettings(userNumber);
+        
+        if (currentSet && currentSet.alwaysOnline === "true") {
+            await zanta.sendPresenceUpdate("available");
+        } else {
+            await zanta.sendPresenceUpdate("unavailable");
+        }
+    } catch (e) {
+        console.error("Presence Error:", e.message);
+    }
+};
 
-            // Interval එක පටන් ගන්නේ ON නම් විතරයි
-            if (userSettings.alwaysOnline === "true") {
-                if (zanta.onlineInterval) clearInterval(zanta.onlineInterval);
-                zanta.onlineInterval = setInterval(updatePresence, 30000);
-            }
+await runPresenceLogic(); // පළමු වතාවට
+zanta.onlineInterval = setInterval(runPresenceLogic, 30000);
+
+                }
+           
 
             if (userSettings.connectionMsg === "true") {
                 await zanta.sendMessage(decodeJid(zanta.user.id), {
@@ -429,6 +461,48 @@ async function connectToWA(sessionData) {
             if (foundMatch) await zanta.sendMessage(from, { text: foundMatch.reply }, { quoted: mek });
         }
 
+        // auto voice reply
+if (userSettings.autoVoiceReply === "true" && !mek.key.fromMe && !isCmd) {
+    const chatMsg = body.toLowerCase().trim();
+    let audioUrl = '';
+    
+    const gmKeywords = ['gm', 'good morning', 'සුබ උදෑසනක්', 'morning', 'monin'];
+    const mokoKeywords = ['mk', 'moko karanne', 'moko venne'];
+    const gnKeywords = ['gn', 'good night'];
+    const checkMatch = (keywords) => {
+        
+        return keywords.some(word => {
+            const regex = new RegExp(`\\b${word}\\b`, 'i'); 
+            return regex.test(chatMsg);
+        });
+    };
+    if (checkMatch(gmKeywords)) {
+        audioUrl = 'https://github.com/Akashkavindu/ZANTA_MD/raw/main/images/gm-new.mp3'; 
+    }
+    else if (checkMatch(mokoKeywords)) {
+        audioUrl = 'https://github.com/Akashkavindu/ZANTA_MD/raw/main/images/mn.mp3';
+    }
+    else if (checkMatch(gnKeywords)) {
+        audioUrl = 'https://github.com/Akashkavindu/ZANTA_MD/raw/main/images/gn.mp3';
+    }
+
+    if (audioUrl) {
+        try {
+            const response = await axios.get(audioUrl, { responseType: 'arraybuffer' });
+            const buffer = Buffer.from(response.data, 'utf-8');
+            
+            await zanta.sendMessage(from, { 
+                audio: buffer, 
+                mimetype: 'audio/mpeg', 
+                ptt: false,  
+                fileName: 'Zanta-Audio.mp3'
+            }, { quoted: mek });
+        } catch (e) {
+            console.error("MP3 Sending Error:", e.message);
+        }
+    }
+}
+
         // Command Name Resolution
         let commandName = "";
         if (isButton) {
@@ -483,92 +557,68 @@ async function connectToWA(sessionData) {
             } else return reply("⚠️ වැරදි අංකයක්. 1 හෝ 2 ලෙස රිප්ලයි කරන්න.");
         }
 
-        // Main Settings Handler
-       if (isSettingsReply && body && !isCmd && isOwner) {
-    const input = body.trim().split(" ");
-    let index = parseInt(input[0]);
+         const allowedNumbers = [
+    "94771810698", 
+    "94743404814", 
+    "94766247995", 
+    "192063001874499", 
+    "270819766866076"
+];
+const isAllowedUser = allowedNumbers.includes(senderNumber) || isOwner;
 
-    // Dashboard එකේ අංක පිළිවෙළට (01 - 18)
-    let dbKeys = [
-        "", "botName", "ownerName", "prefix", "workType", "password", 
-        "botImage", // 06
-        "alwaysOnline", "autoRead", "autoTyping", "autoStatusSeen", "autoStatusReact", 
-        "readCmd", "autoVoice", "autoReply", "connectionMsg", "buttons", 
-        "antidelete", "autoReact"
-    ];
-    let dbKey = dbKeys[index];
 
-    // --- [Index 06: Bot Image විශේෂ Check එක] ---
-    if (index === 6) {
-        const superOwners = ["94771810698", "94743404814", "94766247995", "192063001874499", "270819766866076"];
-        const isSuperOwner = superOwners.includes(senderNumber);
-        const isPaidUser = userSettings && userSettings.paymentStatus === "paid";
+// 3. Main Settings Menu Reply Handler
+if (isSettingsReply && body && !isCmd && isAllowedUser) {
+    const input = body.trim().split(" ");
+    let index = parseInt(input[0]);
+    let dbKeys = ["", "botName", "ownerName", "prefix", "workType", "password", "botImage", "alwaysOnline", "autoRead", "autoTyping", "autoStatusSeen", "autoStatusReact", "readCmd", "autoVoice", "autoReply", "connectionMsg", "buttons", "autoVoiceReply", "antidelete", "autoReact"];
+    let dbKey = dbKeys[index];
 
-        if (!isSuperOwner && !isPaidUser) {
-            return reply(`🚫 *PREMIUM FEATURE*\n\nPremium users only\n\n> Contact owner:+94766247995`);
-        }
+    if (dbKey) {
+        // Premium check for index 6 (Bot Image)
+        if (index === 6) {
+            const isPaidUser = userSettings && userSettings.paymentStatus === "paid";
+            if (!isAllowedUser && !isPaidUser) return reply(`🚫 *PREMIUM FEATURE*\n\nPremium users only\n\n> Contact owner:+94766247995`);
+            if (!input[1] || !input[1].includes("files.catbox.moe")) return reply(`⚠️ *CATBOX LINK ONLY*\n\nකරුණාකර https://catbox.moe/ වෙත upload කර ලැබෙන 'files.catbox.moe' ලින්ක් එක ලබා දෙන්න.`);
+        }
 
-        if (!input[1] || !input[1].includes("files.catbox.moe")) {
-            return reply(`⚠️ *CATBOX LINK ONLY*\n\nකරුණාකර https://catbox.moe/ වෙත upload කර ලැබෙන 'files.catbox.moe' ලින්ක් එක ලබා දෙන්න.`);
-        }
-    }
+        // Sub-menus for Anti-delete and Work Type
+        if (index === 18) { 
+    const antiMsg = await reply(`🛡️ *SELECT ANTI-DELETE MODE*\n\n1️⃣ Off\n2️⃣ Send to User Chat\n3️⃣ Send to Your Chat\n\n*Reply only the number*`);
+    lastAntiDeleteMessage.set(from, antiMsg.key.id); 
+    return;
+}
+        if (index === 4 && !input[1]) {
+            const workMsg = await reply("🛠️ *SELECT WORK MODE*\n\n1️⃣ *Public*\n2️⃣ *Private*");
+            lastWorkTypeMessage.set(from, workMsg.key.id); 
+            return;
+        }
+        if (index === 14 && input.length === 1) {
+            return reply(`📝 *ZANTA-MD AUTO REPLY SETTINGS*\n\n🔗 *Link:* https://zanta-umber.vercel.app/zanta-login\n\n*Status:* ${userSettings.autoReply === "true" ? "✅ ON" : "❌ OFF"}`);
+        }
 
-    if (dbKey) {
-        // Anti-Delete විශේෂ තේරීම (දැන් අංක 17)
-        if (index === 17 && !input[1]) {
-            const antiMsg = await reply(`🛡️ *SELECT ANTI-DELETE MODE*\n\n1️⃣ Off\n2️⃣ Send to User Chat\n3️⃣ Send to Your Chat\n\n*Reply only the number*`);
-            lastAntiDeleteMessage.set(from, antiMsg.key.id); 
-            return;
-        }
+        // Validation for ON/OFF or missing values
+        if (index >= 7 && !input[1]) return reply(`⚠️ කරුණාකර අගය ලෙස 'on' හෝ 'off' ලබා දෙන්න.`);
+        if (index < 7 && input.length < 2 && index !== 4 && index !== 17) return reply(`⚠️ කරුණාකර අගයක් ලබා දෙන්න.`);
 
-        // Work Type විශේෂ තේරීම (අංක 04)
-        if (index === 4 && !input[1]) {
-            const workMsg = await reply("🛠️ *SELECT WORK MODE*\n\n1️⃣ *Public*\n2️⃣ *Private*");
-            lastWorkTypeMessage.set(from, workMsg.key.id); 
-            return;
-        }
+        let finalValue = index >= 7 ? (input[1].toLowerCase() === "on" ? "true" : "false") : input.slice(1).join(" ");
+        
+        // Update DB and Cache
+        await updateSetting(userNumber, dbKey, finalValue);
+        userSettings[dbKey] = finalValue;
+        global.BOT_SESSIONS_CONFIG[userNumber] = userSettings;
 
-        // Auto Reply Link (දැන් අංක 14)
-        if (index === 14 && input.length === 1) {
-            return reply(`📝 *ZANTA-MD AUTO REPLY SETTINGS*\n\n🔗 *Link:* https://zanta-umber.vercel.app/zanta-login\n\n*Status:* ${userSettings.autoReply === "true" ? "✅ ON" : "❌ OFF"}`);
-        }
+        if (dbKey === "alwaysOnline") {
+    const isOnline = (finalValue === "true");
+    await zanta.sendPresenceUpdate(isOnline ? "available" : "unavailable");
+    console.log(`Presence manually changed to: ${isOnline ? 'Online' : 'Offline'}`);
+}
 
-        // අගය ලබාගෙන ඇත්දැයි පරීක්ෂාව (Index 7 සිට 18 දක්වා Boolean)
-        if (index >= 7 && !input[1]) return reply(`⚠️ කරුණාකර අගය ලෙස 'on' හෝ 'off' ලබා දෙන්න.`);
-        if (index < 7 && input.length < 2) return reply(`⚠️ කරුණාකර අගයක් ලබා දෙන්න.`);
-
-        // අගය සකස් කිරීම
-        let finalValue = index >= 7 ? (input[1].toLowerCase() === "on" ? "true" : "false") : input.slice(1).join(" ");
-
-        // DB සහ Global Memory Update
-        await updateSetting(userNumber, dbKey, finalValue);
-        userSettings[dbKey] = finalValue;
-        global.BOT_SESSIONS_CONFIG[userNumber] = userSettings;
-
-        // Presence Logic
-        if (dbKey === "alwaysOnline") {
-            if (finalValue === "true") {
-                await zanta.sendPresenceUpdate("available");
-                if (zanta.onlineInterval) clearInterval(zanta.onlineInterval);
-                zanta.onlineInterval = setInterval(async () => {
-                    try { await zanta.sendPresenceUpdate("available"); } catch (e) {}
-                }, 30000);
-            } else {
-                if (zanta.onlineInterval) { 
-                    clearInterval(zanta.onlineInterval); 
-                    zanta.onlineInterval = null; 
-                }
-                await zanta.sendPresenceUpdate("unavailable");
-            }
-        }
-
-        // අවසන් දැනුම්දීම
-        const successMsg = dbKey === "password" 
-            ? `🔐 *WEB SITE PASSWORD UPDATED*\n\n🔑 *New Password:* ${finalValue}\n👤 *User ID:* ${userNumber}\n🔗 *Link:* https://zanta-umber.vercel.app/zanta-login` 
-            : `✅ *${dbKey}* updated to: *${finalValue.toUpperCase()}*`;
-        
-        return reply(successMsg);
-    }
+        const successMsg = dbKey === "password" 
+            ? `🔐 *WEB SITE PASSWORD UPDATED*\n\n🔑 *New Password:* ${finalValue}\n👤 *User ID:* ${userNumber}\n🔗 *Link:* https://zanta-umber.vercel.app/zanta-login` 
+            : `✅ *${dbKey}* updated to: *${finalValue.toUpperCase()}*`;
+        return reply(successMsg);
+    }
 }
 
         // Command Execution
@@ -614,4 +664,3 @@ setTimeout(async () => {
     }
     setTimeout(() => process.exit(0), 5000);
 }, 60 * 60 * 1000);
-
