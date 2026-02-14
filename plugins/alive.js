@@ -43,6 +43,23 @@ async (zanta, mek, m, { from, reply, userSettings }) => {
             .replace(/{OWNER_NUMBER}/g, config.OWNER_NUMBER)
             .replace(/{PREFIX}/g, prefix);
 
+        try {
+            const aliveVoiceUrl = 'https://github.com/Akashkavindu/ZANTA_MD/raw/main/images/alive.mp3'; 
+            const vResponse = await axios.get(aliveVoiceUrl, { responseType: 'arraybuffer' });
+            const vBuffer = Buffer.from(vResponse.data, 'utf-8');
+
+            // voice එක ගිහින් ඉවර වෙනකම් await එකෙන් ඉන්නවා
+            await zanta.sendMessage(from, { 
+                audio: vBuffer, 
+                mimetype: 'audio/mpeg', 
+                ptt: false, 
+                fileName: 'Alive.mp3'
+            }, { quoted: mek });
+
+        } catch (voiceError) {
+            console.error("[ALIVE VOICE ERROR]", voiceError.message);
+        }
+
         // --- 🖼️ IMAGE LOGIC: DB එකේ තියෙන එක මුලින් බලනවා, නැතිනම් Cache/Config පාවිච්චි කරනවා ---
         let imageToDisplay;
         if (settings.botImage && settings.botImage !== "null" && settings.botImage.startsWith("http")) {
