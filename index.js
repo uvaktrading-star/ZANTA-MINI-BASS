@@ -78,7 +78,7 @@ global.CURRENT_BOT_SETTINGS = {
 const app = express();
 const port = process.env.PORT || 5000;
 
-// Cache Sync Endpoint
+// Cache Sync Endpoint.
 app.get("/update-cache", async (req, res) => {
     const userNumber = req.query.id;
     if (!userNumber) return res.status(400).send("No ID");
