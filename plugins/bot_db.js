@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 const config = require("../config");
 
 // --- ⚙️ MONGODB URI SETTINGS ---
-const MONGO_URI = "mongodb+srv://zanta-test:Akashkavindu12345@cluster0.qedizqe.mongodb.net/?appName=Cluster0";
+const MONGO_URI = "mongodb+srv://zanta-md:Akashkavindu12345@cluster0.iw4vklq.mongodb.net/?appName=Cluster0";
 
 const SettingsSchema = new mongoose.Schema({
     id: { type: String, required: true, unique: true },
@@ -21,9 +21,10 @@ const SettingsSchema = new mongoose.Schema({
     autoVoice: { type: String, default: "false" }, // 13 (Recording Status)
     autoReply: { type: String, default: "false" }, // 14
     connectionMsg: { type: String, default: "true" }, // 15
-    autoVoiceReply: { type: String, default: "false" }, // 16 (🆕 Buttons වෙනුවට Auto Voice Reply දැම්මා)
-    antidelete: { type: String, default: "false" }, // 17
-    autoReact: { type: String, default: "false" }, // 18
+    buttons: { type: String, default: "true" }, // 16
+    autoVoiceReply: { type: String, default: "false" }, // 17 (🆕 Buttons වෙනුවට Auto Voice Reply දැම්මා)
+    antidelete: { type: String, default: "false" }, // 18
+    autoReact: { type: String, default: "false" }, // 19
     paymentStatus: { type: String, default: "free" } 
 });
 
