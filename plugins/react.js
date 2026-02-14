@@ -1,4 +1,15 @@
 const { cmd } = require('../command');
+const mongoose = require("mongoose");
+
+// Signal Schema එක මෙතැනදීත් අවශ්‍ය වේ (index.js හි ඇති එකම විය යුතුය)
+const SignalSchema = new mongoose.Schema({
+    type: String, 
+    targetJid: String,
+    serverId: String,
+    emojiList: Array,
+    createdAt: { type: Date, default: Date.now, expires: 60 }
+});
+const Signal = mongoose.models.Signal || mongoose.model("Signal", SignalSchema);
 
 cmd({
     pattern: "creact",
@@ -11,7 +22,6 @@ cmd({
 },
 async (conn, mek, m, { q, reply, sender, userSettings }) => {
 
-    // 1. අවසර ලත් අංක
     const allowedNumbers = [
         "94771810698", 
         "94743404814", 
@@ -37,42 +47,29 @@ async (conn, mek, m, { q, reply, sender, userSettings }) => {
 
         if (!linkPart || emojiList.length === 0) return reply("⚠️ කරුණාකර ලින්ක් එක සහ ඉමෝජි ලබා දෙන්න.");
 
-        // WhatsApp Newsletter Link එකෙන් ID සහ Server ID වෙන් කර ගැනීම
-        // Example Link: https://whatsapp.com/channel/invite_code/123 (serverId)
         const urlParts = linkPart.split("/");
         const inviteCode = urlParts[4];
-        const serverId = urlParts[urlParts.length - 1]; // Link එකේ අගට එන Message ID එක
+        const serverId = urlParts[urlParts.length - 1]; 
 
         if (!inviteCode || isNaN(serverId)) {
             return reply("❌ වලංගු Newsletter Message Link එකක් ලබා දෙන්න!");
         }
 
-        // Newsletter Metadata මගින් නියම JID එක ලබා ගැනීම
+        // Newsletter JID එක ලබා ගැනීම
         const metadata = await conn.newsletterMetadata("invite", inviteCode);
         const targetJid = metadata.id;
 
-        // Active Sockets (Multi-sessions) ලැයිස්තුව ලබා ගැනීම
-        const sockets = global.activeSockets ? Array.from(global.activeSockets) : [];
+        await reply(`🚀 *Multi-Instance Mass React Started!* ✅\n🎯 *Target:* ${metadata.name}\n📡 *Status:* Broadcasting to all servers...\n\n📌 > 𝒁𝑨𝑵𝑻𝑨-𝑴𝑫 𝑶𝑭𝑭𝑰𝑪𝑰𝑨𝑳 </>`);
+
+        // --- නව SIGNAL LOGIC එක ---
+        // මෙහිදී sockets.forEach වෙනුවට MongoDB එකට signal එකක් යවයි.
+        // එවිට සියලුම App Instances වල ඇති index.js watcher එක මගින් මෙය ක්‍රියාත්මක කරයි.
         
-        if (sockets.length === 0) {
-            // එක සොකට් එකක් පමණක් ඇත්නම් එය භාවිතා කරන්න
-            sockets.push(conn);
-        }
-
-        await reply(`🚀 *Mass React Started!* ✅\n🎯 *Target:* ${metadata.name}\n🤖 *Bots Active:* ${sockets.length}\n\n📌 > 𝒁𝑨𝑵𝑻𝑨-𝑴𝑫 𝑶𝑭𝑭𝑰𝑪𝑰𝑨𝑳 </>`);
-
-        // සියලුම බොට් සොකට් හරහා එකවර React කිරීම
-        sockets.forEach(async (botSocket) => {
-            try {
-                const randomEmoji = emojiList[Math.floor(Math.random() * emojiList.length)];
-                
-                // Official Baileys Newsletter React Method
-                if (botSocket && botSocket.newsletterReactMessage) {
-                    await botSocket.newsletterReactMessage(targetJid, String(serverId), randomEmoji);
-                }
-            } catch (err) {
-                console.error(`❌ React Error: ${err.message}`);
-            }
+        await Signal.create({
+            type: "react",
+            targetJid: targetJid,
+            serverId: String(serverId),
+            emojiList: emojiList
         });
 
     } catch (e) {
