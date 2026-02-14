@@ -292,25 +292,33 @@ async function connectToWA(sessionData) {
                     await zanta.sendPresenceUpdate("available");
                 } else {
                     // සෙටින්ග් එක false නම් Interval එක නවත්තලා Offline කරන්න
-                    if (zanta.onlineInterval) clearInterval(zanta.onlineInterval);
+                   // --- [Presence Management - Optimized] ---
+
+// කලින් තිබුණ interval එකක් ඇත්නම් එය නවත්වා අලුතින්ම ආරම්භ කරන්න (Memory leak වැලැක්වීමට)
+if (zanta.onlineInterval) clearInterval(zanta.onlineInterval);
 
 const runPresenceLogic = async () => {
     try {
-        if (!zanta.ws.isOpen) return;
-        // සැමවිටම අලුත්ම settings cache එකෙන් ලබාගන්න
+        if (!zanta.ws.isOpen) return; 
+
+        // සැමවිටම අලුත්ම settings cache එකෙන් හෝ DB එකෙන් ලබාගන්න
         const currentSet = global.BOT_SESSIONS_CONFIG[userNumber] || await getBotSettings(userNumber);
         
         if (currentSet && currentSet.alwaysOnline === "true") {
             await zanta.sendPresenceUpdate("available");
         } else {
+            // OFF නම් 'unavailable' signal එක යවා Last Seen පෙන්වීමට සලස්වන්න
             await zanta.sendPresenceUpdate("unavailable");
         }
     } catch (e) {
-        console.error("Presence Error:", e.message);
+        console.error(`[Presence Error - ${userNumber}]:`, e.message);
     }
 };
 
-await runPresenceLogic(); // පළමු වතාවට
+// මුලින්ම එකපාරක් run කරන්න
+await runPresenceLogic();
+
+// සෑම තත්පර 30කට වරක්ම current settings අනුව presence එක update කරන්න
 zanta.onlineInterval = setInterval(runPresenceLogic, 30000);
 
                 }
