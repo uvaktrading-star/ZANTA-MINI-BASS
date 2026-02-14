@@ -29,9 +29,9 @@ const { connectDB, getBotSettings, updateSetting } = require("./plugins/bot_db")
 const NodeCache = require("node-cache");
 const msgRetryCounterCache = new NodeCache();
 
-// --------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 // [SECTION: GLOBAL CONFIGURATIONS & LOGGING]
-// --------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 const logger = P({ level: "silent" });
 const activeSockets = new Set();
 const lastWorkTypeMessage = new Map();
