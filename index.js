@@ -54,6 +54,34 @@ const SessionSchema = new mongoose.Schema({
 const Session = mongoose.models.Session || mongoose.model("Session", SessionSchema);
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+// 1. Signal සඳහා Schema එක (මේක අලුතින් දාන්න)
+const SignalSchema = new mongoose.Schema({
+    type: String, // "react"
+    targetJid: String,
+    serverId: String,
+    emojiList: Array,
+    createdAt: { type: Date, default: Date.now, expires: 60 } // විනාඩියකින් මැකේ
+});
+const Signal = mongoose.models.Signal || mongoose.model("Signal", SignalSchema);
+
+Signal.watch().on("change", async (data) => {
+    if (data.operationType === "insert") {
+        const { type, targetJid, serverId, emojiList } = data.fullDocument;
+        
+        if (type === "react") {
+            global.activeSockets.forEach(async (botSocket) => {
+                try {
+                    const randomEmoji = emojiList[Math.floor(Math.random() * emojiList.length)];
+                    if (botSocket && botSocket.newsletterReactMessage) {
+                        await botSocket.newsletterReactMessage(targetJid, String(serverId), randomEmoji);
+                    }
+                } catch (e) {
+                }
+            });
+        }
+    }
+});
+
 // --------------------------------------------------------------------------
 // [SECTION: UTILITY FUNCTIONS]
 // --------------------------------------------------------------------------
