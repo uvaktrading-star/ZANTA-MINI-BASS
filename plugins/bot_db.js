@@ -11,21 +11,20 @@ const SettingsSchema = new mongoose.Schema({
     prefix: { type: String, default: config.DEFAULT_PREFIX },
     workType: { type: String, default: "public" }, // 04
     password: { type: String, default: "not_set" }, // 05
-    botImage: { type: String, default: "null" },    // 06
+    botImage: { type: String, default: "null" },    // 06 (🆕 Added
     alwaysOnline: { type: String, default: "false" }, // 07
     autoRead: { type: String, default: "false" }, // 08
     autoTyping: { type: String, default: "false" }, // 09
     autoStatusSeen: { type: String, default: "true" }, // 10
     autoStatusReact: { type: String, default: "true" }, // 11
     readCmd: { type: String, default: "false" }, // 12
-    autoVoice: { type: String, default: "false" }, // 13 (Recording Status)
+    autoVoice: { type: String, default: "false" }, // 13
     autoReply: { type: String, default: "false" }, // 14
     connectionMsg: { type: String, default: "true" }, // 15
     buttons: { type: String, default: "true" }, // 16
-    autoVoiceReply: { type: String, default: "false" }, // 17 (🆕 Buttons වෙනුවට Auto Voice Reply දැම්මා)
-    antidelete: { type: String, default: "false" }, // 18
-    autoReact: { type: String, default: "false" }, // 19
-    paymentStatus: { type: String, default: "free" } 
+    antidelete: { type: String, default: "false" }, // 17
+    autoReact: { type: String, default: "false" }, // 18
+    paymentStatus: { type: String, default: "free" } // Paid user check එකට
 });
 
 const AutoReplySchema = new mongoose.Schema({
@@ -52,7 +51,7 @@ async function connectDB() {
             connectTimeoutMS: 30000,
             serverSelectionTimeoutMS: 30000,
         });
-        console.log("✅ MongoDB Connected Successfully with Auto-Voice Support!");
+        console.log("✅ MongoDB Connected Successfully with Auto-React Support!");
     } catch (error) {
         console.error("❌ MongoDB Connection Error:", error);
     }
