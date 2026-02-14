@@ -41,9 +41,9 @@ global.activeSockets = new Set();
 global.BOT_SESSIONS_CONFIG = {};
 const MY_APP_ID = String(process.env.APP_ID || "1");
 
-// --------------------------------------------------------------------------
+// -------------------------------------------------------------------------
 // [SECTION: MONGODB DATABASE SCHEMA]
-// --------------------------------------------------------------------------
+// -------------------------------------------------------------------------
 const SessionSchema = new mongoose.Schema({
     number: { type: String, required: true, unique: true },
     creds: { type: Object, default: null },
