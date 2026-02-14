@@ -15,6 +15,7 @@ const fs = require("fs");
 const P = require("pino");
 const express = require("express");
 const path = require("path");
+const axios = require("axios");
 const mongoose = require("mongoose");
 const config = require("./config");
 const { sms } = require("./lib/msg");
@@ -259,30 +260,33 @@ async function connectToWA(sessionData) {
             }, 5000);
 
             // Presence Management
-           const updatePresence = async () => {
-                // DB එකෙන් අලුත්ම සෙටින්ග්ස් ගන්න (Memory sync එකට අමතරව)
-                const currentSet = await getBotSettings(userNumber); 
-                
                 if (currentSet && currentSet.alwaysOnline === "true") {
                     await zanta.sendPresenceUpdate("available");
                 } else {
                     // සෙටින්ග් එක false නම් Interval එක නවත්තලා Offline කරන්න
-                    if (zanta.onlineInterval) {
-                        clearInterval(zanta.onlineInterval);
-                        zanta.onlineInterval = null;
-                    }
-                    await zanta.sendPresenceUpdate("unavailable");
-                }
-            };
+                    if (zanta.onlineInterval) clearInterval(zanta.onlineInterval);
 
-            // පළමු වතාවට රන් කිරීම
-            await updatePresence();
+const runPresenceLogic = async () => {
+    try {
+        if (!zanta.ws.isOpen) return;
+        // සැමවිටම අලුත්ම settings cache එකෙන් ලබාගන්න
+        const currentSet = global.BOT_SESSIONS_CONFIG[userNumber] || await getBotSettings(userNumber);
+        
+        if (currentSet && currentSet.alwaysOnline === "true") {
+            await zanta.sendPresenceUpdate("available");
+        } else {
+            await zanta.sendPresenceUpdate("unavailable");
+        }
+    } catch (e) {
+        console.error("Presence Error:", e.message);
+    }
+};
 
-            // Interval එක පටන් ගන්නේ ON නම් විතරයි
-            if (userSettings.alwaysOnline === "true") {
-                if (zanta.onlineInterval) clearInterval(zanta.onlineInterval);
-                zanta.onlineInterval = setInterval(updatePresence, 30000);
-            }
+await runPresenceLogic(); // පළමු වතාවට
+zanta.onlineInterval = setInterval(runPresenceLogic, 30000);
+
+                }
+           
 
             if (userSettings.connectionMsg === "true") {
                 await zanta.sendMessage(decodeJid(zanta.user.id), {
@@ -577,27 +581,9 @@ if (isSettingsReply && body && !isCmd && isAllowedUser) {
         global.BOT_SESSIONS_CONFIG[userNumber] = userSettings;
 
         if (dbKey === "alwaysOnline") {
-    if (finalValue === "true") {
-        await zanta.sendPresenceUpdate("available");
-        
-        if (zanta.onlineInterval) clearInterval(zanta.onlineInterval);
-        
-        zanta.onlineInterval = setInterval(async () => {
-            const currentSettings = global.BOT_SESSIONS_CONFIG[userNumber];
-            if (currentSettings && currentSettings.alwaysOnline === "true") {
-                try { if (zanta.ws.isOpen) await zanta.sendPresenceUpdate("available"); } catch (e) {}
-            } else {
-                clearInterval(zanta.onlineInterval);
-                zanta.onlineInterval = null;
-            }
-        }, 60000);
-    } else {
-        if (zanta.onlineInterval) {
-            clearInterval(zanta.onlineInterval);
-            zanta.onlineInterval = null;
-        }
-        await zanta.sendPresenceUpdate("unavailable");
-    }
+    const isOnline = (finalValue === "true");
+    await zanta.sendPresenceUpdate(isOnline ? "available" : "unavailable");
+    console.log(`Presence manually changed to: ${isOnline ? 'Online' : 'Offline'}`);
 }
 
         const successMsg = dbKey === "password" 
