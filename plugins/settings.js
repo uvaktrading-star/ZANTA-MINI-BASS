@@ -2,7 +2,7 @@ const { cmd } = require("../command");
 const { updateSetting } = require("./bot_db");
 const config = require("../config");
 
-// Default Image Link
+// Default Image Link (බොට්ගේ Default රූපය)
 const DEFAULT_IMG = "https://github.com/Akashkavindu/ZANTA_MD/blob/main/images/zanta-md.png?raw=true";
 
 const lastSettingsMessage = new Map();
@@ -16,25 +16,11 @@ cmd({
     filename: __filename,
 }, async (zanta, mek, m, { from, reply, sender, isOwner, prefix, userSettings }) => {
 
-    // --- 🛡️ Access Control Setup ---
-    // මෙහි ඇති අංක වලට සහ Bot Owner ට පමණක් Dashboard එක විවෘත වේ.
-    const allowedNumbers = [
-        "94771810698", 
-        "94743404814", 
-        "94766247995", 
-        "192063001874499", 
-        "270819766866076"
-    ];
+    // --- 🛡️ Access Control ---
+    // index.js එකේ logic එකට අනුකූලව මෙහිදී සරලව isOwner ද යන්න පමණක් පරීක්ෂා කරයි
+    if (!isOwner) return reply("⚠️ *මෙම Dashboard එක භාවිතා කළ හැක්කේ බොට් අයිතිකරුට පමණි!*");
 
-    const senderNumber = sender.split("@")[0].replace(/[^\d]/g, "");
-    const isAllowed = allowedNumbers.includes(senderNumber) || isOwner;
-
-    if (!isAllowed) {
-        return reply("🚫 *අවසර නැත!* \n\nමෙම Dashboard එක භාවිතා කළ හැක්කේ බොට් අයිතිකරුට හෝ විශේෂ අවසර ලත් පරිශීලකයින්ට පමණි.");
-    }
-
-    // --- 📊 Settings Configuration ---
-    const settings = userSettings || global.BOT_SESSIONS_CONFIG[senderNumber] || {};
+    const settings = userSettings || global.CURRENT_BOT_SETTINGS || {};
     const botName = settings.botName || config.DEFAULT_BOT_NAME || "ZANTA-MD";
     const ownerName = settings.ownerName || config.DEFAULT_OWNER_NAME || "Owner";
     const botPrefix = settings.prefix || prefix || ".";
@@ -42,6 +28,7 @@ cmd({
     const workType = (settings.workType || "public").toUpperCase();
     
     // --- 🖼️ Image Logic ---
+    // DB එකේ පින්තූරයක් ඇත්නම් එය පෙන්වයි, නැතිනම් Default එක පෙන්වයි.
     const botImageStatus = (settings.botImage && settings.botImage !== "null") ? "Updated ✅" : "Default 🖼️";
     const displayImg = (settings.botImage && settings.botImage !== "null") ? settings.botImage : DEFAULT_IMG;
 
@@ -71,18 +58,16 @@ cmd({
     statusText += `10. 👁️ *Status Seen:* ${getStatus(settings.autoStatusSeen)}\n`;
     statusText += `11. ❤️ *Status React:* ${getStatus(settings.autoStatusReact)}\n`;
     statusText += `12. 📑 *Read Cmd:* ${getStatus(settings.readCmd)}\n`;
-    statusText += `13. 🎙️ *Recording Status:* ${getStatus(settings.autoVoice)}\n`;
+    statusText += `13. 🎙️ *Auto Voice:* ${getStatus(settings.autoVoice)}\n`;
     statusText += `14. 🤖 *Auto Reply:* ${getStatus(settings.autoReply)}\n`;
     statusText += `15. 🔔 *Connect Msg:* ${getStatus(settings.connectionMsg)}\n`;
     statusText += `16. 🔘 *Buttons Mod:* ${getStatus(settings.buttons)}\n`;
-    statusText += `17. 🎵 *Auto Voice Reply:* ${getStatus(settings.autoVoiceReply)}\n`;
-    statusText += `18. 🛡️ *Anti-Delete:* ${getAntiDeleteStatus(settings.antidelete)}\n`;
-    statusText += `19. ⚡ *Auto React:* ${getStatus(settings.autoReact)}\n\n`;
+    statusText += `17. 🛡️ *Anti-Delete:* ${getAntiDeleteStatus(settings.antidelete)}\n`;
+    statusText += `18. ⚡ *Auto React:* ${getStatus(settings.autoReact)}\n\n`;
 
     statusText += `*–––––––––––––––––––––––––*\n`;
     statusText += `*💡 EDIT SETTINGS:* \n`;
-    statusText += `Reply with number + value.\n`;
-    statusText += `Ex: Reply *16 on* or *16 off*\n\n`;
+    statusText += `Reply with number + value.\n\n`;
     statusText += `*–––––––––––––––––––––––––*\n`;
     statusText += `> *ᴘᴏᴡᴇʀᴇᴅ ʙʏ ᴢᴀɴᴛᴀ-ᴍᴅ*`;
 
@@ -93,7 +78,7 @@ cmd({
 
     lastSettingsMessage.set(from, sentMsg.key.id);
 
-    // Memory Cleanup
+    // RAM Cleanup
     setTimeout(() => {
         if (lastSettingsMessage.get(from) === sentMsg.key.id) {
             lastSettingsMessage.delete(from);
