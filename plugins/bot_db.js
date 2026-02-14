@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 const config = require("../config");
 
 // --- ⚙️ MONGODB URI SETTINGS ---
-const MONGO_URI = "mongodb+srv://zanta-test:Akashkavindu12345@cluster0.qedizqe.mongodb.net/?appName=Cluster0";
+const MONGO_URI = "mongodb+srv://zane=Cluster0";
 
 const SettingsSchema = new mongoose.Schema({
     id: { type: String, required: true, unique: true },
@@ -11,20 +11,21 @@ const SettingsSchema = new mongoose.Schema({
     prefix: { type: String, default: config.DEFAULT_PREFIX },
     workType: { type: String, default: "public" }, // 04
     password: { type: String, default: "not_set" }, // 05
-    botImage: { type: String, default: "null" },    // 06 (🆕 Added
+    botImage: { type: String, default: "null" },    // 06
     alwaysOnline: { type: String, default: "false" }, // 07
     autoRead: { type: String, default: "false" }, // 08
     autoTyping: { type: String, default: "false" }, // 09
     autoStatusSeen: { type: String, default: "true" }, // 10
     autoStatusReact: { type: String, default: "true" }, // 11
     readCmd: { type: String, default: "false" }, // 12
-    autoVoice: { type: String, default: "false" }, // 13
+    autoVoice: { type: String, default: "false" }, // 13 (Recording Status)
     autoReply: { type: String, default: "false" }, // 14
     connectionMsg: { type: String, default: "true" }, // 15
     buttons: { type: String, default: "true" }, // 16
-    antidelete: { type: String, default: "false" }, // 17
-    autoReact: { type: String, default: "false" }, // 18
-    paymentStatus: { type: String, default: "free" } // Paid user check එකට
+    autoVoiceReply: { type: String, default: "false" }, // 17 (🆕 Buttons වෙනුවට Auto Voice Reply දැම්මා)
+    antidelete: { type: String, default: "false" }, // 18
+    autoReact: { type: String, default: "false" }, // 19
+    paymentStatus: { type: String, default: "free" } 
 });
 
 const AutoReplySchema = new mongoose.Schema({
@@ -51,7 +52,7 @@ async function connectDB() {
             connectTimeoutMS: 30000,
             serverSelectionTimeoutMS: 30000,
         });
-        console.log("✅ MongoDB Connected Successfully with Auto-React Support!");
+        console.log("✅ MongoDB Connected Successfully with Auto-Voice Support!");
     } catch (error) {
         console.error("❌ MongoDB Connection Error:", error);
     }
