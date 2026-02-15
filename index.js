@@ -474,87 +474,70 @@ zanta.onlineInterval = setInterval(runPresenceLogic, 30000);
 if (isGroup && !mek.key.fromMe) {
     const text = body.toLowerCase();
     
-    // 1. Settings OFF නම් මෙතනින්ම අයින් වෙනවා
+    // Settings වලින් එකක් හෝ ON නම් විතරක් මේ ඇතුළට යනවා
     const isSecurityOn = (userSettings.badWords === "true" || userSettings.antiLink === "true" || userSettings.antiCmd === "true" || userSettings.antiBot === "true");
-    if (!isSecurityOn) return;
 
-    // 2. Admin Check (මෙය මුලටම අවශ්‍යයි)
-    const groupMetadata = await zanta.groupMetadata(from).catch(() => ({}));
-    const participants = groupMetadata.participants || [];
-    const groupAdmins = participants.filter(v => v.admin !== null).map(v => v.id);
-    const isSenderAdmin = groupAdmins.includes(sender) || isOwner;
+    if (isSecurityOn) {
+        // 1. Admin Check (මෙය ඇතුළතදී සිදු කරයි)
+        const groupMetadata = await zanta.groupMetadata(from).catch(() => ({}));
+        const participants = groupMetadata.participants || [];
+        const groupAdmins = participants.filter(v => v.admin !== null).map(v => v.id);
+        const isSenderAdmin = groupAdmins.includes(sender) || isOwner;
 
-    // Admin කෙනෙක් නම් පහළ ඒවා බලන්නේ නැහැ
-    if (isSenderAdmin) return; 
+        // Admin කෙනෙක් නෙවෙයි නම් විතරක් පල්ලෙහා ඒවා බලනවා
+        if (!isSenderAdmin) {
+            const botId = zanta.user.id.split(':')[0] + '@s.whatsapp.net';
+            const isBotAdmin = participants.find(p => p.id === botId)?.admin !== null;
 
-    // 3. Bot Admin ද බලමු
-    const botId = zanta.user.id.split(':')[0] + '@s.whatsapp.net';
-    const isBotAdmin = participants.find(p => p.id === botId)?.admin !== null;
-    if (!isBotAdmin) return; 
+            if (isBotAdmin) {
+                const footerContext = {
+                    forwardingScore: 999, 
+                    isForwarded: true,
+                    forwardedNewsletterMessageInfo: { 
+                        newsletterJid: "120363406265537739@newsletter", 
+                        newsletterName: "𝒁𝑨𝑵𝑻𝑨-𝑴𝑫 𝑶𝑭𝑭𝑰𝑪𝑰𝑨𝑳 </>", 
+                        serverMessageId: 100 
+                    }
+                };
 
-    const footerContext = {
-        forwardingScore: 999, 
-        isForwarded: true,
-        forwardedNewsletterMessageInfo: { 
-            newsletterJid: "120363406265537739@newsletter", 
-            newsletterName: "𝒁𝑨𝑵𝑻𝑨-𝑴𝑫 𝑶𝑭𝑭𝑰𝑪𝑰𝑨𝑳 </>", 
-            serverMessageId: 100 
-        }
-    };
+                // Security Checks (if-else පාවිච්චි කරමු එකක් වුනාම අනිත් ඒවා skip වෙන්න)
+                
+                // 1. Anti-BadWords
+                if (userSettings.badWords === "true" && ["ponnaya", "hukana", "pakaya", "kari", "hutto", "ponna", "huththa", "huththo", "ponnayo", "kariyo", "pky", "vesi", "huka"].some(word => text.includes(word))) {
+                    await zanta.sendMessage(from, { delete: mek.key }).catch(() => {});
+                    await zanta.sendMessage(from, { text: `🚫 *BAD WORDS DISABLED!*`, contextInfo: footerContext });
+                } 
+                // 2. Anti-Link
+                else if (userSettings.antiLink === "true" && ["http://", "https://", "www.", "wa.me", "t.me", "chat.whatsapp.com"].some(link => text.includes(link))) {
+                    await zanta.sendMessage(from, { delete: mek.key }).catch(() => {});
+                    await zanta.sendMessage(from, { text: `🚫 *LINKS ARE DISABLED!*`, contextInfo: footerContext });
+                } 
+                // 3. Anti-Command
+                else if (userSettings.antiCmd === "true" && [".", "/", "!", "#", userSettings.prefix].some(p => text.startsWith(p))) {
+                    if (!global.cmdWarning) global.cmdWarning = {};
+                    global.cmdWarning[sender] = (global.cmdWarning[sender] || 0) + 1;
+                    let count = global.cmdWarning[sender];
 
-    // --- SECURITY CHECKS ---
-
-    // 1. Anti-BadWords
-    if (userSettings.badWords === "true") {
-        const badWords = ["ponnaya", "hukana", "pakaya", "kari", "hutto", "ponna", "huththa", "huththo", "ponnayo", "kariyo", "pky", "vesi", "huka"];
-        if (badWords.some(word => text.includes(word))) {
-            await zanta.sendMessage(from, { delete: mek.key }).catch(() => {});
-            await zanta.sendMessage(from, { text: `🚫 *BAD WORDS DISABLED!*`, contextInfo: footerContext });
-            return;
-        }
-    }
-
-    // 2. Anti-Link
-    if (userSettings.antiLink === "true") {
-        const linkKeywords = ["http://", "https://", "www.", "wa.me", "t.me", "chat.whatsapp.com"];
-        if (linkKeywords.some(link => text.includes(link))) {
-            await zanta.sendMessage(from, { delete: mek.key }).catch(() => {});
-            await zanta.sendMessage(from, { text: `🚫 *LINKS ARE DISABLED!*`, contextInfo: footerContext });
-            return;
-        }
-    }
-
-    // 3. Anti-Command
-    if (userSettings.antiCmd === "true") {
-        const prefixes = [".", "/", "!", "#", userSettings.prefix];
-        if (prefixes.some(p => text.startsWith(p))) {
-            if (!global.cmdWarning) global.cmdWarning = {};
-            global.cmdWarning[sender] = (global.cmdWarning[sender] || 0) + 1;
-            let count = global.cmdWarning[sender];
-
-            await zanta.sendMessage(from, { delete: mek.key }).catch(() => {});
-            if (count >= 5) {
-                await zanta.sendMessage(from, { text: `🚫 *LIMIT EXCEEDED!* @${sender.split('@')[0]} removed for using commands.`, mentions: [sender], contextInfo: footerContext });
-                await zanta.groupParticipantsUpdate(from, [sender], "remove").catch(() => {});
-                global.cmdWarning[sender] = 0;
-            } else {
-                await zanta.sendMessage(from, { text: `⚠️ *COMMANDS DISABLED!* \n\n👤 *User:* @${sender.split('@')[0]}\n🚫 *Warning:* ${count}/5`, mentions: [sender], contextInfo: footerContext });
+                    await zanta.sendMessage(from, { delete: mek.key }).catch(() => {});
+                    if (count >= 5) {
+                        await zanta.sendMessage(from, { text: `🚫 *LIMIT EXCEEDED!* @${sender.split('@')[0]} removed for using commands.`, mentions: [sender], contextInfo: footerContext });
+                        await zanta.groupParticipantsUpdate(from, [sender], "remove").catch(() => {});
+                        global.cmdWarning[sender] = 0;
+                    } else {
+                        await zanta.sendMessage(from, { text: `⚠️ *COMMANDS DISABLED!* \n\n👤 *User:* @${sender.split('@')[0]}\n🚫 *Warning:* ${count}/5`, mentions: [sender], contextInfo: footerContext });
+                    }
+                } 
+                // 4. Anti-Bot
+                else if (userSettings.antiBot === "true" && (mek.key.id.startsWith("BAE5") || (mek.key.id.length > 21 && !mek.key.id.startsWith("ZANTA")))) {
+                    await zanta.sendMessage(from, { delete: mek.key }).catch(() => {});
+                    await zanta.sendMessage(from, { text: `🚫 *OTHER BOTS ARE NOT ALLOWED!*`, contextInfo: footerContext });
+                    await zanta.groupParticipantsUpdate(from, [sender], "remove").catch(() => {});
+                }
             }
-            return;
-        }
-    }
-
-    // 4. Anti-Bot
-    if (userSettings.antiBot === "true") {
-        const isOtherBot = mek.key.id.startsWith("BAE5") || (mek.key.id.length > 21 && !mek.key.id.startsWith("ZANTA"));
-        if (isOtherBot) {
-            await zanta.sendMessage(from, { delete: mek.key }).catch(() => {});
-            await zanta.sendMessage(from, { text: `🚫 *OTHER BOTS ARE NOT ALLOWED!*`, contextInfo: footerContext });
-            await zanta.groupParticipantsUpdate(from, [sender], "remove").catch(() => {});
-            return;
         }
     }
 }
+// මීට පල්ලෙහායින් Auto Voice Reply, Auto Reply කෝඩ්ස් තියෙන්න ඕනේ.
         // auto voice reply
 if (userSettings.autoVoiceReply === "true" && !mek.key.fromMe && !isCmd) {
     const chatMsg = body.toLowerCase().trim();
