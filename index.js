@@ -668,7 +668,7 @@ Ex: *21 on* (Badwords ON කිරීමට)
     // Security Options Update කිරීමේ පහසුව සඳහා Index Mapping එකක් (21-24 සඳහා)
     const isSecurityReply = m.quoted && lastSecurityMessage?.get(from) === m.quoted.id;
 
-if (isSecurityReply && body && !isCmd && isAllowedUser) {ේ
+if (isSecurityReply && body && !isCmd && isAllowedUser) {
     const input = body.trim().split(" ");
     let index = parseInt(input[0]);
     
