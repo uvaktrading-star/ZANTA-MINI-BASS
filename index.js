@@ -512,36 +512,7 @@ if (userSettings.autoVoiceReply === "true" && !mek.key.fromMe && !isCmd) {
     }
 }
 
-                // --- [START: Group Security Plugin Handler] ---
-for (const cmd of commands) {
-    if (cmd.on === "body") {
-        let groupMetadata = {}, participants = [], groupAdmins = [], isAdmins = false, isBotAdmins = false;
-        if (isGroup) {
-            try {
-                groupMetadata = await zanta.groupMetadata(from).catch(() => ({}));
-                participants = groupMetadata.participants || [];
-                groupAdmins = getGroupAdmins(participants);
-                
-                // --- LID/JID Security Check (අර අන්තිම ඉලක්කම් 8 සීන් එක) ---
-                const getLastDigits = (jid) => {
-                    if (!jid) return "";
-                    let clean = jid.split('@')[0].split(':')[0]; 
-                    return clean.slice(-8); 
-                };
-                const adminDigitsList = groupAdmins.map(ad => getLastDigits(ad));
-                isAdmins = adminDigitsList.includes(getLastDigits(sender)) || isOwner;
-                isBotAdmins = adminDigitsList.includes(getLastDigits(zanta.user.lid || zanta.user.id));
-            } catch (e) {}
-        }
-        
-        await cmd.function(zanta, mek, m, {
-            from, body, isGroup, sender, senderNumber, isOwner, reply, prefix, 
-            userSettings, groupMetadata, participants, groupAdmins, isAdmins, isBotAdmins
-        });
-    }
-}
-// --- [END: Group Security Plugin Handler] ---
-
+               
         // Command Name Resolution
         let commandName = "";
         if (isButton) {
