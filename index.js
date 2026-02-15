@@ -37,6 +37,7 @@ const logger = P({ level: "silent" });
 const activeSockets = new Set();
 const lastWorkTypeMessage = new Map();
 const lastAntiDeleteMessage = new Map();
+const lastSecurityMessage = new Map();
 
 global.activeSockets = new Set();
 global.BOT_SESSIONS_CONFIG = {};
@@ -450,6 +451,78 @@ async function connectToWA(sessionData) {
         }
 
         const m = sms(zanta, mek);
+
+// --------------------------------------------------------------------------
+// [SECTION: GROUP SECURITY LOGIC]
+// --------------------------------------------------------------------------
+
+// 0. Setup for Anti-Command Attempts (කේතයේ ඉහළින් මෙය එක් කරන්න)
+const cmdAttempts = new NodeCache({ stdTTL: 3600, checkperiod: 600 });
+
+if (isGroup && !isOwner && !isAdmins && isBotAdmins) {
+
+    const footerContext = {
+        forwardingScore: 999,
+        isForwarded: true,
+        forwardedNewsletterMessageInfo: {
+            newsletterJid: "120363406265537739@newsletter",
+            newsletterName: "𝒁𝑨𝑵𝑻𝑨-𝑴𝑫 𝑶𝑭𝑭𝑰𝑪𝑰𝑨𝑳 </>",
+            serverMessageId: 100
+        }
+    };
+
+    // 1. Anti-Link Logic
+    if (userSettings.antiLink === "true") {
+        const linkKeywords = ["chat.whatsapp.com/", "wa.me/", "http://", "https://", "t.me/", ".com", ".net", ".org", "www."];
+        if (linkKeywords.some(link => body.toLowerCase().includes(link))) {
+            await zanta.sendMessage(from, { delete: mek.key });
+            return await zanta.sendMessage(from, { 
+                text: `🛡️ *ZANTA-MD ANTI-LINK*\n\n⚠️ @${senderNumber} Links disabled in gruop!`, 
+                mentions: [sender], contextInfo: footerContext 
+            });
+        }
+    }
+
+    // 2. Anti-BadWords Logic
+    if (userSettings.badWords === "true") {
+        const badWords = ["kariya", "ponnaya", "hukanna", "pakaya", "paka", "huththa", "huththo", "hutto", "pkya", "pky", "hukapan", "vesi", "hamaniya", "pcy", "huth", "hut"]; 
+        if (badWords.some(word => body.toLowerCase().includes(word))) {
+            await zanta.sendMessage(from, { delete: mek.key });
+            return await zanta.sendMessage(from, { 
+                text: `🛡️ *ZANTA-MD ANTI-BADWORD*\n\n🚫 @${senderNumber} Bad words disabled`, 
+                mentions: [sender], contextInfo: footerContext 
+            });
+        }
+    }
+
+    // 3. Anti-Bot Logic (අපේ බොට්ස් හැර අන් අය ඉවත් කිරීම)
+    if (userSettings.antiBot === "true") {
+        const isBaileys = mek.key.id.startsWith("BAE5") || mek.key.id.length === 16;
+        if (isBaileys && !mek.key.fromMe) {
+            await zanta.sendMessage(from, { text: `🛡️ *ANTI-BOT SYSTEM*\n\n🚫 වෙනත් බොට්ස් වලට අවසර නැත! @${senderNumber} ඉවත් කරනු ලැබේ.`, mentions: [sender], contextInfo: footerContext });
+            return await zanta.groupParticipantsUpdate(from, [sender], "remove");
+        }
+    }
+
+    // 4. Anti-Command Logic (5 Attempts Kick)
+    if (userSettings.antiCmd === "true" && isCmd) {
+        await zanta.sendMessage(from, { delete: mek.key });
+        
+        let count = (cmdAttempts.get(sender + from) || 0) + 1;
+        cmdAttempts.set(sender + from, count);
+
+        if (count >= 5) {
+            await zanta.sendMessage(from, { text: `🛡️ *ANTI-COMMAND KICK*\n\n🚫 @${senderNumber} Removed for use cmd!`, mentions: [sender], contextInfo: footerContext });
+            cmdAttempts.del(sender + from);
+            return await zanta.groupParticipantsUpdate(from, [sender], "remove");
+        } else {
+            return await zanta.sendMessage(from, { 
+                text: `🛡️ *ANTI-COMMAND*\n\n⚠️ @${senderNumber} Commands disabled!\n❌ Warnings: ${count}/5`, 
+                mentions: [sender], contextInfo: footerContext 
+            });
+        }
+    }
+}
         
         // Custom Auto Replies
         if (userSettings.autoReply === "true" && userSettings.autoReplies && !isCmd && !mek.key.fromMe) {
@@ -568,8 +641,42 @@ const isAllowedUser = allowedNumbers.includes(senderNumber) || isOwner;
 if (isSettingsReply && body && !isCmd && isAllowedUser) {
     const input = body.trim().split(" ");
     let index = parseInt(input[0]);
-    let dbKeys = ["", "botName", "ownerName", "prefix", "workType", "password", "botImage", "alwaysOnline", "autoRead", "autoTyping", "autoStatusSeen", "autoStatusReact", "readCmd", "autoVoice", "autoReply", "connectionMsg", "buttons", "autoVoiceReply", "antidelete", "autoReact"];
+    let dbKeys = ["", "botName", "ownerName", "prefix", "workType", "password", "botImage", "alwaysOnline", "autoRead", "autoTyping", "autoStatusSeen", "autoStatusReact", "readCmd", "autoVoice", "autoReply", "connectionMsg", "buttons", "autoVoiceReply", "antidelete", "autoReact", "badWords", "antiLink", "antiCmd", "antiBot"];
     let dbKey = dbKeys[index];
+
+    if (index === 20 && input.length === 1) {
+        const secMsg = `🛡️ *ZANTA-MD GROUP SECURITY* 🛡️
+
+1. Anti-BadWords: ${userSettings.badWords === "true" ? "✅ ON" : "❌ OFF"}
+2. Anti-Link: ${userSettings.antiLink === "true" ? "✅ ON" : "❌ OFF"}
+3. Anti-Command: ${userSettings.antiCmd === "true" ? "✅ ON" : "❌ OFF"}
+4. Anti-Bot: ${userSettings.antiBot === "true" ? "✅ ON" : "❌ OFF"}
+
+*💡 How to change:*
+Reply with *Number + on/off*
+Ex: *21 on* (Badwords ON කිරීමට)
+    *22 off* (Link OFF කිරීමට)
+
+> *ᴘᴏဝᴇʀᴇᴅ ʙʏ ᴢᴀɴΤΑ-ᴍᴅ*`;
+
+        const sentSec = await reply(secMsg);
+        lastSecurityMessage.set(from, sentSec.key.id);
+        return;
+    }
+
+    // Security Options Update කිරීමේ පහසුව සඳහා Index Mapping එකක් (21-24 සඳහා)
+    if (index >= 21 && index <= 24) {
+        const secKeys = { 21: "badWords", 22: "antiLink", 23: "antiCmd", 24: "antiBot" };
+        let dbKey = secKeys[index];
+        
+        if (!input[1]) return reply(`⚠️ කරුණාකර 'on' හෝ 'off' ලබා දෙන්න.\nEx: *${index} on*`);
+        let finalValue = input[1].toLowerCase() === "on" ? "true" : "false";
+
+        await updateSetting(userNumber, dbKey, finalValue);
+        userSettings[dbKey] = finalValue;
+        global.BOT_SESSIONS_CONFIG[userNumber] = userSettings;
+        return reply(`✅ *${dbKey}* updated to: *${finalValue.toUpperCase()}*`);
+    }
 
     if (dbKey) {
         // Premium check for index 6 (Bot Image)
