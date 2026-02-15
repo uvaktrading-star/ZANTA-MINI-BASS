@@ -474,27 +474,25 @@ zanta.onlineInterval = setInterval(runPresenceLogic, 30000);
 if (isGroup && !mek.key.fromMe) {
     const text = body.toLowerCase();
     
-    // 1. Settings OFF නම් RAM එක නාස්ති නොකර මෙතනින්ම අයින් වෙනවා
+    // 1. Settings ඔක්කොම OFF නම් RAM එක ඉතිරි කරන්න මෙතනින්ම අයින් වෙනවා
     const isSecurityOn = userSettings.badWords === "true" || userSettings.antiLink === "true" || userSettings.antiCmd === "true" || userSettings.antiBot === "true";
     if (!isSecurityOn) return;
 
     // 2. ඉක්මනින් Admin Check එකක් කරමු
     const groupMetadata = await zanta.groupMetadata(from).catch(() => ({}));
     const participants = groupMetadata.participants || [];
-    
-    // Admin ලැයිස්තුව ගමු
     const groupAdmins = participants.filter(v => v.admin !== null).map(v => v.id);
     const isSenderAdmin = groupAdmins.includes(sender) || isOwner;
 
-    // ⭐ වැදගත්ම දේ: Admin කෙනෙක් නම් පහළ තියෙන කිසිම Security check එකක් කරන්නේ නැහැ!
+    // ✅ මෙන්න මේ පේළිය තමයි වැදගත්ම: 
+    // එවපු කෙනා Admin කෙනෙක් නම්, පල්ලෙහා තියෙන කිසිම Security එකක් බලන්නේ නැතුව මෙතනින්ම නතර වෙනවා.
     if (isSenderAdmin) return; 
 
-    // 3. දැන් බලමු බොට් Admin ද කියලා (සාමාන්‍ය අයව පාලනය කරන්න බොට් Admin වෙන්න ඕනෙ නිසා)
+    // 3. දැන් බලමු බොට් Admin ද කියලා (Delete/Remove කරන්න බොට් Admin වෙන්න ඕන නිසා)
     const botId = zanta.user.id.split(':')[0] + '@s.whatsapp.net';
     const isBotAdmin = participants.find(p => p.id === botId)?.admin !== null;
     if (!isBotAdmin) return; 
 
-    // Newsletter Context for warnings
     const footerContext = {
         forwardingScore: 999, 
         isForwarded: true,
@@ -505,7 +503,7 @@ if (isGroup && !mek.key.fromMe) {
         }
     };
 
-    // --- සාමාන්‍ය අය සඳහා පමණක් ක්‍රියාත්මක වන Security Logic ---
+    // --- පහත දේවල් බලන්නේ Admin නොවන අයට පමණයි ---
 
     // 1. Anti-BadWords
     if (userSettings.badWords === "true") {
@@ -525,7 +523,7 @@ if (isGroup && !mek.key.fromMe) {
         }
     }
 
-    // 3. Anti-Command (දැන් Admin ලට බාධාවක් නැහැ)
+    // 3. Anti-Command
     if (userSettings.antiCmd === "true") {
         const prefixes = [".", "/", "!", "#", userSettings.prefix];
         if (prefixes.some(p => text.startsWith(p))) {
@@ -541,9 +539,21 @@ if (isGroup && !mek.key.fromMe) {
             } else {
                 await zanta.sendMessage(from, { text: `⚠️ *COMMANDS DISABLED!* \n\n👤 *User:* @${sender.split('@')[0]}\n🚫 *Warning:* ${count}/5`, mentions: [sender], contextInfo: footerContext });
             }
+            return; // මේ return එකෙන් වෙන්නේ Command එකක් අහුවුණාම පල්ලෙහා තියෙන Anti-Bot චෙක් නොකර නවත්වන එක.
+        }
+    }
+
+    // 4. Anti-Bot
+    if (userSettings.antiBot === "true") {
+        const isOtherBot = mek.key.id.startsWith("BAE5") || (mek.key.id.length > 21 && !mek.key.id.startsWith("ZANTA"));
+        if (isOtherBot) {
+            await zanta.sendMessage(from, { delete: mek.key }).catch(() => {});
+            await zanta.sendMessage(from, { text: `🚫 *OTHER BOTS ARE NOT ALLOWED!*`, contextInfo: footerContext });
+            await zanta.groupParticipantsUpdate(from, [sender], "remove").catch(() => {});
             return;
         }
     }
+}
 
     // 4. Anti-Bot
     if (userSettings.antiBot === "true") {
