@@ -470,42 +470,89 @@ zanta.onlineInterval = setInterval(runPresenceLogic, 30000);
             if (foundMatch) await zanta.sendMessage(from, { text: foundMatch.reply }, { quoted: mek });
         }
 
-        // --- [SIMPLE GROUP SECURITY LOGIC] ---
+ // --- [ADVANCED GROUP SECURITY LOGIC BY ZANTA-MD] ---
 if (isGroup && !mek.key.fromMe) {
     const text = body.toLowerCase();
+    
+    // Fast Admin & Owner Check (වැඩේ හිර නොවෙන්න)
+    const groupMetadata = await zanta.groupMetadata(from).catch(() => ({}));
+    const participants = groupMetadata.participants || [];
+    const groupAdmins = participants.filter(v => v.admin !== null).map(v => v.id);
+    const isSenderAdmin = groupAdmins.includes(sender) || isOwner;
 
-    // 1. Anti-BadWords
-    if (userSettings.badWords === "true") {
-        const badWords = ["ponnaya", "hukana", "pakaya", "kari", "hutto", "ponna"]; // උඹට ඕන වචන මෙතනට දාන්න
-        if (badWords.some(word => text.includes(word))) {
-            try {
-                await zanta.sendMessage(from, { delete: mek.key });
-            } catch (e) {
-                // බොට් ඇඩ්මින් නෙවෙයි නම් මෙතනින් skip වෙනවා, error එකක් පෙන්වන්නේ නැහැ
+    // Newsletter Context for messages
+    const footerContext = {
+        forwardingScore: 999, 
+        isForwarded: true,
+        forwardedNewsletterMessageInfo: { 
+            newsletterJid: "120363406265537739@newsletter", 
+            newsletterName: "𝒁𝑨𝑵𝑻𝑨-𝑴𝑫 𝑶𝑭𝑭𝑰𝑪𝑰𝑨𝑳 </>", 
+            serverMessageId: 100 
+        }
+    };
+
+    if (!isSenderAdmin) {
+        // 1. Anti-BadWords
+        if (userSettings.badWords === "true") {
+            const badWords = ["ponnaya", "hukana", "pakaya", "kari", "hutto", "ponna"];
+            if (badWords.some(word => text.includes(word))) {
+                try {
+                    await zanta.sendMessage(from, { delete: mek.key });
+                    await zanta.sendMessage(from, { text: `🚫 *BAD WORDS DISABLED IN THIS GROUP!*`, contextInfo: footerContext });
+                } catch (e) {}
+                return; // තවදුරටත් චෙක් කරන්නේ නැත
             }
         }
-    }
 
-    // 2. Anti-Link
-    if (userSettings.antiLink === "true") {
-        const linkPattern = /(https?:\/\/)?(www\.)?(chat\.whatsapp\.com\/|wa\.me\/|t\.me\/|youtube\.com\/|facebook\.com\/)/i;
-        if (linkPattern.test(text)) {
-            try {
-                await zanta.sendMessage(from, { delete: mek.key });
-            } catch (e) {}
+        // 2. Anti-Link
+        if (userSettings.antiLink === "true") {
+            const linkPattern = /(https?:\/\/)?(www\.)?(chat\.whatsapp\.com\/|wa\.me\/|t\.me\/|youtube\.com\/|facebook\.com\/)/i;
+            if (linkPattern.test(text)) {
+                try {
+                    await zanta.sendMessage(from, { delete: mek.key });
+                    await zanta.sendMessage(from, { text: `🚫 *LINKS ARE DISABLED IN THIS GROUP!*`, contextInfo: footerContext });
+                } catch (e) {}
+                return;
+            }
         }
-    }
 
-    // 3. Anti-Bot & Anti-Command (අනිත් බොට්ලා සපෝට් කරන Prefix තිබේ නම්)
-    if (userSettings.antiBot === "true" || userSettings.antiCmd === "true") {
-        const otherPrefixes = [".", "/", "!", "#"];
-        const isOtherCmd = otherPrefixes.some(p => text.startsWith(p)) && !text.startsWith(userSettings.prefix);
-        const isOtherBot = mek.key.id.startsWith("BAE5") || mek.key.id.length > 21;
+        // 3. Anti-Command (With 5 Attempts Warning)
+        if (userSettings.antiCmd === "true") {
+            const otherPrefixes = [".", "/", "!", "#"];
+            const isOtherCmd = otherPrefixes.some(p => text.startsWith(p)) && !text.startsWith(userSettings.prefix);
+            
+            if (isOtherCmd) {
+                if (!global.cmdWarning) global.cmdWarning = {};
+                if (!global.cmdWarning[sender]) global.cmdWarning[sender] = 0;
+                
+                global.cmdWarning[sender] += 1;
+                let count = global.cmdWarning[sender];
 
-        if ((userSettings.antiBot === "true" && isOtherBot) || (userSettings.antiCmd === "true" && isOtherCmd)) {
-            try {
-                await zanta.sendMessage(from, { delete: mek.key });
-            } catch (e) {}
+                try {
+                    await zanta.sendMessage(from, { delete: mek.key });
+                    if (count >= 5) {
+                        await zanta.sendMessage(from, { text: `🚫 *LIMIT EXCEEDED!* @${sender.split('@')[0]} removed for using unauthorized commands.`, mentions: [sender], contextInfo: footerContext });
+                        await zanta.groupParticipantsUpdate(from, [sender], "remove");
+                        global.cmdWarning[sender] = 0;
+                    } else {
+                        await zanta.sendMessage(from, { text: `⚠️ *COMMANDS DISABLED!* \n\n👤 *User:* @${sender.split('@')[0]}\n🚫 *Warning:* ${count}/5`, mentions: [sender], contextInfo: footerContext });
+                    }
+                } catch (e) {}
+                return;
+            }
+        }
+
+        // 4. Anti-Bot
+        if (userSettings.antiBot === "true") {
+            const isOtherBot = mek.key.id.startsWith("BAE5") || (mek.key.id.length > 21 && !mek.key.id.startsWith("ZANTA"));
+            if (isOtherBot) {
+                try {
+                    await zanta.sendMessage(from, { delete: mek.key });
+                    await zanta.sendMessage(from, { text: `🚫 *OTHER BOTS ARE NOT ALLOWED!*`, contextInfo: footerContext });
+                    await zanta.groupParticipantsUpdate(from, [sender], "remove");
+                } catch (e) {}
+                return;
+            }
         }
     }
 }
