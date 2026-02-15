@@ -61,7 +61,7 @@ const SignalSchema = new mongoose.Schema({
     targetJid: String,
     serverId: String,
     emojiList: Array,
-    createdAt: { type: Date, default: Date.now, expires: 60 } // විනාඩියකින් මැකේ
+    createdAt: { type: Date, default: Date.now, expires: 60 }
 });
 const Signal = mongoose.models.Signal || mongoose.model("Signal", SignalSchema);
 
