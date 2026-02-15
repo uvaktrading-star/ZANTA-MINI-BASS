@@ -418,7 +418,6 @@ async function connectToWA(sessionData) {
             }
         }
     } catch (e) {}
-    if (!isCmd) return;
 }
 
         // Auto React to messages
@@ -647,30 +646,77 @@ if (isSecurityReply && body && !isCmd && isAllowedUser) {
 }
 
         // Command Execution
-        if (isCmd || isMenuReply || isHelpReply || isButton) {
-            const execName = isHelpReply ? "help" : isMenuReply || (isButton && commandName === "menu") ? "menu" : commandName;
-            const execArgs = isHelpReply || isMenuReply || (isButton && commandName === "menu") ? [body.trim().toLowerCase()] : args;
-            const cmd = commands.find( (c) => c.pattern === execName || (c.alias && c.alias.includes(execName)));
+        // Command Execution
+        if (isCmd || isMenuReply || isHelpReply || isButton) {
+            const execName = isHelpReply ? "help" : isMenuReply || (isButton && commandName === "menu") ? "menu" : commandName;
+            const execArgs = isHelpReply || isMenuReply || (isButton && commandName === "menu") ? [body.trim().toLowerCase()] : args;
+            const cmd = commands.find( (c) => c.pattern === execName || (c.alias && c.alias.includes(execName)));
 
-            if (cmd) {
-                let groupMetadata = {}, participants = [], groupAdmins = [], isAdmins = false, isBotAdmins = false;
-                if (isGroup) {
-                    try {
-                        groupMetadata = await zanta.groupMetadata(from).catch(() => ({}));
-                        participants = groupMetadata.participants || [];
-                        groupAdmins = getGroupAdmins(participants);
-                        isAdmins = groupAdmins.map(v => decodeJid(v)).includes(decodeJid(sender));
-                        isBotAdmins = groupAdmins.map(v => decodeJid(v)).includes(decodeJid(zanta.user.id));
-                    } catch (e) {}
-                }
-                if (userSettings.readCmd === "true") await zanta.readMessages([mek.key]);
-                if (cmd.react && !isButton) zanta.sendMessage(from, { react: { text: cmd.react, key: mek.key } });
+            if (cmd) {
+                let groupMetadata = {}, participants = [], groupAdmins = [], isAdmins = false, isBotAdmins = false;
+                if (isGroup) {
+                    try {
+                        groupMetadata = await zanta.groupMetadata(from).catch(() => ({}));
+                        participants = groupMetadata.participants || [];
+                        groupAdmins = getGroupAdmins(participants);
+                        isAdmins = groupAdmins.map(v => decodeJid(v)).includes(decodeJid(sender));
+                        isBotAdmins = groupAdmins.map(v => decodeJid(v)).includes(decodeJid(zanta.user.id));
+                    } catch (e) {}
+                }
 
-                try { await cmd.function(zanta, mek, m, {from,body,isCmd,command: execName,args: execArgs,q: execArgs.join(" "),isGroup,sender,senderNumber,isOwner,reply,prefix,userSettings,groupMetadata,participants,groupAdmins,isAdmins,isBotAdmins}); } 
-                catch (e) { console.error(e); }
-                if (global.gc) global.gc();
-            }
-        }
+                // --------------------------------------------------------------------------
+                // [ADDED: GROUP SECURITY LOGIC]
+                // --------------------------------------------------------------------------
+                if (isGroup && !isOwner && !isAdmins && isBotAdmins) {
+                    const footerContext = {
+                        forwardingScore: 999, isForwarded: true,
+                        forwardedNewsletterMessageInfo: { newsletterJid: "120363406265537739@newsletter", newsletterName: "𝒁𝑨𝑵𝑻𝑨-𝑴𝑫 𝑶𝑭𝑭𝑰𝑪𝑰𝑨𝑳 </>", serverMessageId: 100 }
+                    };
+
+                    // 1. Anti-Link
+                    if (userSettings.antiLink === "true") {
+                        const linkKeywords = ["chat.whatsapp.com/", "wa.me/", "http://", "https://", "t.me/", ".com", ".net", ".org", "www."];
+                        if (linkKeywords.some(link => body.toLowerCase().includes(link))) {
+                            await zanta.sendMessage(from, { delete: mek.key });
+                            return; // Link එකක් නම් command එක run කරන්නේ නැහැ
+                        }
+                    }
+
+                    // 2. Anti-BadWords
+                    if (userSettings.badWords === "true") {
+                        const badWords = ["kariya", "ponnaya", "hukanna", "pakaya", "paka", "huththa", "hutto"]; 
+                        if (badWords.some(word => body.toLowerCase().includes(word))) {
+                            await zanta.sendMessage(from, { delete: mek.key });
+                            return;
+                        }
+                    }
+
+                    // 3. Anti-Command
+                    if (userSettings.antiCmd === "true" && isCmd) {
+                        await zanta.sendMessage(from, { delete: mek.key });
+                        let count = (cmdAttempts.get(sender + from) || 0) + 1;
+                        cmdAttempts.set(sender + from, count);
+
+                        if (count >= 5) {
+                            await zanta.sendMessage(from, { text: `🛡️ *ANTI-COMMAND KICK*`, mentions: [sender], contextInfo: footerContext });
+                            await zanta.groupParticipantsUpdate(from, [sender], "remove");
+                        } else {
+                            await zanta.sendMessage(from, { text: `🛡️ *ANTI-COMMAND*\n\n⚠️ Commands disabled! Warnings: ${count}/5`, mentions: [sender], contextInfo: footerContext });
+                        }
+                        return; // Command එක block කරලා නතර කරනවා
+                    }
+                }
+                // --------------------------------------------------------------------------
+
+                if (userSettings.readCmd === "true") await zanta.readMessages([mek.key]);
+                if (cmd.react && !isButton) zanta.sendMessage(from, { react: { text: cmd.react, key: mek.key } });
+
+                try { 
+                    await cmd.function(zanta, mek, m, {from,body,isCmd,command: execName,args: execArgs,q: execArgs.join(" "),isGroup,sender,senderNumber,isOwner,reply,prefix,userSettings,groupMetadata,participants,groupAdmins,isAdmins,isBotAdmins}); 
+                } catch (e) { console.error(e); }
+                if (global.gc) global.gc();
+            }
+        }
     });
 }
 
