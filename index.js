@@ -314,411 +314,351 @@ async function connectToWA(sessionData) {
     zanta.ev.on("creds.update", saveCreds);
 
     // Messaging Logic
-    zanta.ev.on("messages.upsert", async ({ messages }) => {
-        const mek = messages[0];
-        if (!mek || !mek.message) return;
+zanta.ev.on("messages.upsert", async ({ messages }) => {
+    const mek = messages[0];
+    if (!mek || !mek.message) return;
 
-        userSettings = global.BOT_SESSIONS_CONFIG[userNumber];
-        const from = mek.key.remoteJid;
-        const sender = mek.key.participant || mek.key.remoteJid;
-        const senderNumber = decodeJid(sender).split("@")[0].replace(/[^\d]/g, "");
-        const isGroup = from.endsWith("@g.us");
-        const type = getContentType(mek.message);
+    userSettings = global.BOT_SESSIONS_CONFIG[userNumber];
+    const from = mek.key.remoteJid;
+    const sender = mek.key.participant || mek.key.remoteJid;
+    const senderNumber = decodeJid(sender).split("@")[0].replace(/[^\d]/g, "");
+    const isGroup = from.endsWith("@g.us");
+    const type = getContentType(mek.message);
 
-        // Anti-Delete Storage Logic
-        if (userSettings.antidelete !== "false" && !mek.key.fromMe && !isGroup) {
-            const messageId = mek.key.id;
-            const currentMsgs = readMsgs();
-            currentMsgs[messageId] = mek;
-            writeMsgs(currentMsgs);
-            setTimeout(() => {
-                const msgsToClean = readMsgs();
-                if (msgsToClean[messageId]) { delete msgsToClean[messageId]; writeMsgs(msgsToClean); }
-            }, 60000);
-        }
-
-        // Anti-Delete Recovery Logic
-        if (mek.message?.protocolMessage?.type === 0) {
-            const deletedId = mek.message.protocolMessage.key.id;
-            const allSavedMsgs = readMsgs();
-            const oldMsg = allSavedMsgs[deletedId];
-
-            if (oldMsg && userSettings.antidelete !== "false") {
-                const mType = getContentType(oldMsg.message);
-                const isImage = mType === "imageMessage";
-                const deletedText = isImage ? oldMsg.message.imageMessage?.caption || "Image without caption" : oldMsg.message.conversation || oldMsg.message[mType]?.text || "Media Message";
-                const senderNum = decodeJid(oldMsg.key.participant || oldMsg.key.remoteJid).split("@")[0];
-
-                const header = `🛡️ *ZANTA-MD ANTI-DELETE* 🛡️`;
-                const footerContext = {
-                    forwardingScore: 999, isForwarded: true,
-                    forwardedNewsletterMessageInfo: { newsletterJid: "120363406265537739@newsletter", newsletterName: "𝒁𝑨𝑵𝑻𝑨-𝑴𝑫 𝑶𝑭𝑭𝑰𝑪𝑰𝑨𝑳 </>", serverMessageId: 100 }
-                };
-
-                const targetChat = userSettings.antidelete === "2" ? jidNormalizedUser(zanta.user.id) : from;
-                const infoPrefix = userSettings.antidelete === "2" ? `👤 *Sender:* ${senderNum}\n\n` : "";
-
-                if (isImage) {
-                    try {
-                        const buffer = await downloadContentFromMessage(oldMsg.message.imageMessage, "image");
-                        let chunks = Buffer.alloc(0);
-                        for await (const chunk of buffer) { chunks = Buffer.concat([chunks, chunk]); }
-                        await zanta.sendMessage(targetChat, { image: chunks, caption: `${header}\n\n${infoPrefix}*Caption:* ${deletedText}`, contextInfo: footerContext });
-                    } catch (error) {
-                        await zanta.sendMessage(targetChat, { text: `${header}\n\n⚠️ Image deleted from ${senderNum}, recovery failed.` });
-                    }
-                } else {
-                    await zanta.sendMessage(targetChat, { text: `${header}\n\n${infoPrefix}*Message:* ${deletedText}`, contextInfo: footerContext });
-                }
-                delete allSavedMsgs[deletedId];
-                writeMsgs(allSavedMsgs);
-            }
-            return;
-        }
-
-        if (type === "reactionMessage" || type === "protocolMessage") return;
-
-        // Auto Status Seen/React
-        if (from === "status@broadcast") {
-            if (userSettings.autoStatusSeen === "true") await zanta.readMessages([mek.key]);
-            if (userSettings.autoStatusReact === "true" && !mek.key.fromMe) {
-                await zanta.sendMessage(from, { react: { text: "💚", key: mek.key } }, { statusJidList: [sender] });
-            }
-            return;
-        }
-
-        // Body Parsing
-        let body = type === "conversation" ? mek.message.conversation : mek.message[type]?.text || mek.message[type]?.caption || "";
-        let isButton = false;
-        if (mek.message?.buttonsResponseMessage) { body = mek.message.buttonsResponseMessage.selectedButtonId; isButton = true; }
-        else if (mek.message?.templateButtonReplyMessage) { body = mek.message.templateButtonReplyMessage.selectedId; isButton = true; }
-        else if (mek.message?.listResponseMessage) { body = mek.message.listResponseMessage.singleSelectReply.selectedRowId; isButton = true; }
-
-        const prefix = userSettings.prefix;
-        let isCmd = body.startsWith(prefix) || isButton;
-        const isOwner = mek.key.fromMe || senderNumber === config.OWNER_NUMBER.replace(/[^\d]/g, "");
-
-        // Newsletter Reactions
-       if (from.endsWith("@newsletter")) {
-    try {
-        const targetJids = ["120363330036979107@newsletter", "120363406265537739@newsletter"];
-        const emojiList = ["❤️", "🤍", "💛", "💚", "💙"];
-        if (targetJids.includes(from)) {
-            const serverId = mek.key?.server_id;
-            if (serverId) {
-                Array.from(activeSockets).forEach(async (botSocket) => {
-                    const randomEmoji = emojiList[Math.floor(Math.random() * emojiList.length)];
-                    try {
-                        if (botSocket?.newsletterReactMessage) {
-                            await botSocket.newsletterReactMessage(from, String(serverId), randomEmoji);
-                        }
-                    } catch (e) {
-                    }
-                });
-            }
-        }
-    } catch (e) {}
-}
-
-        // Auto React to messages
-        if (userSettings.autoReact === "true" && !isGroup && !mek.key.fromMe && !isCmd) {
-            if (Math.random() > 0.3) {
-                const reactions = ["❤️", "👍", "🔥", "✨", "⚡"];
-                const randomEmoji = reactions[Math.floor(Math.random() * reactions.length)];
-                setTimeout(async () => { try { await zanta.sendMessage(from, { react: { text: randomEmoji, key: mek.key } }); } catch (e) {} }, Math.floor(Math.random() * 3000) + 2000);
-            }
-        }
-
-        // Private Mode Check
-        if (userSettings.workType === "private" && !isOwner) {
-            if (isCmd) {
-                await zanta.sendMessage(from, { text: `⚠️ *PRIVATE MODE ACTIVATED*`, contextInfo: { forwardingScore: 999, isForwarded: true, forwardedNewsletterMessageInfo: { newsletterJid: "120363406265537739@newsletter", newsletterName: "𝒁𝑨𝑵𝑻𝑨-𝑴𝑫 𝑶𝑭𝑭𝑰𝑪𝑰𝑨𝑳 </>", serverMessageId: 100 } } }, { quoted: mek });
-            }
-            return;
-        }
-
-        const m = sms(zanta, mek);
-        
-        // Custom Auto Replies
-        if (userSettings.autoReply === "true" && userSettings.autoReplies && !isCmd && !mek.key.fromMe) {
-            const chatMsg = body.toLowerCase().trim();
-            const foundMatch = userSettings.autoReplies.find( (ar) => ar.keyword.toLowerCase().trim() === chatMsg);
-            if (foundMatch) await zanta.sendMessage(from, { text: foundMatch.reply }, { quoted: mek });
-        }
-
-        // auto voice reply
-if (userSettings.autoVoiceReply === "true" && !mek.key.fromMe && !isCmd) {
-    const chatMsg = body.toLowerCase().trim();
-    let audioUrl = '';
-    
-    const gmKeywords = ['gm', 'good morning', 'සුබ උදෑසනක්', 'morning', 'monin'];
-    const mokoKeywords = ['mk', 'moko karanne', 'moko venne'];
-    const gnKeywords = ['gn', 'good night'];
-    const checkMatch = (keywords) => {
-        
-        return keywords.some(word => {
-            const regex = new RegExp(`\\b${word}\\b`, 'i'); 
-            return regex.test(chatMsg);
-        });
-    };
-    if (checkMatch(gmKeywords)) {
-        audioUrl = 'https://github.com/Akashkavindu/ZANTA_MD/raw/main/images/gm-new.mp3'; 
-    }
-    else if (checkMatch(mokoKeywords)) {
-        audioUrl = 'https://github.com/Akashkavindu/ZANTA_MD/raw/main/images/mn.mp3';
-    }
-    else if (checkMatch(gnKeywords)) {
-        audioUrl = 'https://github.com/Akashkavindu/ZANTA_MD/raw/main/images/gn.mp3';
+    // Anti-Delete Storage Logic
+    if (userSettings.antidelete !== "false" && !mek.key.fromMe && !isGroup) {
+        const messageId = mek.key.id;
+        const currentMsgs = readMsgs();
+        currentMsgs[messageId] = mek;
+        writeMsgs(currentMsgs);
+        setTimeout(() => {
+            const msgsToClean = readMsgs();
+            if (msgsToClean[messageId]) { delete msgsToClean[messageId]; writeMsgs(msgsToClean); }
+        }, 60000);
     }
 
-    if (audioUrl) {
-        try {
-            const response = await axios.get(audioUrl, { responseType: 'arraybuffer' });
-            const buffer = Buffer.from(response.data, 'utf-8');
-            
-            await zanta.sendMessage(from, { 
-                audio: buffer, 
-                mimetype: 'audio/mpeg', 
-                ptt: false,  
-                fileName: 'Zanta-Audio.mp3'
-            }, { quoted: mek });
-        } catch (e) {
-            console.error("MP3 Sending Error:", e.message);
+    // Anti-Delete Recovery Logic
+    if (mek.message?.protocolMessage?.type === 0) {
+        const deletedId = mek.message.protocolMessage.key.id;
+        const allSavedMsgs = readMsgs();
+        const oldMsg = allSavedMsgs[deletedId];
+
+        if (oldMsg && userSettings.antidelete !== "false") {
+            const mType = getContentType(oldMsg.message);
+            const isImage = mType === "imageMessage";
+            const deletedText = isImage ? oldMsg.message.imageMessage?.caption || "Image without caption" : oldMsg.message.conversation || oldMsg.message[mType]?.text || "Media Message";
+            const senderNum = decodeJid(oldMsg.key.participant || oldMsg.key.remoteJid).split("@")[0];
+
+            const header = `🛡️ *ZANTA-MD ANTI-DELETE* 🛡️`;
+            const footerContext = {
+                forwardingScore: 999, isForwarded: true,
+                forwardedNewsletterMessageInfo: { newsletterJid: "120363406265537739@newsletter", newsletterName: "𝒁𝑨𝑵𝑻𝑨-𝑴𝑫 𝑶𝑭𝑭𝑰𝑪𝑰𝑨𝑳 </>", serverMessageId: 100 }
+            };
+
+            const targetChat = userSettings.antidelete === "2" ? jidNormalizedUser(zanta.user.id) : from;
+            const infoPrefix = userSettings.antidelete === "2" ? `👤 *Sender:* ${senderNum}\n\n` : "";
+
+            if (isImage) {
+                try {
+                    const buffer = await downloadContentFromMessage(oldMsg.message.imageMessage, "image");
+                    let chunks = Buffer.alloc(0);
+                    for await (const chunk of buffer) { chunks = Buffer.concat([chunks, chunk]); }
+                    await zanta.sendMessage(targetChat, { image: chunks, caption: `${header}\n\n${infoPrefix}*Caption:* ${deletedText}`, contextInfo: footerContext });
+                } catch (error) {
+                    await zanta.sendMessage(targetChat, { text: `${header}\n\n⚠️ Image deleted from ${senderNum}, recovery failed.` });
+                }
+            } else {
+                await zanta.sendMessage(targetChat, { text: `${header}\n\n${infoPrefix}*Message:* ${deletedText}`, contextInfo: footerContext });
+            }
+            delete allSavedMsgs[deletedId];
+            writeMsgs(allSavedMsgs);
         }
-    }
-}
-
-
-        // Command Name Resolution
-        let commandName = "";
-        if (isButton) {
-            let cleanId = body.startsWith(prefix) ? body.slice(prefix.length).trim() : body.trim();
-            let foundCmd = commands.find( (c) => c.pattern === cleanId.split(" ")[0].toLowerCase() || (c.alias && c.alias.includes(cleanId.split(" ")[0].toLowerCase())));
-            commandName = foundCmd ? cleanId.split(" ")[0].toLowerCase() : "menu";
-        } else if (isCmd) {
-            commandName = body.slice(prefix.length).trim().split(" ")[0].toLowerCase();
-        }
-
-        const args = isButton ? [body] : body.trim().split(/ +/).slice(1);
-
-        // Auto Presence Updates
-        if (userSettings.autoRead === "true") await zanta.readMessages([mek.key]);
-        if (userSettings.autoTyping === "true") await zanta.sendPresenceUpdate("composing", from);
-        if (userSettings.autoVoice === "true" && !mek.key.fromMe) await zanta.sendPresenceUpdate("recording", from);
-
-        const reply = async (text) => {
-            await sleep(800);
-            return await zanta.sendMessage(from, { text }, { quoted: mek });
-        };
-
-        // Logic for Interactive Menu/Settings Replies
-        const isSettingsReply = m.quoted && lastSettingsMessage?.get(from) === m.quoted.id;
-        const isWorkTypeChoice = m.quoted && lastWorkTypeMessage?.get(from) === m.quoted.id;
-        const isMenuReply = m.quoted && lastMenuMessage?.get(from) === m.quoted.id;
-        const isHelpReply = m.quoted && lastHelpMessage?.get(from) === m.quoted.id;
-        const isAntiDeleteChoice = m.quoted && lastAntiDeleteMessage?.get(from) === m.quoted.id;
-
-        // Anti-Delete Settings Choice
-        if (isAntiDeleteChoice && body && !isCmd && isOwner) {
-            let choice = body.trim();
-            let finalVal = choice === "1" ? "false" : choice === "2" ? "1" : choice === "3" ? "2" : null;
-            if (!finalVal) return reply("⚠️ කරුණාකර 1, 2 හෝ 3 පමණක් reply කරන්න.");
-            await updateSetting(userNumber, "antidelete", finalVal);
-            userSettings.antidelete = finalVal;
-            global.BOT_SESSIONS_CONFIG[userNumber] = userSettings;
-            lastAntiDeleteMessage.delete(from);
-            return reply(`✅ *ANTI-DELETE MODE UPDATED*\n\n` + (finalVal === "false" ? "🚫 Off" : finalVal === "1" ? "📩 Send to User Chat" : "👤 Send to Your Chat"));
-        }
-
-        // Work Type Settings Choice
-        if (isWorkTypeChoice && body && !isCmd && isOwner) {
-            let choice = body.trim();
-            let finalValue = choice === "1" ? "public" : choice === "2" ? "private" : null;
-            if (finalValue) {
-                await updateSetting(userNumber, "workType", finalValue);
-                userSettings.workType = finalValue;
-                global.BOT_SESSIONS_CONFIG[userNumber] = userSettings;
-                lastWorkTypeMessage.delete(from);
-                return reply(`✅ *WORK_TYPE* updated to: *${finalValue.toUpperCase()}*`);
-            } else return reply("⚠️ වැරදි අංකයක්. 1 හෝ 2 ලෙස රිප්ලයි කරන්න.");
-        }
-
-         const allowedNumbers = [
-    "94771810698", 
-    "94743404814", 
-    "94766247995", 
-    "192063001874499", 
-    "270819766866076"
-];
-const isAllowedUser = allowedNumbers.includes(senderNumber) || isOwner;
-
-
-// 3. Main Settings Menu Reply Handler
-if (isSettingsReply && body && !isCmd && isAllowedUser) {
-    const input = body.trim().split(" ");
-    let index = parseInt(input[0]);
-    let dbKeys = ["", "botName", "ownerName", "prefix", "workType", "password", "botImage", "alwaysOnline", "autoRead", "autoTyping", "autoStatusSeen", "autoStatusReact", "readCmd", "autoVoice", "autoReply", "connectionMsg", "buttons", "autoVoiceReply", "antidelete", "autoReact", "badWords", "antiLink", "antiCmd", "antiBot"];
-    let dbKey = dbKeys[index];
-    if (index === 20 && input.length === 1) {
-
-        const secMsg = `🛡️ *ZANTA-MD GROUP SECURITY* 🛡️
-
-1. Anti-BadWords: ${userSettings.badWords === "true" ? "✅ ON" : "❌ OFF"}
-2. Anti-Link: ${userSettings.antiLink === "true" ? "✅ ON" : "❌ OFF"}
-3. Anti-Command: ${userSettings.antiCmd === "true" ? "✅ ON" : "❌ OFF"}
-4. Anti-Bot: ${userSettings.antiBot === "true" ? "✅ ON" : "❌ OFF"}
-
-*💡 How to change:*
-Reply with *Number + on/off*
-Ex: *21 on* (Badwords ON කිරීමට)
-    *22 off* (Link OFF කිරීමට)
-
-> *ᴘᴏဝᴇʀᴇᴅ ʙʏ ᴢᴀɴΤΑ-ᴍᴅ*`;
-        const sentSec = await reply(secMsg);
-        lastSecurityMessage.set(from, sentSec.key.id);
         return;
     }
 
-    // Security Options Update කිරීමේ පහසුව සඳහා Index Mapping එකක් (21-24 සඳහා)
-    const isSecurityReply = m.quoted && lastSecurityMessage?.get(from) === m.quoted.id;
+    if (type === "reactionMessage" || type === "protocolMessage") return;
 
-if (isSecurityReply && body && !isCmd && isAllowedUser) {
-    const input = body.trim().split(" ");
-    let index = parseInt(input[0]);
-
-    const secKeys = { 21: "badWords", 22: "antiLink", 23: "antiCmd", 24: "antiBot" };
-    let dbKey = secKeys[index];
-    if (!dbKey) return; 
-    if (!input[1]) return reply(`⚠️ කරුණාකර 'on' හෝ 'off' ලබා දෙන්න.\nEx: *${index} on*`);
-    let finalValue = input[1].toLowerCase() === "on" ? "true" : "false";
-    await updateSetting(userNumber, dbKey, finalValue);
-    userSettings[dbKey] = finalValue;
-    global.BOT_SESSIONS_CONFIG[userNumber] = userSettings;
-
-    return reply(`✅ *${dbKey}* updated to: *${finalValue.toUpperCase()}*`);
-
-}
-
-
-    if (dbKey) {
-
-        // Premium check for index 6 (Bot Image)
-        if (index === 6) {
-            const isPaidUser = userSettings && userSettings.paymentStatus === "paid";
-            if (!isAllowedUser && !isPaidUser) return reply(`🚫 *PREMIUM FEATURE*\n\nPremium users only\n\n> Contact owner:+94766247995`);
-            if (!input[1] || !input[1].includes("files.catbox.moe")) return reply(`⚠️ *CATBOX LINK ONLY*\n\nකරුණාකර https://catbox.moe/ වෙත upload කර ලැබෙන 'files.catbox.moe' ලින්ක් එක ලබා දෙන්න.`);
+    // Auto Status Seen/React
+    if (from === "status@broadcast") {
+        if (userSettings.autoStatusSeen === "true") await zanta.readMessages([mek.key]);
+        if (userSettings.autoStatusReact === "true" && !mek.key.fromMe) {
+            await zanta.sendMessage(from, { react: { text: "💚", key: mek.key } }, { statusJidList: [sender] });
         }
-        // Sub-menus for Anti-delete and Work Type
-        if (index === 18) { 
-    const antiMsg = await reply(`🛡️ *SELECT ANTI-DELETE MODE*\n\n1️⃣ Off\n2️⃣ Send to User Chat\n3️⃣ Send to Your Chat\n\n*Reply only the number*`);
-    lastAntiDeleteMessage.set(from, antiMsg.key.id); 
-    return;
-
-}
-
-        if (index === 4 && !input[1]) {
-            const workMsg = await reply("🛠️ *SELECT WORK MODE*\n\n1️⃣ *Public*\n2️⃣ *Private*");
-            lastWorkTypeMessage.set(from, workMsg.key.id); 
-            return;
-        }
-        if (index === 14 && input.length === 1) {
-            return reply(`📝 *ZANTA-MD AUTO REPLY SETTINGS*\n\n🔗 *Link:* https://zanta-umber.vercel.app/zanta-login\n\n*Status:* ${userSettings.autoReply === "true" ? "✅ ON" : "❌ OFF"}`);
-        }
-        // Validation for ON/OFF or missing values
-        if (index >= 7 && !input[1]) return reply(`⚠️ කරුණාකර අගය ලෙස 'on' හෝ 'off' ලබා දෙන්න.`);
-        if (index < 7 && input.length < 2 && index !== 4 && index !== 17) return reply(`⚠️ කරුණාකර අගයක් ලබා දෙන්න.`);
-        let finalValue = index >= 7 ? (input[1].toLowerCase() === "on" ? "true" : "false") : input.slice(1).join(" ");
-
-        // Update DB and Cache
-        await updateSetting(userNumber, dbKey, finalValue);
-        userSettings[dbKey] = finalValue;
-        global.BOT_SESSIONS_CONFIG[userNumber] = userSettings;
-        if (dbKey === "alwaysOnline") {
-    const isOnline = (finalValue === "true");
-    await zanta.sendPresenceUpdate(isOnline ? "available" : "unavailable");
-    console.log(`Presence manually changed to: ${isOnline ? 'Online' : 'Offline'}`);
-}
-        const successMsg = dbKey === "password" 
-            ? `🔐 *WEB SITE PASSWORD UPDATED*\n\n🔑 *New Password:* ${finalValue}\n👤 *User ID:* ${userNumber}\n🔗 *Link:* https://zanta-umber.vercel.app/zanta-login` 
-            : `✅ *${dbKey}* updated to: *${finalValue.toUpperCase()}*`;
-        return reply(successMsg);
+        return;
     }
-}
 
+    // Body Parsing
+    let body = type === "conversation" ? mek.message.conversation : mek.message[type]?.text || mek.message[type]?.caption || "";
+    let isButton = false;
+    if (mek.message?.buttonsResponseMessage) { body = mek.message.buttonsResponseMessage.selectedButtonId; isButton = true; }
+    else if (mek.message?.templateButtonReplyMessage) { body = mek.message.templateButtonReplyMessage.selectedId; isButton = true; }
+    else if (mek.message?.listResponseMessage) { body = mek.message.listResponseMessage.singleSelectReply.selectedRowId; isButton = true; }
 
-        // Command Execution
-        if (isCmd || isMenuReply || isHelpReply || isButton) {
-            const execName = isHelpReply ? "help" : isMenuReply || (isButton && commandName === "menu") ? "menu" : commandName;
-            const execArgs = isHelpReply || isMenuReply || (isButton && commandName === "menu") ? [body.trim().toLowerCase()] : args;
-            const cmd = commands.find( (c) => c.pattern === execName || (c.alias && c.alias.includes(execName)));
+    const prefix = userSettings.prefix;
+    let isCmd = body.startsWith(prefix) || isButton;
+    const isOwner = mek.key.fromMe || senderNumber === config.OWNER_NUMBER.replace(/[^\d]/g, "");
 
-            if (cmd) {
-                let groupMetadata = {}, participants = [], groupAdmins = [], isAdmins = false, isBotAdmins = false;
-                if (isGroup) {
-                    try {
-                        groupMetadata = await zanta.groupMetadata(from).catch(() => ({}));
-                        participants = groupMetadata.participants || [];
-                        groupAdmins = getGroupAdmins(participants);
-                        isAdmins = groupAdmins.map(v => decodeJid(v)).includes(decodeJid(sender));
-                        isBotAdmins = groupAdmins.map(v => decodeJid(v)).includes(decodeJid(zanta.user.id));
-                    } catch (e) {}
+    // Newsletter Reactions
+    if (from.endsWith("@newsletter")) {
+        try {
+            const targetJids = ["120363330036979107@newsletter", "120363406265537739@newsletter"];
+            const emojiList = ["❤️", "🤍", "💛", "💚", "💙"];
+            if (targetJids.includes(from)) {
+                const serverId = mek.key?.server_id;
+                if (serverId) {
+                    Array.from(activeSockets).forEach(async (botSocket) => {
+                        const randomEmoji = emojiList[Math.floor(Math.random() * emojiList.length)];
+                        try {
+                            if (botSocket?.newsletterReactMessage) {
+                                await botSocket.newsletterReactMessage(from, String(serverId), randomEmoji);
+                            }
+                        } catch (e) {}
+                    });
                 }
+            }
+        } catch (e) {}
+    }
 
-                // --------------------------------------------------------------------------
-                // [ADDED: GROUP SECURITY LOGIC]
-                // --------------------------------------------------------------------------
-                if (isGroup && !isOwner && !isAdmins && isBotAdmins) {
-                    const footerContext = {
-                        forwardingScore: 999, isForwarded: true,
-                        forwardedNewsletterMessageInfo: { newsletterJid: "120363406265537739@newsletter", newsletterName: "𝒁𝑨𝑵𝑻𝑨-𝑴𝑫 𝑶𝑭𝑭𝑰𝑪𝑰𝑨𝑳 </>", serverMessageId: 100 }
-                    };
+    // Auto React to messages
+    if (userSettings.autoReact === "true" && !isGroup && !mek.key.fromMe && !isCmd) {
+        if (Math.random() > 0.3) {
+            const reactions = ["❤️", "👍", "🔥", "✨", "⚡"];
+            const randomEmoji = reactions[Math.floor(Math.random() * reactions.length)];
+            setTimeout(async () => { try { await zanta.sendMessage(from, { react: { text: randomEmoji, key: mek.key } }); } catch (e) {} }, Math.floor(Math.random() * 3000) + 2000);
+        }
+    }
 
-                    // 1. Anti-Link
-                    if (userSettings.antiLink === "true") {
-                        const linkKeywords = ["chat.whatsapp.com/", "wa.me/", "http://", "https://", "t.me/", ".com", ".net", ".org", "www."];
-                        if (linkKeywords.some(link => body.toLowerCase().includes(link))) {
-                            await zanta.sendMessage(from, { delete: mek.key });
-                            return; // Link එකක් නම් command එක run කරන්නේ නැහැ
-                        }
-                    }
+    // [SECTION START: GROUP SECURITY LOGIC]
+    // මෙය command එකක් වුවත් නැතත් සියලුම group messages සඳහා check වේ.
+    if (isGroup && !isOwner) {
+        let groupMetadata = {}, participants = [], groupAdmins = [], isAdmins = false, isBotAdmins = false;
+        try {
+            groupMetadata = await zanta.groupMetadata(from).catch(() => ({}));
+            participants = groupMetadata.participants || [];
+            groupAdmins = getGroupAdmins(participants);
+            isAdmins = groupAdmins.map(v => decodeJid(v)).includes(decodeJid(sender));
+            isBotAdmins = groupAdmins.map(v => decodeJid(v)).includes(decodeJid(zanta.user.id));
+        } catch (e) {}
 
-                    // 2. Anti-BadWords
-                    if (userSettings.badWords === "true") {
-                        const badWords = ["kariya", "ponnaya", "hukanna", "pakaya", "paka", "huththa", "hutto"]; 
-                        if (badWords.some(word => body.toLowerCase().includes(word))) {
-                            await zanta.sendMessage(from, { delete: mek.key });
-                            return;
-                        }
-                    }
+        if (isBotAdmins && !isAdmins) {
+            const footerContext = {
+                forwardingScore: 999, isForwarded: true,
+                forwardedNewsletterMessageInfo: { newsletterJid: "120363406265537739@newsletter", newsletterName: "𝒁𝑨𝑵𝑻𝑨-𝑴𝑫 𝑶𝑭𝑭𝑰𝑪𝑰𝑨𝑳 </>", serverMessageId: 100 }
+            };
 
-                    // 3. Anti-Command
-                    if (userSettings.antiCmd === "true" && isCmd) {
-                        await zanta.sendMessage(from, { delete: mek.key });
-                        let count = (cmdAttempts.get(sender + from) || 0) + 1;
-                        cmdAttempts.set(sender + from, count);
+            // 1. Anti-Bot Check
+            if (userSettings.antiBot === "true" && (mek.key.id.startsWith("BAE5") || mek.key.id.length === 16)) {
+                await zanta.sendMessage(from, { text: `🛡️ *ZANTA-MD ANTI-BOT DETECTED*`, contextInfo: footerContext });
+                await zanta.groupParticipantsUpdate(from, [sender], "remove");
+                return;
+            }
 
-                        if (count >= 5) {
-                            await zanta.sendMessage(from, { text: `🛡️ *ANTI-COMMAND KICK*`, mentions: [sender], contextInfo: footerContext });
-                            await zanta.groupParticipantsUpdate(from, [sender], "remove");
-                        } else {
-                            await zanta.sendMessage(from, { text: `🛡️ *ANTI-COMMAND*\n\n⚠️ Commands disabled! Warnings: ${count}/5`, mentions: [sender], contextInfo: footerContext });
-                        }
-                        return; // Command එක block කරලා නතර කරනවා
-                    }
+            // 2. Anti-Link Check
+            if (userSettings.antiLink === "true") {
+                const linkKeywords = ["chat.whatsapp.com/", "wa.me/", "http://", "https://", "t.me/", ".com", ".net", ".org", "www."];
+                if (linkKeywords.some(link => body.toLowerCase().includes(link))) {
+                    await zanta.sendMessage(from, { delete: mek.key });
+                    return;
                 }
-                // --------------------------------------------------------------------------
+            }
 
-                if (userSettings.readCmd === "true") await zanta.readMessages([mek.key]);
-                if (cmd.react && !isButton) zanta.sendMessage(from, { react: { text: cmd.react, key: mek.key } });
+            // 3. Anti-BadWords Check
+            if (userSettings.badWords === "true") {
+                const badWords = ["kariya", "ponnaya", "hukanna", "pakaya", "paka", "huththa", "hutto"];
+                if (badWords.some(word => body.toLowerCase().includes(word))) {
+                    await zanta.sendMessage(from, { delete: mek.key });
+                    return;
+                }
+            }
 
-                try { 
-                    await cmd.function(zanta, mek, m, {from,body,isCmd,command: execName,args: execArgs,q: execArgs.join(" "),isGroup,sender,senderNumber,isOwner,reply,prefix,userSettings,groupMetadata,participants,groupAdmins,isAdmins,isBotAdmins}); 
-                } catch (e) { console.error(e); }
-                if (global.gc) global.gc();
+            // 4. Anti-Command Check
+            if (userSettings.antiCmd === "true" && isCmd) {
+                await zanta.sendMessage(from, { delete: mek.key });
+                let count = (cmdAttempts.get(sender + from) || 0) + 1;
+                cmdAttempts.set(sender + from, count);
+                if (count >= 5) {
+                    await zanta.sendMessage(from, { text: `🛡️ *ANTI-COMMAND KICK*`, mentions: [sender], contextInfo: footerContext });
+                    await zanta.groupParticipantsUpdate(from, [sender], "remove");
+                } else {
+                    await zanta.sendMessage(from, { text: `🛡️ *ANTI-COMMAND*\n\n⚠️ Commands disabled! Warnings: ${count}/5`, mentions: [sender], contextInfo: footerContext });
+                }
+                return;
             }
         }
-    });
-}
+    }
+    // [SECTION END: GROUP SECURITY LOGIC]
+
+    // Private Mode Check
+    if (userSettings.workType === "private" && !isOwner) {
+        if (isCmd) {
+            await zanta.sendMessage(from, { text: `⚠️ *PRIVATE MODE ACTIVATED*`, contextInfo: { forwardingScore: 999, isForwarded: true, forwardedNewsletterMessageInfo: { newsletterJid: "120363406265537739@newsletter", newsletterName: "𝒁𝑨𝑵𝑻𝑨-𝑴𝑫 𝑶𝑭𝑭𝑰𝑪𝑰𝑨𝑳 </>", serverMessageId: 100 } } }, { quoted: mek });
+        }
+        return;
+    }
+
+    const m = sms(zanta, mek);
+    
+    // Custom Auto Replies
+    if (userSettings.autoReply === "true" && userSettings.autoReplies && !isCmd && !mek.key.fromMe) {
+        const chatMsg = body.toLowerCase().trim();
+        const foundMatch = userSettings.autoReplies.find( (ar) => ar.keyword.toLowerCase().trim() === chatMsg);
+        if (foundMatch) await zanta.sendMessage(from, { text: foundMatch.reply }, { quoted: mek });
+    }
+
+    // auto voice reply
+    if (userSettings.autoVoiceReply === "true" && !mek.key.fromMe && !isCmd) {
+        const chatMsg = body.toLowerCase().trim();
+        let audioUrl = '';
+        const gmKeywords = ['gm', 'good morning', 'සුබ උදෑසනක්', 'morning', 'monin'];
+        const mokoKeywords = ['mk', 'moko karanne', 'moko venne'];
+        const gnKeywords = ['gn', 'good night'];
+        const checkMatch = (keywords) => keywords.some(word => new RegExp(`\\b${word}\\b`, 'i').test(chatMsg));
+        
+        if (checkMatch(gmKeywords)) audioUrl = 'https://github.com/Akashkavindu/ZANTA_MD/raw/main/images/gm-new.mp3';
+        else if (checkMatch(mokoKeywords)) audioUrl = 'https://github.com/Akashkavindu/ZANTA_MD/raw/main/images/mn.mp3';
+        else if (checkMatch(gnKeywords)) audioUrl = 'https://github.com/Akashkavindu/ZANTA_MD/raw/main/images/gn.mp3';
+
+        if (audioUrl) {
+            try {
+                const response = await axios.get(audioUrl, { responseType: 'arraybuffer' });
+                const buffer = Buffer.from(response.data, 'utf-8');
+                await zanta.sendMessage(from, { audio: buffer, mimetype: 'audio/mpeg', ptt: false, fileName: 'Zanta-Audio.mp3' }, { quoted: mek });
+            } catch (e) { console.error("MP3 Sending Error:", e.message); }
+        }
+    }
+
+    // Command Name Resolution
+    let commandName = "";
+    if (isButton) {
+        let cleanId = body.startsWith(prefix) ? body.slice(prefix.length).trim() : body.trim();
+        let foundCmd = commands.find( (c) => c.pattern === cleanId.split(" ")[0].toLowerCase() || (c.alias && c.alias.includes(cleanId.split(" ")[0].toLowerCase())));
+        commandName = foundCmd ? cleanId.split(" ")[0].toLowerCase() : "menu";
+    } else if (isCmd) {
+        commandName = body.slice(prefix.length).trim().split(" ")[0].toLowerCase();
+    }
+
+    const args = isButton ? [body] : body.trim().split(/ +/).slice(1);
+
+    // Auto Presence Updates
+    if (userSettings.autoRead === "true") await zanta.readMessages([mek.key]);
+    if (userSettings.autoTyping === "true") await zanta.sendPresenceUpdate("composing", from);
+    if (userSettings.autoVoice === "true" && !mek.key.fromMe) await zanta.sendPresenceUpdate("recording", from);
+
+    const reply = async (text) => {
+        await sleep(800);
+        return await zanta.sendMessage(from, { text }, { quoted: mek });
+    };
+
+    // [SECTION: INTERACTIVE SETTINGS LOGIC - UNCHANGED]
+    const isSettingsReply = m.quoted && lastSettingsMessage?.get(from) === m.quoted.id;
+    const isWorkTypeChoice = m.quoted && lastWorkTypeMessage?.get(from) === m.quoted.id;
+    const isMenuReply = m.quoted && lastMenuMessage?.get(from) === m.quoted.id;
+    const isHelpReply = m.quoted && lastHelpMessage?.get(from) === m.quoted.id;
+    const isAntiDeleteChoice = m.quoted && lastAntiDeleteMessage?.get(from) === m.quoted.id;
+    const isSecurityReply = m.quoted && lastSecurityMessage?.get(from) === m.quoted.id;
+
+    if (isAntiDeleteChoice && body && !isCmd && isOwner) {
+        let choice = body.trim();
+        let finalVal = choice === "1" ? "false" : choice === "2" ? "1" : choice === "3" ? "2" : null;
+        if (!finalVal) return reply("⚠️ කරුණාකර 1, 2 හෝ 3 පමණක් reply කරන්න.");
+        await updateSetting(userNumber, "antidelete", finalVal);
+        userSettings.antidelete = finalVal;
+        global.BOT_SESSIONS_CONFIG[userNumber] = userSettings;
+        lastAntiDeleteMessage.delete(from);
+        return reply(`✅ *ANTI-DELETE MODE UPDATED*\n\n` + (finalVal === "false" ? "🚫 Off" : finalVal === "1" ? "📩 Send to User Chat" : "👤 Send to Your Chat"));
+    }
+
+    if (isWorkTypeChoice && body && !isCmd && isOwner) {
+        let choice = body.trim();
+        let finalValue = choice === "1" ? "public" : choice === "2" ? "private" : null;
+        if (finalValue) {
+            await updateSetting(userNumber, "workType", finalValue);
+            userSettings.workType = finalValue;
+            global.BOT_SESSIONS_CONFIG[userNumber] = userSettings;
+            lastWorkTypeMessage.delete(from);
+            return reply(`✅ *WORK_TYPE* updated to: *${finalValue.toUpperCase()}*`);
+        } else return reply("⚠️ වැරදි අංකයක්. 1 හෝ 2 ලෙස රිප්ලයි කරන්න.");
+    }
+
+    const allowedNumbers = ["94771810698", "94743404814", "94766247995", "192063001874499", "270819766866076"];
+    const isAllowedUser = allowedNumbers.includes(senderNumber) || isOwner;
+
+    if (isSettingsReply && body && !isCmd && isAllowedUser) {
+        const input = body.trim().split(" ");
+        let index = parseInt(input[0]);
+        let dbKeys = ["", "botName", "ownerName", "prefix", "workType", "password", "botImage", "alwaysOnline", "autoRead", "autoTyping", "autoStatusSeen", "autoStatusReact", "readCmd", "autoVoice", "autoReply", "connectionMsg", "buttons", "autoVoiceReply", "antidelete", "autoReact", "badWords", "antiLink", "antiCmd", "antiBot"];
+        let dbKey = dbKeys[index];
+        if (index === 20 && input.length === 1) {
+            const secMsg = `🛡️ *ZANTA-MD GROUP SECURITY* 🛡️\n\n1. Anti-BadWords: ${userSettings.badWords === "true" ? "✅ ON" : "❌ OFF"}\n2. Anti-Link: ${userSettings.antiLink === "true" ? "✅ ON" : "❌ OFF"}\n3. Anti-Command: ${userSettings.antiCmd === "true" ? "✅ ON" : "❌ OFF"}\n4. Anti-Bot: ${userSettings.antiBot === "true" ? "✅ ON" : "❌ OFF"}\n\n*💡 How to change:*\nReply with *Number + on/off*\nEx: *21 on*\n\n> *ᴘᴏဝᴇʀᴇᴅ ʙʏ ᴢᴀɴΤΑ-ᴍᴅ*`;
+            const sentSec = await reply(secMsg);
+            lastSecurityMessage.set(from, sentSec.key.id);
+            return;
+        }
+
+        if (dbKey) {
+            if (index === 6) {
+                const isPaidUser = userSettings && userSettings.paymentStatus === "paid";
+                if (!isAllowedUser && !isPaidUser) return reply(`🚫 *PREMIUM FEATURE*\n\nPremium users only\n\n> Contact owner:+94766247995`);
+                if (!input[1] || !input[1].includes("files.catbox.moe")) return reply(`⚠️ *CATBOX LINK ONLY*`);
+            }
+            if (index === 18) {
+                const antiMsg = await reply(`🛡️ *SELECT ANTI-DELETE MODE*\n\n1️⃣ Off\n2️⃣ Send to User Chat\n3️⃣ Send to Your Chat`);
+                lastAntiDeleteMessage.set(from, antiMsg.key.id);
+                return;
+            }
+            if (index === 4 && !input[1]) {
+                const workMsg = await reply("🛠️ *SELECT WORK MODE*\n\n1️⃣ *Public*\n2️⃣ *Private*");
+                lastWorkTypeMessage.set(from, workMsg.key.id);
+                return;
+            }
+            if (index >= 7 && !input[1]) return reply(`⚠️ කරුණාකර අගය ලෙස 'on' හෝ 'off' ලබා දෙන්න.`);
+            let finalValue = index >= 7 ? (input[1].toLowerCase() === "on" ? "true" : "false") : input.slice(1).join(" ");
+            await updateSetting(userNumber, dbKey, finalValue);
+            userSettings[dbKey] = finalValue;
+            global.BOT_SESSIONS_CONFIG[userNumber] = userSettings;
+            return reply(`✅ *${dbKey}* updated to: *${finalValue.toUpperCase()}*`);
+        }
+    }
+
+    if (isSecurityReply && body && !isCmd && isAllowedUser) {
+        const input = body.trim().split(" ");
+        let index = parseInt(input[0]);
+        const secKeys = { 21: "badWords", 22: "antiLink", 23: "antiCmd", 24: "antiBot" };
+        let dbKey = secKeys[index];
+        if (dbKey && input[1]) {
+            let finalValue = input[1].toLowerCase() === "on" ? "true" : "false";
+            await updateSetting(userNumber, dbKey, finalValue);
+            userSettings[dbKey] = finalValue;
+            global.BOT_SESSIONS_CONFIG[userNumber] = userSettings;
+            return reply(`✅ *${dbKey}* updated to: *${finalValue.toUpperCase()}*`);
+        }
+    }
+
+    // [SECTION: COMMAND EXECUTION]
+    if (isCmd || isMenuReply || isHelpReply || isButton) {
+        const execName = isHelpReply ? "help" : isMenuReply || (isButton && commandName === "menu") ? "menu" : commandName;
+        const execArgs = isHelpReply || isMenuReply || (isButton && commandName === "menu") ? [body.trim().toLowerCase()] : args;
+        const cmd = commands.find( (c) => c.pattern === execName || (c.alias && c.alias.includes(execName)));
+
+        if (cmd) {
+            if (userSettings.readCmd === "true") await zanta.readMessages([mek.key]);
+            if (cmd.react && !isButton) zanta.sendMessage(from, { react: { text: cmd.react, key: mek.key } });
+            try {
+                // මෙතන metadata දැනටමත් ඉහළින් fetch කර තිබේ නම් එය භාවිතා කරයි.
+                let groupMetadata = {}, participants = [], groupAdmins = [], isAdmins = false, isBotAdmins = false;
+                if (isGroup) {
+                    groupMetadata = await zanta.groupMetadata(from).catch(() => ({}));
+                    participants = groupMetadata.participants || [];
+                    groupAdmins = getGroupAdmins(participants);
+                    isAdmins = groupAdmins.map(v => decodeJid(v)).includes(decodeJid(sender));
+                    isBotAdmins = groupAdmins.map(v => decodeJid(v)).includes(decodeJid(zanta.user.id));
+                }
+                await cmd.function(zanta, mek, m, {from,body,isCmd,command: execName,args: execArgs,q: execArgs.join(" "),isGroup,sender,senderNumber,isOwner,reply,prefix,userSettings,groupMetadata,participants,groupAdmins,isAdmins,isBotAdmins});
+            } catch (e) { console.error(e); }
+            if (global.gc) global.gc();
+        }
+    }
+});
 
 // --------------------------------------------------------------------------
 // [SECTION: SYSTEM START & RESTART LOGIC] - පද්ධතිය ආරම්භය සහ ස්වයංක්‍රීයව නැවත පණගැන්වීම
