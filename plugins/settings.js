@@ -6,6 +6,7 @@ const config = require("../config");
 const DEFAULT_IMG = "https://github.com/Akashkavindu/ZANTA_MD/blob/main/images/zanta-md.png?raw=true";
 
 const lastSettingsMessage = new Map();
+const lastSecurityMessage = new Map(); // Security sub-menu එක track කිරීමට
 
 cmd({
     pattern: "settings",
@@ -17,7 +18,6 @@ cmd({
 }, async (zanta, mek, m, { from, reply, sender, isOwner, prefix, userSettings }) => {
 
     // --- 🛡️ Access Control Setup ---
-    // මෙහි ඇති අංක වලට සහ Bot Owner ට පමණක් Dashboard එක විවෘත වේ.
     const allowedNumbers = [
         "94771810698", 
         "94743404814", 
@@ -54,6 +54,10 @@ cmd({
         return '『 ❌ OFF 』';
     };
 
+    // Security Status: එකක් හරි ON නම් Dashboard එකේ ON ලෙස පෙන්වයි
+    const isSecurityOn = settings.badWords === "true" || settings.antiLink === "true" || settings.antiCmd === "true" || settings.antiBot === "true";
+    const securityStatus = isSecurityOn ? '『 ✅ ON 』' : '『 ❌ OFF 』';
+
     let statusText = `⚡ *${botName.toUpperCase()} PREMIUM DASHBOARD* ⚡\n\n`;
 
     statusText += `*—「 BASIC CONFIGS 」—*\n\n`;
@@ -71,13 +75,14 @@ cmd({
     statusText += `10. 👁️ *Status Seen:* ${getStatus(settings.autoStatusSeen)}\n`;
     statusText += `11. ❤️ *Status React:* ${getStatus(settings.autoStatusReact)}\n`;
     statusText += `12. 📑 *Read Cmd:* ${getStatus(settings.readCmd)}\n`;
-    statusText += `13. 🎙️ *Recording Status:* ${getStatus(settings.autoVoice)}\n`;
+    statusText += `13. 🎙️ *Recording Voice:* ${getStatus(settings.autoVoice)}\n`;
     statusText += `14. 🤖 *Auto Reply:* ${getStatus(settings.autoReply)}\n`;
     statusText += `15. 🔔 *Connect Msg:* ${getStatus(settings.connectionMsg)}\n`;
-    statusText += `16. 🔘 *Buttons Mod:* ${getStatus(settings.buttons)}\n`;
-    statusText += `17. 🎵 *Auto Voice Reply:* ${getStatus(settings.autoVoiceReply)}\n`;
+    statusText += `16. 🔘 *Buttons:* ${getStatus(settings.buttons)}\n`;
+    statusText += `17. 🎵 *Voice Reply:* ${getStatus(settings.autoVoiceReply)}\n`;
     statusText += `18. 🛡️ *Anti-Delete:* ${getAntiDeleteStatus(settings.antidelete)}\n`;
-    statusText += `19. ⚡ *Auto React:* ${getStatus(settings.autoReact)}\n\n`;
+    statusText += `19. ⚡ *Auto React:* ${getStatus(settings.autoReact)}\n`;
+    statusText += `20. 🛡️ *Group Security:* ${securityStatus}\n\n`;
 
     statusText += `*–––––––––––––––––––––––––*\n`;
     statusText += `*💡 EDIT SETTINGS:* \n`;
@@ -101,4 +106,4 @@ cmd({
     }, 30 * 60 * 1000); 
 });
 
-module.exports = { lastSettingsMessage };
+module.exports = { lastSettingsMessage, lastSecurityMessage };
