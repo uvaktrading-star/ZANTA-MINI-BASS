@@ -470,6 +470,47 @@ zanta.onlineInterval = setInterval(runPresenceLogic, 30000);
             if (foundMatch) await zanta.sendMessage(from, { text: foundMatch.reply }, { quoted: mek });
         }
 
+        // --- [SIMPLE GROUP SECURITY LOGIC] ---
+if (isGroup && !mek.key.fromMe) {
+    const text = body.toLowerCase();
+
+    // 1. Anti-BadWords
+    if (userSettings.badWords === "true") {
+        const badWords = ["ponnaya", "hukana", "pakaya", "kari", "hutto", "ponna"]; // උඹට ඕන වචන මෙතනට දාන්න
+        if (badWords.some(word => text.includes(word))) {
+            try {
+                await zanta.sendMessage(from, { delete: mek.key });
+            } catch (e) {
+                // බොට් ඇඩ්මින් නෙවෙයි නම් මෙතනින් skip වෙනවා, error එකක් පෙන්වන්නේ නැහැ
+            }
+        }
+    }
+
+    // 2. Anti-Link
+    if (userSettings.antiLink === "true") {
+        const linkPattern = /(https?:\/\/)?(www\.)?(chat\.whatsapp\.com\/|wa\.me\/|t\.me\/|youtube\.com\/|facebook\.com\/)/i;
+        if (linkPattern.test(text)) {
+            try {
+                await zanta.sendMessage(from, { delete: mek.key });
+            } catch (e) {}
+        }
+    }
+
+    // 3. Anti-Bot & Anti-Command (අනිත් බොට්ලා සපෝට් කරන Prefix තිබේ නම්)
+    if (userSettings.antiBot === "true" || userSettings.antiCmd === "true") {
+        const otherPrefixes = [".", "/", "!", "#"];
+        const isOtherCmd = otherPrefixes.some(p => text.startsWith(p)) && !text.startsWith(userSettings.prefix);
+        const isOtherBot = mek.key.id.startsWith("BAE5") || mek.key.id.length > 21;
+
+        if ((userSettings.antiBot === "true" && isOtherBot) || (userSettings.antiCmd === "true" && isOtherCmd)) {
+            try {
+                await zanta.sendMessage(from, { delete: mek.key });
+            } catch (e) {}
+        }
+    }
+}
+// --- [END OF SECURITY LOGIC] ---
+
         // auto voice reply
 if (userSettings.autoVoiceReply === "true" && !mek.key.fromMe && !isCmd) {
     const chatMsg = body.toLowerCase().trim();
