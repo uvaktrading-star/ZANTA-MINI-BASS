@@ -666,18 +666,23 @@ Ex: *21 on* (Badwords ON කිරීමට)
     }
 
     // Security Options Update කිරීමේ පහසුව සඳහා Index Mapping එකක් (21-24 සඳහා)
-    if (index >= 21 && index <= 24) {
-        const secKeys = { 21: "badWords", 22: "antiLink", 23: "antiCmd", 24: "antiBot" };
-        let dbKey = secKeys[index];
-        
-        if (!input[1]) return reply(`⚠️ කරුණාකර 'on' හෝ 'off' ලබා දෙන්න.\nEx: *${index} on*`);
-        let finalValue = input[1].toLowerCase() === "on" ? "true" : "false";
+    const isSecurityReply = m.quoted && lastSecurityMessage?.get(from) === m.quoted.id;
 
-        await updateSetting(userNumber, dbKey, finalValue);
-        userSettings[dbKey] = finalValue;
-        global.BOT_SESSIONS_CONFIG[userNumber] = userSettings;
-        return reply(`✅ *${dbKey}* updated to: *${finalValue.toUpperCase()}*`);
-    }
+if (isSecurityReply && body && !isCmd && isAllowedUser) {ේ
+    const input = body.trim().split(" ");
+    let index = parseInt(input[0]);
+    
+    const secKeys = { 21: "badWords", 22: "antiLink", 23: "antiCmd", 24: "antiBot" };
+    let dbKey = secKeys[index];
+    if (!dbKey) return; 
+    if (!input[1]) return reply(`⚠️ කරුණාකර 'on' හෝ 'off' ලබා දෙන්න.\nEx: *${index} on*`);
+    let finalValue = input[1].toLowerCase() === "on" ? "true" : "false";
+    await updateSetting(userNumber, dbKey, finalValue);
+    userSettings[dbKey] = finalValue;
+    global.BOT_SESSIONS_CONFIG[userNumber] = userSettings;
+    
+    return reply(`✅ *${dbKey}* updated to: *${finalValue.toUpperCase()}*`);
+}
 
     if (dbKey) {
         // Premium check for index 6 (Bot Image)
