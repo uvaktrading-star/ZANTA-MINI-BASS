@@ -642,8 +642,7 @@ const allowedNumbers = [
 ];
 const isAllowedUser = allowedNumbers.includes(senderNumber) || isOwner;
 
-
-// 1. Anti-Delete Settings Choice (මෙය දැනටමත් වැඩ කරයි)
+// 1. Anti-Delete Settings Choice
 if (isAntiDeleteChoice && body && !isCmd && isAllowedUser) {
     let choice = body.trim().split(" ")[0];
     let finalVal = choice === "1" ? "false" : choice === "2" ? "1" : choice === "3" ? "2" : null;
@@ -668,27 +667,20 @@ if (isWorkTypeChoice && body && !isCmd && isAllowedUser) {
     } else return reply("⚠️ වැරදි අංකයක්. 1 හෝ 2 ලෙස රිප්ලයි කරන්න.");
 }
 
-// 3. Security Menu Sub-Reply Handler (Anti-delete විදිහටම සකස් කරන ලදී)
+// 3. Security Menu Sub-Reply Handler (මෙය Main Settings එකට උඩින් තැබීමෙන් ගැටලුව විසඳේ)
 const isSecurityReply = m.quoted && lastSecurityMessage?.get(from) === m.quoted.id;
 if (isSecurityReply && body && !isCmd && isAllowedUser) {
     const input = body.trim().split(" ");
     let index = parseInt(input[0]);
-    
-    // index එක 21-24 අතර නම් පමණක් ක්‍රියාත්මක වේ
     const secKeys = { 21: "badWords", 22: "antiLink", 23: "antiCmd", 24: "antiBot" };
     let dbKey = secKeys[index];
 
     if (dbKey) {
         if (!input[1]) return reply(`⚠️ කරුණාකර 'on' හෝ 'off' ලබා දෙන්න.\nEx: *${index} on*`);
         let finalValue = input[1].toLowerCase() === "on" ? "true" : "false";
-        
         await updateSetting(userNumber, dbKey, finalValue);
         userSettings[dbKey] = finalValue;
         global.BOT_SESSIONS_CONFIG[userNumber] = userSettings;
-        
-        // Settings update වූ පසු security message එක cache එකෙන් අයින් කරයි (අවශ්‍ය නම් පමණක්)
-        // lastSecurityMessage.delete(from); 
-        
         return reply(`✅ *${dbKey}* updated to: *${finalValue.toUpperCase()}*`);
     }
 }
@@ -717,18 +709,17 @@ Ex: *21 on* (Badwords ON කිරීමට)
 > *ᴘᴏဝᴇʀᴇᴅ ʙʏ ᴢᴀɴΤΑ-ᴍᴅ*`;
         const sentSec = await reply(secMsg);
         lastSecurityMessage.set(from, sentSec.key.id);
-        return;
+        return; // Security menu එක පෙන්නපු ගමන් මෙතනින් නවතිනවා
     }
 
-    if (dbKey) {
-        // Premium check for index 6
+    // මෙතනින් පල්ලෙහාට යන්නේ index 21-24 නෙවෙයි නම් පමණයි
+    if (dbKey && index < 21) {
         if (index === 6) {
             const isPaidUser = userSettings && userSettings.paymentStatus === "paid";
             if (!isAllowedUser && !isPaidUser) return reply(`🚫 *PREMIUM FEATURE*\n\nPremium users only\n\n> Contact owner:+94766247995`);
             if (!input[1] || !input[1].includes("files.catbox.moe")) return reply(`⚠️ *CATBOX LINK ONLY*\n\nකරුණාකර https://catbox.moe/ වෙත upload කර ලැබෙන 'files.catbox.moe' ලින්ක් එක ලබා දෙන්න.`);
         }
 
-        // Sub-menus
         if (index === 18) { 
             const antiMsg = await reply(`🛡️ *SELECT ANTI-DELETE MODE*\n\n1️⃣ Off\n2️⃣ Send to User Chat\n3️⃣ Send to Your Chat\n\n*Reply only the number*`);
             lastAntiDeleteMessage.set(from, antiMsg.key.id); 
@@ -745,7 +736,6 @@ Ex: *21 on* (Badwords ON කිරීමට)
             return reply(`📝 *ZANTA-MD AUTO REPLY SETTINGS*\n\n🔗 *Link:* https://zanta-umber.vercel.app/zanta-login\n\n*Status:* ${userSettings.autoReply === "true" ? "✅ ON" : "❌ OFF"}`);
         }
 
-        // Validation for ON/OFF
         if (index >= 7 && !input[1]) return reply(`⚠️ කරුණාකර අගය ලෙස 'on' හෝ 'off' ලබා දෙන්න.`);
         if (index < 7 && input.length < 2 && index !== 4 && index !== 17) return reply(`⚠️ කරුණාකර අගයක් ලබා දෙන්න.`);
         
