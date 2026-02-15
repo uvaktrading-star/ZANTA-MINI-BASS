@@ -579,9 +579,46 @@ const isAllowedUser = allowedNumbers.includes(senderNumber) || isOwner;
 if (isSettingsReply && body && !isCmd && isAllowedUser) {
     const input = body.trim().split(" ");
     let index = parseInt(input[0]);
-    let dbKeys = ["", "botName", "ownerName", "prefix", "workType", "password", "botImage", "alwaysOnline", "autoRead", "autoTyping", "autoStatusSeen", "autoStatusReact", "readCmd", "autoVoice", "autoReply", "connectionMsg", "buttons", "autoVoiceReply", "antidelete", "autoReact"];
+    let dbKeys = ["", "botName", "ownerName", "prefix", "workType", "password", "botImage", "alwaysOnline", "autoRead", "autoTyping", "autoStatusSeen", "autoStatusReact", "readCmd", "autoVoice", "autoReply", "connectionMsg", "buttons", "autoVoiceReply", "antidelete", "autoReact", "badWords", "antiLink", "antiCmd", "antiBot"];
     let dbKey = dbKeys[index];
+    if (index === 20 && input.length === 1) {
+        
+        const secMsg = `🛡️ *ZANTA-MD GROUP SECURITY* 🛡️
+        
+1. Anti-BadWords: ${userSettings.badWords === "true" ? "✅ ON" : "❌ OFF"}
+2. Anti-Link: ${userSettings.antiLink === "true" ? "✅ ON" : "❌ OFF"}
+3. Anti-Command: ${userSettings.antiCmd === "true" ? "✅ ON" : "❌ OFF"}
+4. Anti-Bot: ${userSettings.antiBot === "true" ? "✅ ON" : "❌ OFF"}
 
+*💡 How to change:*
+Reply with *Number + on/off*
+Ex: *21 on* (Badwords ON කිරීමට)
+    *22 off* (Link OFF කිරීමට)
+
+> *ᴘᴏဝᴇʀᴇᴅ ʙʏ ᴢᴀɴΤΑ-ᴍᴅ*`;
+        const sentSec = await reply(secMsg);
+        lastSecurityMessage.set(from, sentSec.key.id);
+        return;
+    }
+
+    // Security Options Update කිරීමේ පහසුව සඳහා Index Mapping එකක් (21-24 සඳහා)
+    const isSecurityReply = m.quoted && lastSecurityMessage?.get(from) === m.quoted.id;
+
+if (isSecurityReply && body && !isCmd && isAllowedUser) {
+    const input = body.trim().split(" ");
+    let index = parseInt(input[0]);
+
+    const secKeys = { 21: "badWords", 22: "antiLink", 23: "antiCmd", 24: "antiBot" };
+    let dbKey = secKeys[index];
+    if (!dbKey) return; 
+    if (!input[1]) return reply(`⚠️ කරුණාකර 'on' හෝ 'off' ලබා දෙන්න.\nEx: *${index} on*`);
+    let finalValue = input[1].toLowerCase() === "on" ? "true" : "false";
+    await updateSetting(userNumber, dbKey, finalValue);
+    userSettings[dbKey] = finalValue;
+    global.BOT_SESSIONS_CONFIG[userNumber] = userSettings;
+    return reply(`✅ *${dbKey}* updated to: *${finalValue.toUpperCase()}*`);
+
+}
     if (dbKey) {
         // Premium check for index 6 (Bot Image)
         if (index === 6) {
@@ -595,7 +632,9 @@ if (isSettingsReply && body && !isCmd && isAllowedUser) {
     const antiMsg = await reply(`🛡️ *SELECT ANTI-DELETE MODE*\n\n1️⃣ Off\n2️⃣ Send to User Chat\n3️⃣ Send to Your Chat\n\n*Reply only the number*`);
     lastAntiDeleteMessage.set(from, antiMsg.key.id); 
     return;
+
 }
+
         if (index === 4 && !input[1]) {
             const workMsg = await reply("🛠️ *SELECT WORK MODE*\n\n1️⃣ *Public*\n2️⃣ *Private*");
             lastWorkTypeMessage.set(from, workMsg.key.id); 
@@ -604,31 +643,29 @@ if (isSettingsReply && body && !isCmd && isAllowedUser) {
         if (index === 14 && input.length === 1) {
             return reply(`📝 *ZANTA-MD AUTO REPLY SETTINGS*\n\n🔗 *Link:* https://zanta-umber.vercel.app/zanta-login\n\n*Status:* ${userSettings.autoReply === "true" ? "✅ ON" : "❌ OFF"}`);
         }
-
         // Validation for ON/OFF or missing values
         if (index >= 7 && !input[1]) return reply(`⚠️ කරුණාකර අගය ලෙස 'on' හෝ 'off' ලබා දෙන්න.`);
         if (index < 7 && input.length < 2 && index !== 4 && index !== 17) return reply(`⚠️ කරුණාකර අගයක් ලබා දෙන්න.`);
-
         let finalValue = index >= 7 ? (input[1].toLowerCase() === "on" ? "true" : "false") : input.slice(1).join(" ");
-        
+
+
         // Update DB and Cache
         await updateSetting(userNumber, dbKey, finalValue);
         userSettings[dbKey] = finalValue;
         global.BOT_SESSIONS_CONFIG[userNumber] = userSettings;
-
         if (dbKey === "alwaysOnline") {
     const isOnline = (finalValue === "true");
     await zanta.sendPresenceUpdate(isOnline ? "available" : "unavailable");
     console.log(`Presence manually changed to: ${isOnline ? 'Online' : 'Offline'}`);
-}
 
+}
         const successMsg = dbKey === "password" 
+
             ? `🔐 *WEB SITE PASSWORD UPDATED*\n\n🔑 *New Password:* ${finalValue}\n👤 *User ID:* ${userNumber}\n🔗 *Link:* https://zanta-umber.vercel.app/zanta-login` 
             : `✅ *${dbKey}* updated to: *${finalValue.toUpperCase()}*`;
         return reply(successMsg);
     }
 }
-
         // Command Execution
         if (isCmd || isMenuReply || isHelpReply || isButton) {
             const execName = isHelpReply ? "help" : isMenuReply || (isButton && commandName === "menu") ? "menu" : commandName;
