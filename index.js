@@ -474,21 +474,20 @@ zanta.onlineInterval = setInterval(runPresenceLogic, 30000);
 if (isGroup && !mek.key.fromMe) {
     const text = body.toLowerCase();
     
-    // 1. Settings ඔක්කොම OFF නම් RAM එක ඉතිරි කරන්න මෙතනින්ම අයින් වෙනවා
-    const isSecurityOn = userSettings.badWords === "true" || userSettings.antiLink === "true" || userSettings.antiCmd === "true" || userSettings.antiBot === "true";
+    // 1. Settings OFF නම් මෙතනින්ම අයින් වෙනවා
+    const isSecurityOn = (userSettings.badWords === "true" || userSettings.antiLink === "true" || userSettings.antiCmd === "true" || userSettings.antiBot === "true");
     if (!isSecurityOn) return;
 
-    // 2. ඉක්මනින් Admin Check එකක් කරමු
+    // 2. Admin Check (මෙය මුලටම අවශ්‍යයි)
     const groupMetadata = await zanta.groupMetadata(from).catch(() => ({}));
     const participants = groupMetadata.participants || [];
     const groupAdmins = participants.filter(v => v.admin !== null).map(v => v.id);
     const isSenderAdmin = groupAdmins.includes(sender) || isOwner;
 
-    // ✅ මෙන්න මේ පේළිය තමයි වැදගත්ම: 
-    // එවපු කෙනා Admin කෙනෙක් නම්, පල්ලෙහා තියෙන කිසිම Security එකක් බලන්නේ නැතුව මෙතනින්ම නතර වෙනවා.
+    // Admin කෙනෙක් නම් පහළ ඒවා බලන්නේ නැහැ
     if (isSenderAdmin) return; 
 
-    // 3. දැන් බලමු බොට් Admin ද කියලා (Delete/Remove කරන්න බොට් Admin වෙන්න ඕන නිසා)
+    // 3. Bot Admin ද බලමු
     const botId = zanta.user.id.split(':')[0] + '@s.whatsapp.net';
     const isBotAdmin = participants.find(p => p.id === botId)?.admin !== null;
     if (!isBotAdmin) return; 
@@ -503,14 +502,15 @@ if (isGroup && !mek.key.fromMe) {
         }
     };
 
-    // --- පහත දේවල් බලන්නේ Admin නොවන අයට පමණයි ---
+    // --- SECURITY CHECKS ---
 
     // 1. Anti-BadWords
     if (userSettings.badWords === "true") {
         const badWords = ["ponnaya", "hukana", "pakaya", "kari", "hutto", "ponna", "huththa", "huththo", "ponnayo", "kariyo", "pky", "vesi", "huka"];
         if (badWords.some(word => text.includes(word))) {
             await zanta.sendMessage(from, { delete: mek.key }).catch(() => {});
-            return await zanta.sendMessage(from, { text: `🚫 *BAD WORDS DISABLED!*`, contextInfo: footerContext });
+            await zanta.sendMessage(from, { text: `🚫 *BAD WORDS DISABLED!*`, contextInfo: footerContext });
+            return;
         }
     }
 
@@ -519,7 +519,8 @@ if (isGroup && !mek.key.fromMe) {
         const linkKeywords = ["http://", "https://", "www.", "wa.me", "t.me", "chat.whatsapp.com"];
         if (linkKeywords.some(link => text.includes(link))) {
             await zanta.sendMessage(from, { delete: mek.key }).catch(() => {});
-            return await zanta.sendMessage(from, { text: `🚫 *LINKS ARE DISABLED!*`, contextInfo: footerContext });
+            await zanta.sendMessage(from, { text: `🚫 *LINKS ARE DISABLED!*`, contextInfo: footerContext });
+            return;
         }
     }
 
@@ -539,7 +540,7 @@ if (isGroup && !mek.key.fromMe) {
             } else {
                 await zanta.sendMessage(from, { text: `⚠️ *COMMANDS DISABLED!* \n\n👤 *User:* @${sender.split('@')[0]}\n🚫 *Warning:* ${count}/5`, mentions: [sender], contextInfo: footerContext });
             }
-            return; // මේ return එකෙන් වෙන්නේ Command එකක් අහුවුණාම පල්ලෙහා තියෙන Anti-Bot චෙක් නොකර නවත්වන එක.
+            return;
         }
     }
 
@@ -551,17 +552,6 @@ if (isGroup && !mek.key.fromMe) {
             await zanta.sendMessage(from, { text: `🚫 *OTHER BOTS ARE NOT ALLOWED!*`, contextInfo: footerContext });
             await zanta.groupParticipantsUpdate(from, [sender], "remove").catch(() => {});
             return;
-        }
-    }
-}
-
-    // 4. Anti-Bot
-    if (userSettings.antiBot === "true") {
-        const isOtherBot = mek.key.id.startsWith("BAE5") || (mek.key.id.length > 21 && !mek.key.id.startsWith("ZANTA"));
-        if (isOtherBot) {
-            await zanta.sendMessage(from, { delete: mek.key }).catch(() => {});
-            await zanta.sendMessage(from, { text: `🚫 *OTHER BOTS ARE NOT ALLOWED!*`, contextInfo: footerContext });
-            return await zanta.groupParticipantsUpdate(from, [sender], "remove").catch(() => {});
         }
     }
 }
