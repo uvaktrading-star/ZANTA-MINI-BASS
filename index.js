@@ -37,6 +37,7 @@ const logger = P({ level: "silent" });
 const activeSockets = new Set();
 const lastWorkTypeMessage = new Map();
 const lastAntiDeleteMessage = new Map();
+const lastSecurityMessage = new Map();
 
 global.activeSockets = new Set();
 global.BOT_SESSIONS_CONFIG = {};
@@ -226,7 +227,7 @@ async function connectToWA(sessionData) {
     shouldSyncHistoryMessage: () => false,
     ignoreNewsletterMessages: false,
     emitOwnEvents: true,
-    markOnlineOnConnect: userSettings.alwaysOnline === "true",
+    markOnlineOnConnect: false,
             
     msgRetryCounterCache, // මැසේජ් එක retry වෙන්න මේක ඕනේ
     getMessage: async (key) => {
@@ -488,6 +489,75 @@ if (userSettings.autoVoiceReply === "true" && !mek.key.fromMe && !isCmd) {
     }
 }
 
+        // --------------------------------------------------------------------------
+// [SECTION: GROUP SECURITY LOGICS] - Anti-Link, BadWords, Bot, Cmd
+// --------------------------------------------------------------------------
+const cmdAttempts = new NodeCache({ stdTTL: 3600, checkperiod: 60 }); // මේක code එකේ උඩින් තිබුණත් කමක් නැහැ
+
+if (isGroup && !isOwner && !isAdmins && isBotAdmins) {
+    const footerContext = {
+        forwardingScore: 999,
+        isForwarded: true,
+        forwardedNewsletterMessageInfo: {
+            newsletterJid: "120363406265537739@newsletter",
+            newsletterName: "𝒁𝑨𝑵𝑻𝑨-𝑴𝑫 𝑶𝑭𝑭𝑰𝑪𝑰𝑨𝑳 </>",
+            serverMessageId: 100
+        }
+    };
+
+    // 1. Anti-Link Logic
+    if (userSettings.antiLink === "true") {
+        const linkKeywords = ["chat.whatsapp.com/", "wa.me/", "http://", "https://", "t.me/", ".com", ".net", ".org", "www."];
+        if (linkKeywords.some(link => body.toLowerCase().includes(link))) {
+            await zanta.sendMessage(from, { delete: mek.key });
+            return await zanta.sendMessage(from, { 
+                text: `🛡️ *ZANTA-MD ANTI-LINK*\n\n⚠️ @${senderNumber} Links are not allowed here!`, 
+                mentions: [sender], contextInfo: footerContext 
+            });
+        }
+    }
+
+    // 2. Anti-BadWords Logic
+    if (userSettings.badWords === "true") {
+        const badWords = ["kariya", "ponnaya", "hukanna", "pakaya", "paka", "huththa", "huththo", "hutto", "pkya", "pky", "hukapan", "vesi", "hamaniya", "pcy", "huth", "hut"]; 
+        if (badWords.some(word => body.toLowerCase().includes(word))) {
+            await zanta.sendMessage(from, { delete: mek.key });
+            return await zanta.sendMessage(from, { 
+                text: `🛡️ *ZANTA-MD ANTI-BADWORD*\n\n🚫 @${senderNumber} Please avoid using bad words!`, 
+                mentions: [sender], contextInfo: footerContext 
+            });
+        }
+    }
+
+    // 3. Anti-Bot Logic
+    if (userSettings.antiBot === "true") {
+        const isBaileys = mek.key.id.startsWith("BAE5") || mek.key.id.length === 16;
+        if (isBaileys && !mek.key.fromMe) {
+            await zanta.sendMessage(from, { text: `🛡️ *ANTI-BOT SYSTEM*\n\n🚫 @${senderNumber} Other bots are not allowed! Removing...`, mentions: [sender], contextInfo: footerContext });
+            return await zanta.groupParticipantsUpdate(from, [sender], "remove");
+        }
+    }
+
+    // 4. Anti-Command Logic (5 Warnings then Kick)
+    if (userSettings.antiCmd === "true" && isCmd) {
+        await zanta.sendMessage(from, { delete: mek.key });
+        
+        let count = (cmdAttempts.get(sender + from) || 0) + 1;
+        cmdAttempts.set(sender + from, count);
+
+        if (count >= 5) {
+            await zanta.sendMessage(from, { text: `🛡️ *ANTI-COMMAND KICK*\n\n🚫 @${senderNumber} Removed for repeated command usage!`, mentions: [sender], contextInfo: footerContext });
+            cmdAttempts.del(sender + from);
+            return await zanta.groupParticipantsUpdate(from, [sender], "remove");
+        } else {
+            return await zanta.sendMessage(from, { 
+                text: `🛡️ *ANTI-COMMAND*\n\n⚠️ @${senderNumber} Commands are disabled in this group!\n❌ Warnings: ${count}/5`, 
+                mentions: [sender], contextInfo: footerContext 
+            });
+        }
+    }
+}
+
         // Command Name Resolution
         let commandName = "";
         if (isButton) {
@@ -556,23 +626,65 @@ const isAllowedUser = allowedNumbers.includes(senderNumber) || isOwner;
 if (isSettingsReply && body && !isCmd && isAllowedUser) {
     const input = body.trim().split(" ");
     let index = parseInt(input[0]);
-    let dbKeys = ["", "botName", "ownerName", "prefix", "workType", "password", "botImage", "alwaysOnline", "autoRead", "autoTyping", "autoStatusSeen", "autoStatusReact", "readCmd", "autoVoice", "autoReply", "connectionMsg", "buttons", "autoVoiceReply", "antidelete", "autoReact"];
+    let dbKeys = ["", "botName", "ownerName", "prefix", "workType", "password", "botImage", "alwaysOnline", "autoRead", "autoTyping", "autoStatusSeen", "autoStatusReact", "readCmd", "autoVoice", "autoReply", "connectionMsg", "buttons", "autoVoiceReply", "antidelete", "autoReact", "badWords", "antiLink", "antiCmd", "antiBot"];
     let dbKey = dbKeys[index];
+    if (index === 20 && input.length === 1) {
+
+        const secMsg = `🛡️ *ZANTA-MD GROUP SECURITY* 🛡️
+
+1. Anti-BadWords: ${userSettings.badWords === "true" ? "✅ ON" : "❌ OFF"}
+2. Anti-Link: ${userSettings.antiLink === "true" ? "✅ ON" : "❌ OFF"}
+3. Anti-Command: ${userSettings.antiCmd === "true" ? "✅ ON" : "❌ OFF"}
+4. Anti-Bot: ${userSettings.antiBot === "true" ? "✅ ON" : "❌ OFF"}
+
+*💡 How to change:*
+Reply with *Number + on/off*
+Ex: *21 on* (Badwords ON කිරීමට)
+    *22 off* (Link OFF කිරීමට)
+
+> *ᴘᴏဝᴇʀᴇᴅ ʙʏ ᴢᴀɴΤΑ-ᴍᴅ*`;
+        const sentSec = await reply(secMsg);
+        lastSecurityMessage.set(from, sentSec.key.id);
+        return;
+    }
+
+    // Security Options Update කිරීමේ පහසුව සඳහා Index Mapping එකක් (21-24 සඳහා)
+    const isSecurityReply = m.quoted && lastSecurityMessage?.get(from) === m.quoted.id;
+
+if (isSecurityReply && body && !isCmd && isAllowedUser) {
+    const input = body.trim().split(" ");
+    let index = parseInt(input[0]);
+
+    const secKeys = { 21: "badWords", 22: "antiLink", 23: "antiCmd", 24: "antiBot" };
+    let dbKey = secKeys[index];
+    if (!dbKey) return; 
+    if (!input[1]) return reply(`⚠️ කරුණාකර 'on' හෝ 'off' ලබා දෙන්න.\nEx: *${index} on*`);
+    let finalValue = input[1].toLowerCase() === "on" ? "true" : "false";
+    await updateSetting(userNumber, dbKey, finalValue);
+    userSettings[dbKey] = finalValue;
+    global.BOT_SESSIONS_CONFIG[userNumber] = userSettings;
+
+    return reply(`✅ *${dbKey}* updated to: *${finalValue.toUpperCase()}*`);
+
+}
+
 
     if (dbKey) {
+
         // Premium check for index 6 (Bot Image)
         if (index === 6) {
             const isPaidUser = userSettings && userSettings.paymentStatus === "paid";
             if (!isAllowedUser && !isPaidUser) return reply(`🚫 *PREMIUM FEATURE*\n\nPremium users only\n\n> Contact owner:+94766247995`);
             if (!input[1] || !input[1].includes("files.catbox.moe")) return reply(`⚠️ *CATBOX LINK ONLY*\n\nකරුණාකර https://catbox.moe/ වෙත upload කර ලැබෙන 'files.catbox.moe' ලින්ක් එක ලබා දෙන්න.`);
         }
-
         // Sub-menus for Anti-delete and Work Type
         if (index === 18) { 
     const antiMsg = await reply(`🛡️ *SELECT ANTI-DELETE MODE*\n\n1️⃣ Off\n2️⃣ Send to User Chat\n3️⃣ Send to Your Chat\n\n*Reply only the number*`);
     lastAntiDeleteMessage.set(from, antiMsg.key.id); 
     return;
+
 }
+
         if (index === 4 && !input[1]) {
             const workMsg = await reply("🛠️ *SELECT WORK MODE*\n\n1️⃣ *Public*\n2️⃣ *Private*");
             lastWorkTypeMessage.set(from, workMsg.key.id); 
@@ -581,24 +693,20 @@ if (isSettingsReply && body && !isCmd && isAllowedUser) {
         if (index === 14 && input.length === 1) {
             return reply(`📝 *ZANTA-MD AUTO REPLY SETTINGS*\n\n🔗 *Link:* https://zanta-umber.vercel.app/zanta-login\n\n*Status:* ${userSettings.autoReply === "true" ? "✅ ON" : "❌ OFF"}`);
         }
-
         // Validation for ON/OFF or missing values
         if (index >= 7 && !input[1]) return reply(`⚠️ කරුණාකර අගය ලෙස 'on' හෝ 'off' ලබා දෙන්න.`);
         if (index < 7 && input.length < 2 && index !== 4 && index !== 17) return reply(`⚠️ කරුණාකර අගයක් ලබා දෙන්න.`);
-
         let finalValue = index >= 7 ? (input[1].toLowerCase() === "on" ? "true" : "false") : input.slice(1).join(" ");
-        
+
         // Update DB and Cache
         await updateSetting(userNumber, dbKey, finalValue);
         userSettings[dbKey] = finalValue;
         global.BOT_SESSIONS_CONFIG[userNumber] = userSettings;
-
         if (dbKey === "alwaysOnline") {
     const isOnline = (finalValue === "true");
     await zanta.sendPresenceUpdate(isOnline ? "available" : "unavailable");
     console.log(`Presence manually changed to: ${isOnline ? 'Online' : 'Offline'}`);
 }
-
         const successMsg = dbKey === "password" 
             ? `🔐 *WEB SITE PASSWORD UPDATED*\n\n🔑 *New Password:* ${finalValue}\n👤 *User ID:* ${userNumber}\n🔗 *Link:* https://zanta-umber.vercel.app/zanta-login` 
             : `✅ *${dbKey}* updated to: *${finalValue.toUpperCase()}*`;
