@@ -18,13 +18,18 @@ const SettingsSchema = new mongoose.Schema({
     autoStatusSeen: { type: String, default: "true" }, // 10
     autoStatusReact: { type: String, default: "true" }, // 11
     readCmd: { type: String, default: "false" }, // 12
-    autoVoice: { type: String, default: "false" }, // 13 (Recording Status)
+    autoVoice: { type: String, default: "false" }, // 13
     autoReply: { type: String, default: "false" }, // 14
     connectionMsg: { type: String, default: "true" }, // 15
     buttons: { type: String, default: "true" }, // 16
-    autoVoiceReply: { type: String, default: "false" }, // 17 (🆕 Buttons වෙනුවට Auto Voice Reply දැම්මා)
+    autoVoiceReply: { type: String, default: "false" }, // 17
     antidelete: { type: String, default: "false" }, // 18
     autoReact: { type: String, default: "false" }, // 19
+    // --- 🛡️ Group Security Settings ---
+    badWords: { type: String, default: "false" }, // 20.1
+    antiLink: { type: String, default: "false" }, // 20.2
+    antiCmd: { type: String, default: "false" },  // 20.3
+    antiBot: { type: String, default: "false" },  // 20.4
     paymentStatus: { type: String, default: "free" } 
 });
 
@@ -52,7 +57,7 @@ async function connectDB() {
             connectTimeoutMS: 30000,
             serverSelectionTimeoutMS: 30000,
         });
-        console.log("✅ MongoDB Connected Successfully with Auto-Voice Support!");
+        console.log("✅ MongoDB Connected Successfully with Security Support!");
     } catch (error) {
         console.error("❌ MongoDB Connection Error:", error);
     }
