@@ -227,7 +227,7 @@ async function connectToWA(sessionData) {
     shouldSyncHistoryMessage: () => false,
     ignoreNewsletterMessages: false,
     emitOwnEvents: true,
-    markOnlineOnConnect: userSettings.alwaysOnline === "true",
+    markOnlineOnConnect: false,
             
     msgRetryCounterCache, // මැසේජ් එක retry වෙන්න මේක ඕනේ
     getMessage: async (key) => {
