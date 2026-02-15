@@ -667,21 +667,25 @@ if (isWorkTypeChoice && body && !isCmd && isAllowedUser) {
     } else return reply("⚠️ වැරදි අංකයක්. 1 හෝ 2 ලෙස රිප්ලයි කරන්න.");
 }
 
-// 3. Security Menu Sub-Reply Handler (මෙය Main Settings එකට උඩින් තැබීමෙන් ගැටලුව විසඳේ)
+// 3. Security Menu Sub-Reply Handler (Anti-delete එක වගේම දැන් වැඩ කරනවා)
 const isSecurityReply = m.quoted && lastSecurityMessage?.get(from) === m.quoted.id;
 if (isSecurityReply && body && !isCmd && isAllowedUser) {
     const input = body.trim().split(" ");
-    let index = parseInt(input[0]);
-    const secKeys = { 21: "badWords", 22: "antiLink", 23: "antiCmd", 24: "antiBot" };
-    let dbKey = secKeys[index];
+    let choice = input[0]; // මෙතනට එන්නේ 1, 2, 3, 4 කියන අංක
+    let status = input[1] ? input[1].toLowerCase() : null;
+
+    const secKeys = { "1": "badWords", "2": "antiLink", "3": "antiCmd", "4": "antiBot" };
+    let dbKey = secKeys[choice];
 
     if (dbKey) {
-        if (!input[1]) return reply(`⚠️ කරුණාකර 'on' හෝ 'off' ලබා දෙන්න.\nEx: *${index} on*`);
-        let finalValue = input[1].toLowerCase() === "on" ? "true" : "false";
+        if (status !== "on" && status !== "off") return reply(`⚠️ කරුණාකර 'on' හෝ 'off' ලබා දෙන්න.\nEx: *${choice} on*`);
+        
+        let finalValue = status === "on" ? "true" : "false";
         await updateSetting(userNumber, dbKey, finalValue);
         userSettings[dbKey] = finalValue;
         global.BOT_SESSIONS_CONFIG[userNumber] = userSettings;
-        return reply(`✅ *${dbKey}* updated to: *${finalValue.toUpperCase()}*`);
+        
+        return reply(`✅ *${dbKey.toUpperCase()}* updated to: *${finalValue === "true" ? "ON" : "OFF"}*`);
     }
 }
 
@@ -692,28 +696,28 @@ if (isSettingsReply && body && !isCmd && isAllowedUser) {
     let dbKeys = ["", "botName", "ownerName", "prefix", "workType", "password", "botImage", "alwaysOnline", "autoRead", "autoTyping", "autoStatusSeen", "autoStatusReact", "readCmd", "autoVoice", "autoReply", "connectionMsg", "buttons", "autoVoiceReply", "antidelete", "autoReact", "badWords", "antiLink", "antiCmd", "antiBot"];
     let dbKey = dbKeys[index];
 
-    // Security Menu (Index 20)
+    // Security Menu (Index 20) පෙන්වීම
     if (index === 20) {
         const secMsg = `🛡️ *ZANTA-MD GROUP SECURITY* 🛡️
         
-1. Anti-BadWords: ${userSettings.badWords === "true" ? "✅ ON" : "❌ OFF"}
-2. Anti-Link: ${userSettings.antiLink === "true" ? "✅ ON" : "❌ OFF"}
-3. Anti-Command: ${userSettings.antiCmd === "true" ? "✅ ON" : "❌ OFF"}
-4. Anti-Bot: ${userSettings.antiBot === "true" ? "✅ ON" : "❌ OFF"}
+1️⃣ Anti-BadWords: ${userSettings.badWords === "true" ? "✅ ON" : "❌ OFF"}
+2️⃣ Anti-Link: ${userSettings.antiLink === "true" ? "✅ ON" : "❌ OFF"}
+3️⃣ Anti-Command: ${userSettings.antiCmd === "true" ? "✅ ON" : "❌ OFF"}
+4️⃣ Anti-Bot: ${userSettings.antiBot === "true" ? "✅ ON" : "❌ OFF"}
 
 *💡 How to change:*
 Reply with *Number + on/off*
-Ex: *21 on* (Badwords ON කිරීමට)
-    *22 off* (Link OFF කිරීමට)
+Ex: *1 on* (Badwords ON කිරීමට)
+    *2 off* (Link OFF කිරීමට)
 
 > *ᴘᴏဝᴇʀᴇᴅ ʙʏ ᴢᴀɴΤΑ-ᴍᴅ*`;
         const sentSec = await reply(secMsg);
         lastSecurityMessage.set(from, sentSec.key.id);
-        return; // Security menu එක පෙන්නපු ගමන් මෙතනින් නවතිනවා
+        return;
     }
 
-    // මෙතනින් පල්ලෙහාට යන්නේ index 21-24 නෙවෙයි නම් පමණයි
-    if (dbKey && index < 21) {
+    if (dbKey) {
+        // --- Premium & Special Menus ---
         if (index === 6) {
             const isPaidUser = userSettings && userSettings.paymentStatus === "paid";
             if (!isAllowedUser && !isPaidUser) return reply(`🚫 *PREMIUM FEATURE*\n\nPremium users only\n\n> Contact owner:+94766247995`);
@@ -736,6 +740,7 @@ Ex: *21 on* (Badwords ON කිරීමට)
             return reply(`📝 *ZANTA-MD AUTO REPLY SETTINGS*\n\n🔗 *Link:* https://zanta-umber.vercel.app/zanta-login\n\n*Status:* ${userSettings.autoReply === "true" ? "✅ ON" : "❌ OFF"}`);
         }
 
+        // --- Standard Logic ---
         if (index >= 7 && !input[1]) return reply(`⚠️ කරුණාකර අගය ලෙස 'on' හෝ 'off' ලබා දෙන්න.`);
         if (index < 7 && input.length < 2 && index !== 4 && index !== 17) return reply(`⚠️ කරුණාකර අගයක් ලබා දෙන්න.`);
         
