@@ -474,26 +474,27 @@ zanta.onlineInterval = setInterval(runPresenceLogic, 30000);
 if (isGroup && !mek.key.fromMe) {
     const text = body.toLowerCase();
     
-    // 1. ඉක්මනින්ම Settings Check එකක් දාමු (Settings OFF නම් ඉතිරි හරිය කරන්නේම නෑ)
+    // 1. Settings OFF නම් RAM එක නාස්ති නොකර මෙතනින්ම අයින් වෙනවා
     const isSecurityOn = userSettings.badWords === "true" || userSettings.antiLink === "true" || userSettings.antiCmd === "true" || userSettings.antiBot === "true";
     if (!isSecurityOn) return;
 
-    // 2. Bot Admin ද බලමු (Bot Admin නෙවෙයි නම් මොකුත් කරන්න බෑනේ)
+    // 2. ඉක්මනින් Admin Check එකක් කරමු
     const groupMetadata = await zanta.groupMetadata(from).catch(() => ({}));
     const participants = groupMetadata.participants || [];
-    const botId = zanta.user.id.split(':')[0] + '@s.whatsapp.net';
-    const isBotAdmin = participants.find(p => p.id === botId)?.admin !== null;
     
-    if (!isBotAdmin) return; // Bot admin නෙවෙයි නම් මෙතනින් නවතිනවා
-
-    // 3. Sender Admin ද බලමු
+    // Admin ලැයිස්තුව ගමු
     const groupAdmins = participants.filter(v => v.admin !== null).map(v => v.id);
     const isSenderAdmin = groupAdmins.includes(sender) || isOwner;
 
-    // Admin කෙනෙක් නම් Security Logic එක ඕනේ නෑ
-    if (isSenderAdmin) return;
+    // ⭐ වැදගත්ම දේ: Admin කෙනෙක් නම් පහළ තියෙන කිසිම Security check එකක් කරන්නේ නැහැ!
+    if (isSenderAdmin) return; 
 
-    // Newsletter Context (Shared across all warnings)
+    // 3. දැන් බලමු බොට් Admin ද කියලා (සාමාන්‍ය අයව පාලනය කරන්න බොට් Admin වෙන්න ඕනෙ නිසා)
+    const botId = zanta.user.id.split(':')[0] + '@s.whatsapp.net';
+    const isBotAdmin = participants.find(p => p.id === botId)?.admin !== null;
+    if (!isBotAdmin) return; 
+
+    // Newsletter Context for warnings
     const footerContext = {
         forwardingScore: 999, 
         isForwarded: true,
@@ -504,7 +505,7 @@ if (isGroup && !mek.key.fromMe) {
         }
     };
 
-    // --- SECURITY CHECKS START ---
+    // --- සාමාන්‍ය අය සඳහා පමණක් ක්‍රියාත්මක වන Security Logic ---
 
     // 1. Anti-BadWords
     if (userSettings.badWords === "true") {
@@ -524,7 +525,7 @@ if (isGroup && !mek.key.fromMe) {
         }
     }
 
-    // 3. Anti-Command
+    // 3. Anti-Command (දැන් Admin ලට බාධාවක් නැහැ)
     if (userSettings.antiCmd === "true") {
         const prefixes = [".", "/", "!", "#", userSettings.prefix];
         if (prefixes.some(p => text.startsWith(p))) {
@@ -534,7 +535,7 @@ if (isGroup && !mek.key.fromMe) {
 
             await zanta.sendMessage(from, { delete: mek.key }).catch(() => {});
             if (count >= 5) {
-                await zanta.sendMessage(from, { text: `🚫 *LIMIT EXCEEDED!* @${sender.split('@')[0]} removed.`, mentions: [sender], contextInfo: footerContext });
+                await zanta.sendMessage(from, { text: `🚫 *LIMIT EXCEEDED!* @${sender.split('@')[0]} removed for using commands.`, mentions: [sender], contextInfo: footerContext });
                 await zanta.groupParticipantsUpdate(from, [sender], "remove").catch(() => {});
                 global.cmdWarning[sender] = 0;
             } else {
