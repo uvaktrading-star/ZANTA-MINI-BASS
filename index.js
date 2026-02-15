@@ -494,7 +494,7 @@ if (isGroup && !mek.key.fromMe) {
     if (!isSenderAdmin) {
         // 1. Anti-BadWords
         if (userSettings.badWords === "true") {
-            const badWords = ["ponnaya", "hukana", "pakaya", "kari", "hutto", "ponna"];
+            const badWords = ["ponnaya", "hukana", "pakaya", "kari", "hutto", "ponna", "huththa", "huththo", "ponnayo", "kariyo", "pky", "vesi", "huka"];
             if (badWords.some(word => text.includes(word))) {
                 try {
                     await zanta.sendMessage(from, { delete: mek.key });
@@ -655,7 +655,7 @@ if (userSettings.autoVoiceReply === "true" && !mek.key.fromMe && !isCmd) {
             } else return reply("⚠️ වැරදි අංකයක්. 1 හෝ 2 ලෙස රිප්ලයි කරන්න.");
         }
 
-         const allowedNumbers = [
+const allowedNumbers = [
     "94771810698", 
     "94743404814", 
     "94766247995", 
@@ -664,15 +664,59 @@ if (userSettings.autoVoiceReply === "true" && !mek.key.fromMe && !isCmd) {
 ];
 const isAllowedUser = allowedNumbers.includes(senderNumber) || isOwner;
 
+// --- [REPLY CHOICE HANDLERS] ---
 
-// 3. Main Settings Menu Reply Handler
+// 1. Anti-Delete Settings Choice
+if (isAntiDeleteChoice && body && !isCmd && isAllowedUser) {
+    let choice = body.trim().split(" ")[0];
+    let finalVal = choice === "1" ? "false" : choice === "2" ? "1" : choice === "3" ? "2" : null;
+    if (!finalVal) return reply("⚠️ කරුණාකර 1, 2 හෝ 3 පමණක් reply කරන්න.");
+    await updateSetting(userNumber, "antidelete", finalVal);
+    userSettings.antidelete = finalVal;
+    global.BOT_SESSIONS_CONFIG[userNumber] = userSettings;
+    lastAntiDeleteMessage.delete(from);
+    return reply(`✅ *ANTI-DELETE MODE UPDATED*\n\n` + (finalVal === "false" ? "🚫 Off" : finalVal === "1" ? "📩 Send to User Chat" : "👤 Send to Your Chat"));
+}
+
+// 2. Work Type Settings Choice
+if (isWorkTypeChoice && body && !isCmd && isAllowedUser) {
+    let choice = body.trim().split(" ")[0];
+    let finalValue = choice === "1" ? "public" : choice === "2" ? "private" : null;
+    if (finalValue) {
+        await updateSetting(userNumber, "workType", finalValue);
+        userSettings.workType = finalValue;
+        global.BOT_SESSIONS_CONFIG[userNumber] = userSettings;
+        lastWorkTypeMessage.delete(from);
+        return reply(`✅ *WORK_TYPE* updated to: *${finalValue.toUpperCase()}*`);
+    } else return reply("⚠️ වැරදි අංකයක්. 1 හෝ 2 ලෙස රිප්ලයි කරන්න.");
+}
+
+// 3. Security Menu Sub-Reply Handler (21-24 සඳහා)
+const isSecurityReply = m.quoted && lastSecurityMessage?.get(from) === m.quoted.id;
+if (isSecurityReply && body && !isCmd && isAllowedUser) {
+    const input = body.trim().split(" ");
+    let index = parseInt(input[0]);
+    const secKeys = { 21: "badWords", 22: "antiLink", 23: "antiCmd", 24: "antiBot" };
+    let dbKey = secKeys[index];
+    if (dbKey) {
+        if (!input[1]) return reply(`⚠️ කරුණාකර 'on' හෝ 'off' ලබා දෙන්න.\nEx: *${index} on*`);
+        let finalValue = input[1].toLowerCase() === "on" ? "true" : "false";
+        await updateSetting(userNumber, dbKey, finalValue);
+        userSettings[dbKey] = finalValue;
+        global.BOT_SESSIONS_CONFIG[userNumber] = userSettings;
+        return reply(`✅ *${dbKey}* updated to: *${finalValue.toUpperCase()}*`);
+    }
+}
+
+// 4. Main Settings Menu Reply Handler
 if (isSettingsReply && body && !isCmd && isAllowedUser) {
     const input = body.trim().split(" ");
     let index = parseInt(input[0]);
     let dbKeys = ["", "botName", "ownerName", "prefix", "workType", "password", "botImage", "alwaysOnline", "autoRead", "autoTyping", "autoStatusSeen", "autoStatusReact", "readCmd", "autoVoice", "autoReply", "connectionMsg", "buttons", "autoVoiceReply", "antidelete", "autoReact", "badWords", "antiLink", "antiCmd", "antiBot"];
     let dbKey = dbKeys[index];
-    if (index === 20 && input.length === 1) {
-        
+
+    // Security Menu එක පෙන්වීම
+    if (index === 20) {
         const secMsg = `🛡️ *ZANTA-MD GROUP SECURITY* 🛡️
         
 1. Anti-BadWords: ${userSettings.badWords === "true" ? "✅ ON" : "❌ OFF"}
@@ -691,24 +735,6 @@ Ex: *21 on* (Badwords ON කිරීමට)
         return;
     }
 
-    // Security Options Update කිරීමේ පහසුව සඳහා Index Mapping එකක් (21-24 සඳහා)
-    const isSecurityReply = m.quoted && lastSecurityMessage?.get(from) === m.quoted.id;
-
-if (isSecurityReply && body && !isCmd && isAllowedUser) {
-    const input = body.trim().split(" ");
-    let index = parseInt(input[0]);
-
-    const secKeys = { 21: "badWords", 22: "antiLink", 23: "antiCmd", 24: "antiBot" };
-    let dbKey = secKeys[index];
-    if (!dbKey) return; 
-    if (!input[1]) return reply(`⚠️ කරුණාකර 'on' හෝ 'off' ලබා දෙන්න.\nEx: *${index} on*`);
-    let finalValue = input[1].toLowerCase() === "on" ? "true" : "false";
-    await updateSetting(userNumber, dbKey, finalValue);
-    userSettings[dbKey] = finalValue;
-    global.BOT_SESSIONS_CONFIG[userNumber] = userSettings;
-    return reply(`✅ *${dbKey}* updated to: *${finalValue.toUpperCase()}*`);
-
-}
     if (dbKey) {
         // Premium check for index 6 (Bot Image)
         if (index === 6) {
@@ -717,42 +743,43 @@ if (isSecurityReply && body && !isCmd && isAllowedUser) {
             if (!input[1] || !input[1].includes("files.catbox.moe")) return reply(`⚠️ *CATBOX LINK ONLY*\n\nකරුණාකර https://catbox.moe/ වෙත upload කර ලැබෙන 'files.catbox.moe' ලින්ක් එක ලබා දෙන්න.`);
         }
 
-        // Sub-menus for Anti-delete and Work Type
+        // Sub-menus
         if (index === 18) { 
-    const antiMsg = await reply(`🛡️ *SELECT ANTI-DELETE MODE*\n\n1️⃣ Off\n2️⃣ Send to User Chat\n3️⃣ Send to Your Chat\n\n*Reply only the number*`);
-    lastAntiDeleteMessage.set(from, antiMsg.key.id); 
-    return;
+            const antiMsg = await reply(`🛡️ *SELECT ANTI-DELETE MODE*\n\n1️⃣ Off\n2️⃣ Send to User Chat\n3️⃣ Send to Your Chat\n\n*Reply only the number*`);
+            lastAntiDeleteMessage.set(from, antiMsg.key.id); 
+            return;
+        }
 
-}
-
-        if (index === 4 && !input[1]) {
+        if (index === 4) {
             const workMsg = await reply("🛠️ *SELECT WORK MODE*\n\n1️⃣ *Public*\n2️⃣ *Private*");
             lastWorkTypeMessage.set(from, workMsg.key.id); 
             return;
         }
+
         if (index === 14 && input.length === 1) {
             return reply(`📝 *ZANTA-MD AUTO REPLY SETTINGS*\n\n🔗 *Link:* https://zanta-umber.vercel.app/zanta-login\n\n*Status:* ${userSettings.autoReply === "true" ? "✅ ON" : "❌ OFF"}`);
         }
+
         // Validation for ON/OFF or missing values
         if (index >= 7 && !input[1]) return reply(`⚠️ කරුණාකර අගය ලෙස 'on' හෝ 'off' ලබා දෙන්න.`);
         if (index < 7 && input.length < 2 && index !== 4 && index !== 17) return reply(`⚠️ කරුණාකර අගයක් ලබා දෙන්න.`);
+        
         let finalValue = index >= 7 ? (input[1].toLowerCase() === "on" ? "true" : "false") : input.slice(1).join(" ");
-
 
         // Update DB and Cache
         await updateSetting(userNumber, dbKey, finalValue);
         userSettings[dbKey] = finalValue;
         global.BOT_SESSIONS_CONFIG[userNumber] = userSettings;
+
         if (dbKey === "alwaysOnline") {
-    const isOnline = (finalValue === "true");
-    await zanta.sendPresenceUpdate(isOnline ? "available" : "unavailable");
-    console.log(`Presence manually changed to: ${isOnline ? 'Online' : 'Offline'}`);
+            const isOnline = (finalValue === "true");
+            await zanta.sendPresenceUpdate(isOnline ? "available" : "unavailable");
+        }
 
-}
         const successMsg = dbKey === "password" 
-
             ? `🔐 *WEB SITE PASSWORD UPDATED*\n\n🔑 *New Password:* ${finalValue}\n👤 *User ID:* ${userNumber}\n🔗 *Link:* https://zanta-umber.vercel.app/zanta-login` 
             : `✅ *${dbKey}* updated to: *${finalValue.toUpperCase()}*`;
+        
         return reply(successMsg);
     }
 }
