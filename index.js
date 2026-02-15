@@ -645,7 +645,7 @@ if (isSecurityReply && body && !isCmd && isAllowedUser) {
     }
 }
 
-        // Command Execution
+
         // Command Execution
         if (isCmd || isMenuReply || isHelpReply || isButton) {
             const execName = isHelpReply ? "help" : isMenuReply || (isButton && commandName === "menu") ? "menu" : commandName;
