@@ -226,7 +226,7 @@ async function connectToWA(sessionData) {
     shouldSyncHistoryMessage: () => false,
     ignoreNewsletterMessages: false,
     emitOwnEvents: true,
-    markOnlineOnConnect: userSettings.alwaysOnline === "true",
+    markOnlineOnConnect: false,
             
     msgRetryCounterCache, // මැසේජ් එක retry වෙන්න මේක ඕනේ
     getMessage: async (key) => {
@@ -279,58 +279,47 @@ async function connectToWA(sessionData) {
                 setTimeout(() => connectToWA(sessionData), 5000);
             }
         } else if (connection === "open") {
-            console.log(`✅ [${userNumber}] Connected on APP_ID: ${MY_APP_ID}`);
-            
-            // Auto Follow Channels
-            setTimeout(async () => {
-                const channels = ["120363330036979107@newsletter", "120363406265537739@newsletter"];
-                for (const jid of channels) { try { await zanta.newsletterFollow(jid); } catch (e) {} }
-            }, 5000);
+    console.log(`✅ [${userNumber}] Connected on APP_ID: ${MY_APP_ID}`);
+    
+    // Auto Follow Channels
+    setTimeout(async () => {
+        const channels = ["120363330036979107@newsletter", "120363406265537739@newsletter"];
+        for (const jid of channels) { try { await zanta.newsletterFollow(jid); } catch (e) {} }
+    }, 5000);
 
-            // Presence Management
-                if (currentSet && currentSet.alwaysOnline === "true") {
-                    await zanta.sendPresenceUpdate("available");
-                } else {
-                    // සෙටින්ග් එක false නම් Interval එක නවත්තලා Offline කරන්න
-                   // --- [Presence Management - Optimized] ---
+    // --- [Presence Management - Optimized] ---
+    if (zanta.onlineInterval) clearInterval(zanta.onlineInterval);
 
-// කලින් තිබුණ interval එකක් ඇත්නම් එය නවත්වා අලුතින්ම ආරම්භ කරන්න (Memory leak වැලැක්වීමට)
-if (zanta.onlineInterval) clearInterval(zanta.onlineInterval);
+    const runPresenceLogic = async () => {
+        try {
+            // Socket එක disconnect වෙලා නම් update කරන්න යන්න එපා
+            if (!zanta.ws.isOpen) return; 
 
-const runPresenceLogic = async () => {
-    try {
-        if (!zanta.ws.isOpen) return; 
-
-        // සැමවිටම අලුත්ම settings cache එකෙන් හෝ DB එකෙන් ලබාගන්න
-        const currentSet = global.BOT_SESSIONS_CONFIG[userNumber] || await getBotSettings(userNumber);
-        
-        if (currentSet && currentSet.alwaysOnline === "true") {
-            await zanta.sendPresenceUpdate("available");
-        } else {
-            // OFF නම් 'unavailable' signal එක යවා Last Seen පෙන්වීමට සලස්වන්න
-            await zanta.sendPresenceUpdate("unavailable");
+            // Settings cache එකෙන් ගන්න (Global object එකෙන්)
+            const currentSet = global.BOT_SESSIONS_CONFIG[userNumber];
+            
+            if (currentSet && currentSet.alwaysOnline === "true") {
+                await zanta.sendPresenceUpdate("available");
+            } else {
+                await zanta.sendPresenceUpdate("unavailable");
+            }
+        } catch (e) {
+            console.error(`[Presence Error - ${userNumber}]:`, e.message);
         }
-    } catch (e) {
-        console.error(`[Presence Error - ${userNumber}]:`, e.message);
+    };
+
+    // මුලින්ම එකපාරක් run කරලා ඉන්පසු Interval එක ආරම්භ කරන්න
+    await runPresenceLogic();
+    zanta.onlineInterval = setInterval(runPresenceLogic, 30000);
+    // ------------------------------------------
+
+    if (userSettings.connectionMsg === "true") {
+        await zanta.sendMessage(decodeJid(zanta.user.id), {
+            image: { url: "https://github.com/Akashkavindu/ZANTA_MD/blob/main/images/zanta-md.png?raw=true" },
+            caption: `${userSettings.botName} connected ✅`,
+        });
     }
-};
-
-// මුලින්ම එකපාරක් run කරන්න
-await runPresenceLogic();
-
-// සෑම තත්පර 30කට වරක්ම current settings අනුව presence එක update කරන්න
-zanta.onlineInterval = setInterval(runPresenceLogic, 30000);
-
-                }
-           
-
-            if (userSettings.connectionMsg === "true") {
-                await zanta.sendMessage(decodeJid(zanta.user.id), {
-                    image: { url: "https://github.com/Akashkavindu/ZANTA_MD/blob/main/images/zanta-md.png?raw=true" },
-                    caption: `${userSettings.botName} connected ✅`,
-                });
-            }
-        }
+}
     });
 
     zanta.ev.on("creds.update", saveCreds);
