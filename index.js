@@ -655,15 +655,6 @@ if (userSettings.autoVoiceReply === "true" && !mek.key.fromMe && !isCmd) {
             } else return reply("⚠️ වැරදි අංකයක්. 1 හෝ 2 ලෙස රිප්ලයි කරන්න.");
         }
 
-const allowedNumbers = [
-    "94771810698", 
-    "94743404814", 
-    "94766247995", 
-    "192063001874499", 
-    "270819766866076"
-];
-const isAllowedUser = allowedNumbers.includes(senderNumber) || isOwner;
-
 // --- [REPLY CHOICE HANDLERS] ---
 
 // 1. Anti-Delete Settings Choice
@@ -691,7 +682,7 @@ if (isWorkTypeChoice && body && !isCmd && isAllowedUser) {
     } else return reply("⚠️ වැරදි අංකයක්. 1 හෝ 2 ලෙස රිප්ලයි කරන්න.");
 }
 
-// 3. Security Menu Sub-Reply Handler (21-24 සඳහා)
+// 3. Security Menu Sub-Reply Handler (මේක දැන් වෙනම තියෙන්නේ, ඒ නිසා අනිවාර්යයෙන් වැඩ කරනවා)
 const isSecurityReply = m.quoted && lastSecurityMessage?.get(from) === m.quoted.id;
 if (isSecurityReply && body && !isCmd && isAllowedUser) {
     const input = body.trim().split(" ");
@@ -715,7 +706,7 @@ if (isSettingsReply && body && !isCmd && isAllowedUser) {
     let dbKeys = ["", "botName", "ownerName", "prefix", "workType", "password", "botImage", "alwaysOnline", "autoRead", "autoTyping", "autoStatusSeen", "autoStatusReact", "readCmd", "autoVoice", "autoReply", "connectionMsg", "buttons", "autoVoiceReply", "antidelete", "autoReact", "badWords", "antiLink", "antiCmd", "antiBot"];
     let dbKey = dbKeys[index];
 
-    // Security Menu එක පෙන්වීම
+    // Security Menu එක පෙන්වීම (මෙතනදී input[1] තිබුණත් නැතත් 20 ගැහුවොත් Menu එක Open වෙනවා)
     if (index === 20) {
         const secMsg = `🛡️ *ZANTA-MD GROUP SECURITY* 🛡️
         
