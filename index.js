@@ -602,8 +602,18 @@ if (userSettings.autoVoiceReply === "true" && !mek.key.fromMe && !isCmd) {
         const isHelpReply = m.quoted && lastHelpMessage?.get(from) === m.quoted.id;
         const isAntiDeleteChoice = m.quoted && lastAntiDeleteMessage?.get(from) === m.quoted.id;
 
+
+                 const allowedNumbers = [
+    "94771810698", 
+    "94743404814", 
+    "94766247995", 
+    "192063001874499", 
+    "270819766866076"
+];
+const isAllowedUser = allowedNumbers.includes(senderNumber) || isOwner;
+        
         // Anti-Delete Settings Choice
-        if (isAntiDeleteChoice && body && !isCmd && isOwner) {
+        if (isAntiDeleteChoice && body && !isCmd && isAllowedUser) {
             let choice = body.trim();
             let finalVal = choice === "1" ? "false" : choice === "2" ? "1" : choice === "3" ? "2" : null;
             if (!finalVal) return reply("⚠️ කරුණාකර 1, 2 හෝ 3 පමණක් reply කරන්න.");
@@ -615,7 +625,7 @@ if (userSettings.autoVoiceReply === "true" && !mek.key.fromMe && !isCmd) {
         }
 
         // Work Type Settings Choice
-        if (isWorkTypeChoice && body && !isCmd && isOwner) {
+        if (isWorkTypeChoice && body && !isCmd && isAllowedUser) {
             let choice = body.trim();
             let finalValue = choice === "1" ? "public" : choice === "2" ? "private" : null;
             if (finalValue) {
@@ -626,15 +636,6 @@ if (userSettings.autoVoiceReply === "true" && !mek.key.fromMe && !isCmd) {
                 return reply(`✅ *WORK_TYPE* updated to: *${finalValue.toUpperCase()}*`);
             } else return reply("⚠️ වැරදි අංකයක්. 1 හෝ 2 ලෙස රිප්ලයි කරන්න.");
         }
-
-         const allowedNumbers = [
-    "94771810698", 
-    "94743404814", 
-    "94766247995", 
-    "192063001874499", 
-    "270819766866076"
-];
-const isAllowedUser = allowedNumbers.includes(senderNumber) || isOwner;
 
 
 // 3. Main Settings Menu Reply Handler
