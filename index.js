@@ -430,7 +430,7 @@ async function connectToWA(sessionData) {
             }
         }
     } catch (e) {}
-    if (!isCmd) return;
+     return;
 }
 
         // Auto React to messages
