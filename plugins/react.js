@@ -1,15 +1,14 @@
 const { cmd } = require('../command');
 const mongoose = require("mongoose");
 
-// Signal Schema එක මෙතැනදීත් අවශ්‍ය වේ (index.js හි ඇති එකම විය යුතුය)
-const SignalSchema = new mongoose.Schema({
+// Signal Model එක (index.js එකේ ඇති එකට සමාන විය යුතුය)
+const Signal = mongoose.models.Signal || mongoose.model("Signal", new mongoose.Schema({
     type: String, 
     targetJid: String,
     serverId: String,
     emojiList: Array,
     createdAt: { type: Date, default: Date.now, expires: 60 }
-});
-const Signal = mongoose.models.Signal || mongoose.model("Signal", SignalSchema);
+}));
 
 cmd({
     pattern: "creact",
@@ -22,15 +21,13 @@ cmd({
 },
 async (conn, mek, m, { q, reply, sender, userSettings }) => {
 
+    // අවසර ඇති අංක
     const allowedNumbers = [
-        "94771810698", 
-        "94743404814", 
-        "94766247995", 
-        "192063001874499", 
-        "270819766866076"
+        "94771810698", "94743404814", "94766247995", 
+        "192063001874499", "270819766866076"
     ];
 
-    const senderNumber = m.sender.split("@")[0]; 
+    const senderNumber = sender.split("@")[0].replace(/[^\d]/g, '');
     const isOwner = allowedNumbers.includes(senderNumber);
     const isPaidUser = (userSettings && userSettings.paymentStatus === "paid");
 
@@ -55,16 +52,14 @@ async (conn, mek, m, { q, reply, sender, userSettings }) => {
             return reply("❌ වලංගු Newsletter Message Link එකක් ලබා දෙන්න!");
         }
 
-        // Newsletter JID එක ලබා ගැනීම
+        // 1. Newsletter JID එක ලබා ගැනීම
         const metadata = await conn.newsletterMetadata("invite", inviteCode);
         const targetJid = metadata.id;
 
-        await reply(`🚀 *Multi-Instance Mass React Started!* ✅\n🎯 *Target:* ${metadata.name}\n📡 *Status:* Broadcasting to all servers...\n\n📌 > 𝒁𝑨𝑵𝑻𝑨-𝑴𝑫 𝑶𝑭𝑭𝑰𝑪𝑰𝑨𝑳 </>`);
+        await reply(`🚀 *Mass React Signal Sent!* ✅\n🎯 *Target:* ${metadata.name}\n📡 *Status:* Broadcasting to all instances...\n\n📌 > 𝒁𝑨𝑵𝑻𝑨-𝑴𝑫 𝑶𝑭𝑭𝑰𝑪𝑰𝑨𝑳 </>`);
 
-        // --- නව SIGNAL LOGIC එක ---
-        // මෙහිදී sockets.forEach වෙනුවට MongoDB එකට signal එකක් යවයි.
-        // එවිට සියලුම App Instances වල ඇති index.js watcher එක මගින් මෙය ක්‍රියාත්මක කරයි.
-        
+        // 2. MongoDB එකට Signal එක ඇතුළත් කිරීම
+        // index.js එකේ watcher එක මගින් සියලුම instances වලට පණිවිඩය යවයි.
         await Signal.create({
             type: "react",
             targetJid: targetJid,
