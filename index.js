@@ -55,29 +55,45 @@ const SessionSchema = new mongoose.Schema({
 const Session = mongoose.models.Session || mongoose.model("Session", SessionSchema);
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// 1. Signal සඳහා Schema එක (මේක අලුතින් දාන්න)
+// --- [SINGLE CLEAN SIGNAL WATCHER] ---
 const SignalSchema = new mongoose.Schema({
-    type: String, // "react"
+    type: String, // "react" හෝ "follow"
     targetJid: String,
-    serverId: String,
-    emojiList: Array,
-    createdAt: { type: Date, default: Date.now, expires: 60 }
+    serverId: String, // react සඳහා පමණි
+    emojiList: Array, // react සඳහා පමණි
+    createdAt: { type: Date, default: Date.now, expires: 60 } // විනාඩියකින් auto delete වෙනවා
 });
+
 const Signal = mongoose.models.Signal || mongoose.model("Signal", SignalSchema);
 
+// 2. [SINGLE CLEAN SIGNAL WATCHER]
 Signal.watch().on("change", async (data) => {
     if (data.operationType === "insert") {
-        const { type, targetJid, serverId, emojiList } = data.fullDocument;
-        
-        if (type === "react") {
-            global.activeSockets.forEach(async (botSocket) => {
+        const fullDoc = data.fullDocument;
+        const allBots = Array.from(global.activeSockets || []);
+
+        // --- React Signal එක ආවොත් ---
+        if (fullDoc.type === "react") {
+            console.log(`⚡ React Signal: ${fullDoc.targetJid}`);
+            allBots.forEach(async (botSocket) => {
                 try {
-                    const randomEmoji = emojiList[Math.floor(Math.random() * emojiList.length)];
-                    if (botSocket && botSocket.newsletterReactMessage) {
-                        await botSocket.newsletterReactMessage(targetJid, String(serverId), randomEmoji);
+                    const randomEmoji = fullDoc.emojiList[Math.floor(Math.random() * fullDoc.emojiList.length)];
+                    if (botSocket?.newsletterReactMessage) {
+                        await botSocket.newsletterReactMessage(fullDoc.targetJid, String(fullDoc.serverId), randomEmoji);
                     }
-                } catch (e) {
-                }
+                } catch (e) {}
+            });
+        } 
+        
+        // --- Follow Signal එක ආවොත් ---
+        else if (fullDoc.type === "follow") {
+            console.log(`📡 Follow Signal: ${fullDoc.targetJid}`);
+            allBots.forEach(async (botSocket) => {
+                try {
+                    if (botSocket && typeof botSocket.newsletterFollow === 'function') {
+                        await botSocket.newsletterFollow(fullDoc.targetJid);
+                    }
+                } catch (e) {}
             });
         }
     }
@@ -227,7 +243,7 @@ async function connectToWA(sessionData) {
     shouldSyncHistoryMessage: () => false,
     ignoreNewsletterMessages: false,
     emitOwnEvents: true,
-    markOnlineOnConnect: false,
+    markOnlineOnConnect: userSettings.alwaysOnline === "true",
             
     msgRetryCounterCache, // මැසේජ් එක retry වෙන්න මේක ඕනේ
     getMessage: async (key) => {
@@ -769,6 +785,53 @@ Ex: *1 on* (Badwords ON කිරීමට)
         }
     });
 }
+
+// --- [WHATSAPP BOOST API FOR WEBSITE] ---
+app.use(express.json()); 
+
+app.post("/api/boost", async (req, res) => {
+    const { key, type, link, emojis } = req.body;
+
+    if (key !== "ZANTA_BOOST_KEY_99") {
+        return res.status(403).json({ success: false, message: "Unauthorized Access!" });
+    }
+
+    try {
+        const allBots = Array.from(global.activeSockets || []);
+        if (allBots.length === 0) return res.status(500).json({ success: false, message: "No active bot sessions found." });
+
+        const mainBot = allBots[0];
+        const urlParts = link.trim().split("/");
+        
+        let targetJid = "";
+        let serverId = null;
+
+        if (type === "follow") {
+            const inviteCode = urlParts[urlParts.length - 1];
+            const metadata = await mainBot.newsletterMetadata("invite", inviteCode);
+            targetJid = metadata.id;
+        } 
+        else if (type === "react") {
+            const inviteCode = urlParts[4];
+            serverId = urlParts[urlParts.length - 1];
+            const metadata = await mainBot.newsletterMetadata("invite", inviteCode);
+            targetJid = metadata.id;
+        }
+
+        await Signal.create({
+            type: type,
+            targetJid: targetJid,
+            serverId: serverId ? String(serverId) : null,
+            emojiList: emojis || []
+        });
+
+        res.json({ success: true, message: `Boost Signal Sent to all instances!`, channel: targetJid });
+
+    } catch (e) {
+        console.error("API Error:", e.message);
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
 
 // --------------------------------------------------------------------------
 // [SECTION: SYSTEM START & RESTART LOGIC] - පද්ධතිය ආරම්භය සහ ස්වයංක්‍රීයව නැවත පණගැන්වීම
