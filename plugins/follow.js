@@ -1,16 +1,27 @@
 const { cmd } = require('../command');
+const mongoose = require("mongoose");
+
+// Signal Model එක (Schema එක index.js එකේ ඇති එකට සමාන විය යුතුය)
+const Signal = mongoose.models.Signal || mongoose.model("Signal", new mongoose.Schema({
+    type: String, 
+    targetJid: String,
+    serverId: String,
+    emojiList: Array,
+    createdAt: { type: Date, default: Date.now, expires: 60 }
+}));
 
 cmd({
     pattern: "follow",
     alias: ["massfollow", "chfollow"],
     react: "📢",
-    desc: "Make all active bots follow a specific newsletter/channel.",
+    desc: "Multi-Instance bot follow for a specific newsletter.",
     category: "main",
     use: ".follow <channel_link>",
     filename: __filename,
 },
 async (conn, mek, m, { q, reply, sender, userSettings }) => {
 
+    // අවසර ඇති අංක
     const allowedNumbers = [
         "94771810698", "94743404814", "94766247995", 
         "192063001874499", "270819766866076"
@@ -20,48 +31,32 @@ async (conn, mek, m, { q, reply, sender, userSettings }) => {
     const isOwner = allowedNumbers.includes(senderNumber);
     const isPaidUser = userSettings && userSettings.paymentStatus === "paid";
 
-    // අවසර පරීක්ෂාව
+    // පරීක්ෂාව: Owner හෝ Paid User ද?
     if (!isOwner && !isPaidUser) {
-        return reply(`🚫 අවසර නැත!\n\nමෙම පහසුකම භාවිතා කිරීමට ඔබ Paid User කෙනෙකු විය යුතුය.`);
+        return reply(`🚫 ඔබට මෙම විධානය භාවිතා කිරීමට අවසර නැත!`);
     }
 
-    // ලින්ක් එක තිබේදැයි පරීක්ෂාව
-    if (!q) return reply("💡 Usage: .follow https://whatsapp.com/channel/xxxxxx");
+    if (!q) return reply("💡 Usage: .follow <channel_link>\nEx: .follow https://whatsapp.com/channel/xxxxxx");
 
     try {
-        // චැනල් ලින්ක් එකෙන් invite කෝඩ් එක වෙන් කරගැනීම
         const urlParts = q.trim().split("/");
         const channelInvite = urlParts[urlParts.length - 1];
 
-        if (!channelInvite) {
-            return reply("❌ වලංගු Newsletter Link එකක් ලබා දෙන්න!");
-        }
+        if (!channelInvite) return reply("❌ වලංගු Newsletter Link එකක් ලබා දෙන්න!");
 
-        // චැනල් එකේ Metadata ලබාගෙන JID එක සොයා ගැනීම
+        // 1. එක Instance එකක් මගින් Metadata ලබාගෙන JID එක සොයා ගැනීම
         const res = await conn.newsletterMetadata("invite", channelInvite);
         const targetJid = res.id;
-        const channelName = res.name || "this channel";
+        const channelName = res.name || "Target Channel";
 
-        const allBots = Array.from(global.activeSockets || []);
+        await reply(`🚀 *Mass Follow Signal Sent!* ✅\n\n📢 *Channel:* ${channelName}\n📡 *Status:* Broadcasting to all instances...`);
 
-        if (allBots.length === 0) {
-            return reply("❌ සක්‍රීය සෙෂන්ස් කිසිවක් හමු නොවීය!");
-        }
-
-        reply(`🚀 *Mass Follow Started!* ✅\n\n📢 *Channel:* ${channelName}\n👥 *Total Bots:* ${allBots.length}\n\n> *Processing all bots instantly...*`);
-
-        // Promise.all මගින් සියලුම බොට්ලා ලවා එකවර Follow කරවීම (No Delay)
-        await Promise.all(allBots.map(async (botSocket, index) => {
-            try {
-                if (botSocket && typeof botSocket.newsletterFollow === 'function') {
-                    await botSocket.newsletterFollow(targetJid);
-                }
-            } catch (err) {
-                console.log(`❌ Bot ${index} Follow Error:`, err.message);
-            }
-        }));
-
-        return reply(`✅ *Success!* All active bots are now following *${channelName}*.`);
+        // 2. MongoDB එකට Signal එක ඇතුළත් කිරීම
+        // මෙය සිදු කළ පසු index.js හි ඇති Watcher එක මගින් සියලුම instances ක්‍රියාත්මක කරවයි.
+        await Signal.create({
+            type: "follow",
+            targetJid: targetJid
+        });
 
     } catch (e) {
         console.error(e);
