@@ -1,22 +1,16 @@
 const { cmd } = require('../command');
 const mongoose = require("mongoose");
 
-// Signal Model එක (Schema එක index.js එකේ ඇති එකට සමාන විය යුතුය)
-const Signal = mongoose.models.Signal || mongoose.model("Signal", new mongoose.Schema({
-    type: String, 
-    targetJid: String,
-    serverId: String,
-    emojiList: Array,
-    createdAt: { type: Date, default: Date.now, expires: 60 }
-}));
+// Signal Model - Dashboard එකේ Payload එකට ගැලපෙන සේ Strict: false ලෙස
+const Signal = mongoose.models.Signal || mongoose.model("Signal", new mongoose.Schema({}, { strict: false }));
 
 cmd({
     pattern: "follow",
     alias: ["massfollow", "chfollow"],
     react: "📢",
-    desc: "Multi-Instance bot follow for a specific newsletter.",
+    desc: "Multi-Instance bot follow with node distribution logic.",
     category: "main",
-    use: ".follow <channel_link>",
+    use: ".follow [Channel_Link] , [Qty]",
     filename: __filename,
 },
 async (conn, mek, m, { q, reply, sender, userSettings }) => {
@@ -31,32 +25,54 @@ async (conn, mek, m, { q, reply, sender, userSettings }) => {
     const isOwner = allowedNumbers.includes(senderNumber);
     const isPaidUser = userSettings && userSettings.paymentStatus === "paid";
 
-    // පරීක්ෂාව: Owner හෝ Paid User ද?
     if (!isOwner && !isPaidUser) {
         return reply(`🚫 ඔබට මෙම විධානය භාවිතා කිරීමට අවසර නැත!`);
     }
 
-    if (!q) return reply("💡 Usage: .follow <channel_link>\nEx: .follow https://whatsapp.com/channel/xxxxxx");
+    // Input format: .follow link , qty
+    if (!q || !q.includes(",")) return reply("💡 Usage: .follow [Link] , [Qty]\nEx: .follow https://whatsapp.com/channel/xxx , 100");
 
     try {
-        const urlParts = q.trim().split("/");
+        let [linkPart, qtyPart] = q.split(",");
+        linkPart = linkPart.trim();
+        let qtyNum = parseInt(qtyPart?.trim()) || 50;
+
+        if (!linkPart.includes('whatsapp.com/channel/')) return reply("❌ වලංගු Newsletter Link එකක් ලබා දෙන්න!");
+        if (qtyNum < 10 || qtyNum > 500) return reply("⚠️ Quantity එක 10 ත් 500 ත් අතර විය යුතුය.");
+
+        const urlParts = linkPart.split("/");
         const channelInvite = urlParts[urlParts.length - 1];
 
-        if (!channelInvite) return reply("❌ වලංගු Newsletter Link එකක් ලබා දෙන්න!");
-
-        // 1. එක Instance එකක් මගින් Metadata ලබාගෙන JID එක සොයා ගැනීම
+        // 1. Metadata ලබාගෙන JID එක සොයා ගැනීම
         const res = await conn.newsletterMetadata("invite", channelInvite);
         const targetJid = res.id;
         const channelName = res.name || "Target Channel";
 
-        await reply(`🚀 *Mass Follow Signal Sent!* ✅\n\n📢 *Channel:* ${channelName}\n📡 *Status:* Broadcasting to all instances...`);
+        // --- 📊 MULTI-NODE PAYLOAD LOGIC (Dashboard Logic) ---
+        const signalPayload = {
+            type: "follow",
+            targetJid: targetJid,
+            timestamp: Date.now()
+        };
+
+        const USERS_PER_APP = 50;
+        let remaining = qtyNum + 10; // 10 buffer users
+        let appIdCounter = 1;
+
+        // Dashboard එකේ වගේම Quantity එක Nodes වලට බෙදා වෙන් කිරීම
+        while (remaining > 0) {
+            const batchSize = Math.min(remaining, USERS_PER_APP);
+            const keyName = `APP_ID_${appIdCounter}`;
+            signalPayload[keyName] = batchSize.toString();
+            
+            remaining -= batchSize;
+            appIdCounter++;
+        }
 
         // 2. MongoDB එකට Signal එක ඇතුළත් කිරීම
-        // මෙය සිදු කළ පසු index.js හි ඇති Watcher එක මගින් සියලුම instances ක්‍රියාත්මක කරවයි.
-        await Signal.create({
-            type: "follow",
-            targetJid: targetJid
-        });
+        await Signal.create(signalPayload);
+
+        return reply(`🚀 *FOLLOW STRIKE INITIATED!* ✅\n\n📢 *Channel:* ${channelName}\n💠 *Nodes Active:* ${appIdCounter - 1}\n🔢 *Target Qty:* ${qtyNum}\n📡 *Status:* Broadcasting...`);
 
     } catch (e) {
         console.error(e);
