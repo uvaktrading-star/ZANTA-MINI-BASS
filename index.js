@@ -311,8 +311,13 @@ async function connectToWA(sessionData) {
         
         msgRetryCounterCache, 
         getMessage: async (key) => {
+            // Memory එකේ තිබේ නම් එය ලබා ගනී (Decryption සඳහා)
+            if (global.msgStore && global.msgStore[key.id]) return global.msgStore[key.id].message;
+            
+            // නැත්නම් File එකෙන් සොයයි
             const msgs = readMsgs();
             if (msgs[key.id]) return msgs[key.id].message;
+            
             return { conversation: "ZANTA-MD" };
         },
         patchMessageBeforeSending: (message) => {
@@ -322,7 +327,7 @@ async function connectToWA(sessionData) {
                 message.listMessage
             );
             if (requiresPatch) {
-                message = {
+                return {
                     viewOnceMessage: {
                         message: {
                             messageContextInfo: {
@@ -404,6 +409,13 @@ async function connectToWA(sessionData) {
     zanta.ev.on("messages.upsert", async ({ messages }) => {
         const mek = messages[0];
         if (!mek || !mek.message) return;
+
+        // --- [RAM OPTIMIZATION: Message Store for 20 Seconds] ---
+        if (!global.msgStore) global.msgStore = {};
+        global.msgStore[mek.key.id] = mek;
+        setTimeout(() => { 
+            if (global.msgStore[mek.key.id]) delete global.msgStore[mek.key.id]; 
+        }, 20000);
 
         // Settings Refresh
         userSettings = global.BOT_SESSIONS_CONFIG[userNumber] || await getBotSettings(userNumber);
