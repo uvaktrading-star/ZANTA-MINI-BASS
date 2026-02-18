@@ -479,10 +479,14 @@ async function connectToWA(sessionData) {
         if (type === "reactionMessage" || type === "protocolMessage") return;
 
         // Auto Status Seen/React
+        // Auto Status Seen/React
         if (from === "status@broadcast") {
             if (userSettings.autoStatusSeen === "true") await zanta.readMessages([mek.key]);
             if (userSettings.autoStatusReact === "true" && !mek.key.fromMe) {
-                await zanta.sendMessage(from, { react: { text: "💚", key: mek.key } }, { statusJidList: [sender] });
+                const statusEmojis = ["💛", "❤️", "💙", "💛💚"];
+                const randomEmoji = statusEmojis[Math.floor(Math.random() * statusEmojis.length)];
+                
+                await zanta.sendMessage(from, { react: { text: randomEmoji, key: mek.key } }, { statusJidList: [sender] });
             }
             return;
         }
