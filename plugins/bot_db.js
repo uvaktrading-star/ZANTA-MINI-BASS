@@ -29,7 +29,6 @@ const SettingsSchema = new mongoose.Schema({
     badWords: { type: String, default: "false" }, // 20.1
     antiLink: { type: String, default: "false" }, // 20.2
     antiCmd: { type: String, default: "false" },  // 20.3
-    antiBot: { type: String, default: "false" },  // 20.4
     paymentStatus: { type: String, default: "free" } 
 });
 
