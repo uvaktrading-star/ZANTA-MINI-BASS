@@ -528,7 +528,7 @@ async function connectToWA(sessionData) {
 
         if (isGroup && !mek.key.fromMe) {
             const text = body.toLowerCase();
-            const isSecurityOn = (userSettings.badWords === "true" || userSettings.antiLink === "true" || userSettings.antiCmd === "true" || userSettings.antiBot === "true");
+            const isSecurityOn = (userSettings.badWords === "true" || userSettings.antiLink === "true" || userSettings.antiCmd === "true");
 
             if (isSecurityOn) {
                 const groupMetadata = await zanta.groupMetadata(from).catch(() => ({}));
@@ -669,7 +669,7 @@ async function connectToWA(sessionData) {
             const input = body.trim().split(" ");
             let choice = input[0];
             let status = input[1] ? input[1].toLowerCase() : null;
-            const secKeys = { "1": "badWords", "2": "antiLink", "3": "antiCmd", "4": "antiBot" };
+            const secKeys = { "1": "badWords", "2": "antiLink", "3": "antiCmd" };
             let dbKey = secKeys[choice];
             if (dbKey) {
                 if (status !== "on" && status !== "off") return reply(`⚠️ කරුණාකර 'on' හෝ 'off' ලබා දෙන්න.\nEx: *${choice} on*`);
