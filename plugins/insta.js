@@ -18,7 +18,7 @@ cmd({
         await bot.sendMessage(from, { react: { text: "🔍", key: mek.key } });
 
         // Oyaage Vercel API eka paviachchi kirima
-        const apiUrl = `https://instagram-green-ten.vercel.app/api/insta?url=${encodeURIComponent(q)}`;
+        const apiUrl = `https://zanta-api.vercel.app/api/insta?url=${encodeURIComponent(q)}`;
         const response = await axios.get(apiUrl);
 
         if (response.data.status) {
