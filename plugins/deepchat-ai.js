@@ -2,8 +2,8 @@ const { cmd } = require("../command");
 const axios = require("axios");
 
 cmd({
-    pattern: "ai2",
-    alias: ["deepai", "chat", "zanta"],
+    pattern: "ai",
+    alias: ["deepai"],
     react: "🤖",
     desc: "Chat with DeepAI (ZANTA-MD AI).",
     category: "tools",
