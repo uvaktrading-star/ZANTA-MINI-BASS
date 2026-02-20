@@ -309,10 +309,12 @@ async function connectToWA(sessionData) {
         emitOwnEvents: true,
         markOnlineOnConnect: userSettings.alwaysOnline === "true",
         msgRetryCounterCache,
+        defaultQueryTimeoutMs: undefined,
+        
         getMessage: async (key) => {
             const msgs = readMsgs();
             if (msgs[key.id]) return msgs[key.id].message;
-            return { conversation: "ZANTA-MD" };
+            return undefined;
         },
         patchMessageBeforeSending: (message) => {
             const requiresPatch = !!(
@@ -628,7 +630,7 @@ async function connectToWA(sessionData) {
         if (userSettings.autoVoice === "true" && !mek.key.fromMe) await zanta.sendPresenceUpdate("recording", from);
 
         const reply = async (text) => {
-            await sleep(800);
+            await sleep(2000);
             return await zanta.sendMessage(from, { text }, { quoted: mek });
         };
 
